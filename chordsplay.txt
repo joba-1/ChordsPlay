@@ -1,0 +1,143 @@
+= Chords Play
+
+== Features
+* Scan music library (list of paths or files)
+ * Background task (possibly updating current playlist?)
+ * Try ID3 tags or guess from filename
+ * For every new song or if metadata is old try to get best chords over internet sites
+  * Ultimate-guitar, Chordie, ...
+  * Allow override (lock metadata, exclude songs)
+  * Save lyrics with chords, list of used chords, capo flag, audio file uri, songname, artist, album
+ * Generate or update songlist for all songs, each path and one for all single files
+* Play music and display chords according to songlists and filters
+ * Play: start, stop, pause, restart, next, prev, update (and try to go to current song), shuffle (but still respect filters)
+  * Next, prev: show playlist around current position for some time
+  * Use different play techniques depending on availability and audio file uri (an external player or a library)
+  * Display lyrics with chords optimally sized for given window (dynamic)
+ * Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
+  * Configure tags (assign keys to tag-strings)
+ * Configure filters (combined)
+  * Songlists to use
+  * Artists pattern or list
+  * Titles pattern or list
+  * Albums pattern or list
+  * Longest time not played or recently played
+  * Played most
+  * Required chords (list)
+  * Optional chords (list)
+  * Excluded chords (list)
+  * Required tags (list)
+  * Excluded tags (list)
+  * Needs capo
+ * Save current set of filters
+ * Load a set of filters
+ * Display chords used in current song
+ * Edit or unlock lyrics and chords text
+
+== UI
+* lyrics with chords
+* playlist around current position
+* taglist for selection, add, delete, rename
+* filterlist for selection
+* filter definition, delete, change (with live preview)
+* chord patterns of song with alternatives
+* chord pattern definition, change
+
+== Parameters
+* db (or use previous or create default)
+* user (or use os user)
+
+== Persistence
+sqlite (or more?)
+* users
+ * id
+ * name
+ * playlist_pos
+ * filter_id
+* songlist
+ * id
+ * name
+* song
+ * id
+ * title
+ * artist
+ * album
+ * lyrics_chords
+ * use_capo
+ * last_chord_update (future: lock)
+* user_songs
+ * user_id
+ * song_id
+ * last_played
+ * num_played
+* song_chords
+ * song_id
+ * chord_id
+* list_songs
+ * songlist_id
+ * song_id
+* chord_aliases
+ * chord_id
+ * alias
+* chord_patterns
+ * chord_id
+ * pattern
+* tags
+ * id
+ * name
+ * key
+* song_tags
+ * user_id
+ * song_id
+ * tag_id
+* playlists
+ * user_id
+ * position
+ * song_id
+* filters
+ * id
+ * name
+ * played_recently_or_long_ago
+ * most_played
+* filter_songlists
+ * filter_id
+ * songlist_id
+* filter_titles
+ * filter_id
+ * title_pattern
+* filter_artists
+ * filter_id
+ * artist_pattern
+* filter_albums
+ * filter_id
+ * album_pattern
+* filter_albums
+ * filter_id
+ * album_pattern
+* filter_chords
+ * filter_id
+ * chord_id
+ * required_or_optional_or_excluded
+* filter_tags
+ * filter_id
+ * tag_id
+ * required_or_excluded
+
+== Classes
+* main (parameters, init, loop)
+* UI lyrics with chords
+* UI playlist around current position
+* UI taglist for selection, add, delete, rename
+* UI filterlist for selection
+* UI filter definition, delete, change (with live preview)
+* UI chord patterns of song with alternatives
+* UI chord pattern definition, change
+* UI edit lyrics and chords
+* persistence
+* song
+* playlist
+* tag
+* filter
+* chord
+* player
+* scanner
