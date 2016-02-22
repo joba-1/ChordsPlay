@@ -6,9 +6,15 @@
  * Try ID3 tags or guess from filename
  * For every new song or if metadata is old try to get best chords over internet sites
   * Ultimate-guitar, Chordie, ...
-  * Allow override (lock metadata, exclude songs)
+  * Allow override (lock metadata, exclude songs)  
   * Save lyrics with chords, list of used chords, capo flag, audio file uri, songname, artist, album
  * Generate or update songlist for all songs, each path and one for all single files
+ * TODO (V2)
+  * Update current playlist?
+  * Chordie or others
+  * List of used chords
+  * Capo
+  
 * Play music and display chords according to songlists and filters
  * Play: start, stop, pause, restart, next, prev, update (and try to go to current song), shuffle (but still respect filters)
   * Next, prev: show playlist around current position for some time
@@ -42,86 +48,18 @@
 * filter definition, delete, change (with live preview)
 * chord patterns of song with alternatives
 * chord pattern definition, change
+* add or delete song_lists (directories and files)
+
+* currently no playlist editor, always generated
 
 == Parameters
-* db (or use previous or create default)
-* user (or use os user)
+* config: config file, optionally containing
+ * db (or use previous or create default)
+ * user (or use os user)
 
 == Persistence
 sqlite (or more?)
-* users
- * id
- * name
- * playlist_pos
- * filter_id
-* songlist
- * id
- * name
-* song
- * id
- * title
- * artist
- * album
- * lyrics_chords
- * use_capo
- * last_chord_update (future: lock)
-* user_songs
- * user_id
- * song_id
- * last_played
- * num_played
-* song_chords
- * song_id
- * chord_id
-* list_songs
- * songlist_id
- * song_id
-* chord_aliases
- * chord_id
- * alias
-* chord_patterns
- * chord_id
- * pattern
-* tags
- * id
- * name
- * key
-* song_tags
- * user_id
- * song_id
- * tag_id
-* playlists
- * user_id
- * position
- * song_id
-* filters
- * id
- * name
- * played_recently_or_long_ago
- * most_played
-* filter_songlists
- * filter_id
- * songlist_id
-* filter_titles
- * filter_id
- * title_pattern
-* filter_artists
- * filter_id
- * artist_pattern
-* filter_albums
- * filter_id
- * album_pattern
-* filter_albums
- * filter_id
- * album_pattern
-* filter_chords
- * filter_id
- * chord_id
- * required_or_optional_or_excluded
-* filter_tags
- * filter_id
- * tag_id
- * required_or_excluded
+see ChordsPlay/db.py
 
 == Classes
 * main (parameters, init, loop)
@@ -133,11 +71,12 @@ sqlite (or more?)
 * UI chord patterns of song with alternatives
 * UI chord pattern definition, change
 * UI edit lyrics and chords
-* persistence
-* song
+* UI add or delete song_lists (directories and files)
+* Db
+* Song
 * playlist
-* tag
-* filter
-* chord
-* player
-* scanner
+* Tag
+* Filter
+* Chord
+* Play
+* Scan
