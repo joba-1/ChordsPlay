@@ -58,18 +58,34 @@ class Scan(threading.Thread):
                             db.addListSong(song_list, os.path.join(path, file))
                             if self.quit.is_set(): 
                                 return
+                else:
+                    log.info('ignoring song list "{}"'.format(song_list))
 
             log.debug("unchecked songs")
             for rowid, title, artist in db.uncheckedSongs():
-                chords = ChordsPlay.chords.Chords().request(title, artist)
-                # todo capo, chord list
-                db.updateLyrics(rowid, chords.lyrics, chords.url)
+                log.debug("check {} by {}".format(title, artist))
+                ch = ChordsPlay.chords.Chords()
+                try:
+                    if ch.request(title, artist):
+                        # todo capo, chord list
+                        pass
+                    db.updateLyrics(rowid, ch.lyrics, ch.url)
+                except Exception:
+                    log.error("updating lyrics failed for {} by {}".format(title, artist))
+            db.commit()
             
             log.debug("recheck songs")
             for rowid, title, artist in db.recheckSongs():
-                chords = ChordsPlay.chords.Chords().request(title, artist)
-                # todo capo, chord list
-                db.updateLyrics(rowid, chords.lyrics, chords.url)
+                log.debug("recheck {} by {}".format(title, artist))
+                ch = ChordsPlay.chords.Chords()
+                try:
+                    if ch.request(title, artist):
+                        # todo capo, chord list
+                        pass
+                    db.updateLyrics(rowid, ch.lyrics, ch.url)
+                except Exception:
+                    log.error("updating lyrics failed for {} by {}".format(title, artist))
+            db.commit()
                 
         finally:    
             log.info("Finished")

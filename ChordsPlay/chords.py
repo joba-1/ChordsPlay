@@ -39,8 +39,8 @@ class Chords(object):
             'user-agent': 'ChordsPlay/0.1'
         }
         rq_chords = requests.get(url, params=params, headers=headers)
-        log.debug("Url:", rq_chords.url)
-        log.debug("Text:", rq_chords.text)
+        log.debug("Url: {}".format(rq_chords.url))
+        log.debug("Text: {}".format(rq_chords.text))
         songlist = r'<a href="([^"]*?)" class="song result-link".+?<span class="r_([0-9])"></span>.+?<b class="ratdig">([0-9]+)</b>'
         rx_chords = re.compile(songlist, re.DOTALL)
         max_rating = 0
@@ -62,13 +62,16 @@ class Chords(object):
             self.url = rq_chords.url
             return False
         rq_chord = requests.get(best_link, headers=headers)
-        chord=r'.*?(<pre>.*</pre>).*/print/'
-        rx_chord = re.compile(chord, re.DOTALL)
+        log.debug("Url: {}".format(rq_chord.url))
+        log.debug("Text: {}".format(rq_chord.text))
+        r_chord=r'.*<pre[ >].*</pre>.*(<pre[ >].*</pre>).*/print/'
+        rx_chord = re.compile(r_chord, re.DOTALL)
         match = re.match(rx_chord, rq_chord.text)
         self.url = rq_chord.url
         if match == None:
             log.warn('No chords at "{}"'.format(rq_chord.url))
             return False
         lyrics = match.group(1)
-        self.lyrics = re.sub(r'<.*?>', '', lyrics)
+        self.lyrics = re.sub(r'<.*?>', '', lyrics).strip()
+        log.debug("Lyrics: {}".format(self.lyrics))
         return True

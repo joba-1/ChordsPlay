@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 '''
-ChordsPlay.main -- ChordsPlay main entry point
+ChordsPlay.chordsplay -- ChordsPlay main entry point
 
-ChordsPlay.main supports guitar players by showing lyrics and chords while playing songs
+ChordsPlay.chordsplay supports guitar players by showing lyrics and chords while playing songs
 
 It defines main
 
@@ -20,6 +20,7 @@ It defines main
 import sys
 import os
 import logging
+import traceback
 
 from optparse import OptionParser
 from configparser import SafeConfigParser
@@ -63,7 +64,7 @@ def main(argv=None):
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
 
         # set defaults
-        parser.set_defaults(cfgfile=os.path.expanduser("~/.ChordsPlay.cfg"))
+        parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
 
         # process options
         (opts, args) = parser.parse_args(argv)
@@ -78,24 +79,23 @@ def main(argv=None):
         # configuration #
         defaults = {
                     "user": os.getenv('USER', 'anonymous'),
-                    "database": os.path.expanduser("~/.ChordsPlay.db")
+                    "database": os.path.expanduser("~/.{}.db".format(program_name))
                     }
         config = SafeConfigParser(defaults)
-        config.add_section('ChordsPlay')
+        config.add_section(program_name)
         config.read(os.path.expanduser(opts.cfgfile))
         
         # db connection #
-        connector = config.get('ChordsPlay', 'database')
-        user = config.get('ChordsPlay', 'user')
+        connector = config.get(program_name, 'database')
+        user = config.get(program_name, 'user')
         db = ChordsPlay.db.Db(connector, user)
         
         # media locations #
         locations = db.getSongLists()
-        if len(args) > 0:
-            new_locations = set(args) - locations
-            if len(new_locations) > 0:
-                db.addSongLists(new_locations)
-                locations = db.getSongLists()
+        new_locations = set([(arg,) for arg in args]) - locations
+        if len(new_locations) > 0:
+            db.addSongLists(new_locations)
+            locations = db.getSongLists()
 
         # media scanner #
         log.debug("Starting scanner thread")
@@ -104,7 +104,7 @@ def main(argv=None):
         
         # gui main loop #
         log.debug("Starting main loop")
-        gui = ChordsPlay.gui.Gui('ChordsPlay')
+        gui = ChordsPlay.gui.Gui(program_name)
         gui.mainloop()
 
         # quit #
@@ -112,10 +112,8 @@ def main(argv=None):
         scanner.quit.set()
         scanner.join()
         
-    except Exception as e:
-        indent = len(program_name) * " "
-        sys.stderr.write(program_name + ": " + repr(e) + "\n")
-        sys.stderr.write(indent + "  for help use --help\n")
+    except Exception:
+        traceback.print_exc()
         return 2
     
     finally:

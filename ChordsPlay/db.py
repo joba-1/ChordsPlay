@@ -27,7 +27,7 @@ class Db(object):
         self.conn.executescript("""
             create table if not exists song_lists ( 
                 id            integer not null primary key autoincrement,
-                name          text not null
+                name          text not null unique
             );
             create table if not exists users ( 
                 id            integer not null primary key autoincrement,
@@ -39,12 +39,13 @@ class Db(object):
             create table if not exists songs ( 
                 id            integer not null primary key autoincrement,
                 title         text not null,
-                artist        text,
+                artist        text not null default '',
                 album         text,
                 lyrics_chords text default null,
                 lyrics_url    text default null,
                 uses_capo     char(1) default null check(uses_capo in ('y', 'n')),
-                chord_update  char(10) default null
+                chord_update  char(10) default null,
+                unique        (title, artist)
             );
             create table if not exists user_songs ( 
                 user_id       int not null references users on delete restrict,
@@ -120,14 +121,24 @@ class Db(object):
             );
         """)
         try:
-            self.conn.execute("insert into users (name) values (?)", [user])
+            self.conn.execute("insert into users (name) values (?)", (user,))
+            log.info("created user {}".format(user))
         except sqlite3.IntegrityError:
+            log.debug("found user {}".format(user))
             pass
         try:
-            self.conn.execute("insert into song_lists (name) values (?)", [''])
+            self.conn.execute("insert into song_lists (name) values (?)", ('',))
+            log.info("db initialized")
         except sqlite3.IntegrityError:
+            log.debug("db opened")
             pass
         self.conn.commit()
+    
+    def commit(self):
+        self.conn.commit()
+        
+    def rollback(self):
+        self.conn.rollback()
         
     def getSongLists(self):
         '''
@@ -135,7 +146,9 @@ class Db(object):
         '''
         cur = self.conn.cursor()
         cur.execute('SELECT name FROM song_lists')
-        return set(cur)
+        ret = set(cur)
+        cur.close()
+        return ret
         
     def addSongLists(self, lists):
         '''
@@ -143,21 +156,37 @@ class Db(object):
         '''
         try:
             self.conn.executemany('INSERT INTO song_lists (name) VALUES (?)', lists)
-            self.conn.commit();
+            self.conn.commit()
+            log.info("created song lists {}".format(repr(lists)))
         except sqlite3.IntegrityError:
-            self.conn.rollback();
+            log.error("duplicate song list in {}".format(repr(lists)))
+            self.conn.rollback()
+        except sqlite3.Error:
+            log.error("creating song lists failed: {}".format(repr(lists)))
+            self.conn.rollback()
         
     def addListSong(self, song_list, song_file):
         '''
         add a song and add this to list_songs
         '''
         song = ChordsPlay.song.Song(song_file)
+        if song.title == None:
+            log.debug("file without title ignored: {}".format(song_file))
+            return
+            
         try:
             self.conn.execute('INSERT INTO songs (title, artist, album) VALUES (?, ?, ?)', song.tags())
-            self.conn.execute('INSERT INTO list_songs (song_lists_id, filename, song_id) SELECT id, ?, last_insert_rowid() FROM song_lists WHERE name = ?', song_file, song_list)
-            self.conn.commit();
+            self.conn.execute('INSERT INTO list_songs (song_lists_id, filename, song_id) SELECT id, ?, last_insert_rowid() FROM song_lists WHERE name = ?', (song_file, song_list))
+            self.conn.commit()
+            log.info("added song {}".format(','.join(song.tags())))
         except sqlite3.IntegrityError:
-            self.conn.rollback();
+            log.debug("duplicate song {}".format(','.join(song.tags())))
+            self.conn.rollback()
+        except sqlite3.InterfaceError as e:
+            log.error("adding song {} failed:".format(','.join(song.tags())))
+            self.conn.rollback()
+            e.data = song.tags()
+            raise
 
     def uncheckedSongs(self):
         stmt = '''
@@ -188,9 +217,14 @@ class Db(object):
             yield row
     
     def updateLyrics(self, rowid, lyrics, url):
-        if lyrics == None:
-            log.warn("no lyrics at {}".format(url))
-            self.conn.execute('UPDATE songs SET chord_update = date(now) WHERE rowid = ?', rowid)
-        else:
-            log.info("save lyrics of {}".format(url))
-            self.conn.execute('UPDATE songs SET chord_update = date(now), lyrics_url = ?, lyrics_chords = ? WHERE rowid = ?', url, lyrics, rowid)
+        try:
+            if lyrics == None:
+                log.warn("no lyrics at {}".format(url))
+                self.conn.execute("UPDATE songs SET chord_update = date('now') WHERE rowid = ?", (rowid,))
+            else:
+                log.info("save lyrics of {}".format(url))
+                self.conn.execute("UPDATE songs SET chord_update = date('now'), lyrics_url = ?, lyrics_chords = ? WHERE rowid = ?", (url, lyrics, rowid))
+        except:
+            import traceback
+            traceback.print_exc()
+            raise
