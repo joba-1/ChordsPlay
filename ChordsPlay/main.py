@@ -19,25 +19,33 @@ It defines main
 
 import sys
 import os
+import logging
 
 from optparse import OptionParser
 from configparser import SafeConfigParser
 
 import ChordsPlay.db
 import ChordsPlay.scan
+import ChordsPlay.gui
 
 __all__ = []
 __version__ = 0.1
 __date__ = '2016-02-18'
 __updated__ = '2016-02-18'
 
-DEBUG = 1
+DEBUG = 0
 TESTRUN = 0
 PROFILE = 0
 
-def main(argv=None):
-    '''Command line options.'''
+# log init
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger(__name__)
+log.info('Started')
 
+
+def main(argv=None):
+
+    # Command line options
     program_name = os.path.basename(sys.argv[0])
     program_version = "v0.1"
     program_build_date = "%s" % __updated__
@@ -60,10 +68,10 @@ def main(argv=None):
         # process options
         (opts, args) = parser.parse_args(argv)
 
-        if opts.verbose > 0:
-            print("verbosity level = %d" % opts.verbose)
+        if opts.verbose != None:
+            log.debug("verbosity level = %d" % opts.verbose)
         if opts.cfgfile:
-            print("cfgfile = %s" % opts.cfgfile)
+            log.debug("cfgfile = %s" % opts.cfgfile)
 
         # MAIN BODY #
         
@@ -73,40 +81,45 @@ def main(argv=None):
                     "database": os.path.expanduser("~/.ChordsPlay.db")
                     }
         config = SafeConfigParser(defaults)
+        config.add_section('ChordsPlay')
         config.read(os.path.expanduser(opts.cfgfile))
         
         # db connection #
-        connector = config.get('ChordsPlay', 'database');
-        user = config.get('ChordsPlay', 'user');
+        connector = config.get('ChordsPlay', 'database')
+        user = config.get('ChordsPlay', 'user')
         db = ChordsPlay.db.Db(connector, user)
         
         # media locations #
-        locations = db.getLocations()
+        locations = db.getSongLists()
         if len(args) > 0:
             new_locations = set(args) - locations
             if len(new_locations) > 0:
-                db.addLocations(new_locations)
-                locations = db.getLocations()
+                db.addSongLists(new_locations)
+                locations = db.getSongLists()
 
         # media scanner #
+        log.debug("Starting scanner thread")
         scanner = ChordsPlay.scan.Scan(connector, user)
         scanner.start()
         
-        # main loop #
-        
-        # whenever convenient inside the mainloop #
-        if scanner.is_alive() == False:
-            scanner.join()
-        
+        # gui main loop #
+        log.debug("Starting main loop")
+        gui = ChordsPlay.gui.Gui('ChordsPlay')
+        gui.mainloop()
+
         # quit #
+        log.debug("Stopping scanner thread")
         scanner.quit.set()
         scanner.join()
         
     except Exception as e:
         indent = len(program_name) * " "
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
-        sys.stderr.write(indent + "  for help use --help")
+        sys.stderr.write(indent + "  for help use --help\n")
         return 2
+    
+    finally:
+        log.info('Finished')
 
 
 if __name__ == "__main__":

@@ -6,6 +6,9 @@ Created on 21.02.2016
 
 import requests;
 import re;
+import logging
+
+log = logging.getLogger(__name__)
 
 class Chords(object):
     '''
@@ -36,8 +39,8 @@ class Chords(object):
             'user-agent': 'ChordsPlay/0.1'
         }
         rq_chords = requests.get(url, params=params, headers=headers)
-        # print("Url:", rq_chords.url, file=sys.stderr)
-        # print("Text:", rq_chords.text, file=sys.stderr)
+        log.debug("Url:", rq_chords.url)
+        log.debug("Text:", rq_chords.text)
         songlist = r'<a href="([^"]*?)" class="song result-link".+?<span class="r_([0-9])"></span>.+?<b class="ratdig">([0-9]+)</b>'
         rx_chords = re.compile(songlist, re.DOTALL)
         max_rating = 0
@@ -47,15 +50,15 @@ class Chords(object):
             link, str_rating, str_ratings = match.groups()
             rating = int(str_rating)
             ratings = int(str_ratings)
-            # print("{0}*{1:2d}: {2}".format(rating, ratings, link), file=sys.stderr)
+            log.debug("{0}*{1:2d}: {2}".format(rating, ratings, link))
             if rating >= max_rating:
                 if rating > max_rating or ratings > max_ratings:
                     max_rating = rating
                     max_ratings = ratings
                     best_link = link
-                    # print("new best link", file=sys.stderr)
+                    log.debug("new best link")
         if best_link == None:
-            # sys.exit('No chords for song "{}" from artist "{}"'.format(song, artist))
+            log.warn('No chords for song "{}" from artist "{}"'.format(title, artist))
             self.url = rq_chords.url
             return False
         rq_chord = requests.get(best_link, headers=headers)
@@ -64,7 +67,7 @@ class Chords(object):
         match = re.match(rx_chord, rq_chord.text)
         self.url = rq_chord.url
         if match == None:
-            # sys.exit('No chords at "{}"'.format(rq_chord.url))
+            log.warn('No chords at "{}"'.format(rq_chord.url))
             return False
         lyrics = match.group(1)
         self.lyrics = re.sub(r'<.*?>', '', lyrics)

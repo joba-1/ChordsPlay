@@ -6,6 +6,9 @@ Created on 18.02.2016
 
 import sqlite3
 import ChordsPlay.song
+import logging
+
+log = logging.getLogger(__name__)
 
 class Db(object):
     '''
@@ -18,18 +21,20 @@ class Db(object):
         Connect to a database identified by connector
         If the database does not exist, create it
         '''
+        log.debug('connect with "{}" as "{}"'.format(connector, user))
         self.conn = sqlite3.connect(connector)
+        log.debug('Init db')
         self.conn.executescript("""
             create table if not exists song_lists ( 
                 id            integer not null primary key autoincrement,
-                name          text not null,
+                name          text not null
             );
             create table if not exists users ( 
                 id            integer not null primary key autoincrement,
                 name          text not null unique,
-                playlist_pos  int default null
+                playlist_pos  int default null,
                 filter_id     int default null references filters on delete restrict,
-                foreign key   (id, playlist_pos) references playlist on delete restrict,
+                foreign key   (id, playlist_pos) references playlist on delete restrict
             );
             create table if not exists songs ( 
                 id            integer not null primary key autoincrement,
@@ -55,7 +60,7 @@ class Db(object):
             );
             create table if not exists list_songs ( 
                 song_lists_id int not null references song_lists on delete cascade,
-                filename      text not null
+                filename      text not null,
                 song_id       int not null references songs on delete restrict,
                 primary key   (song_lists_id, song_id)
             );
@@ -88,13 +93,13 @@ class Db(object):
             create table if not exists filters ( 
                 id            integer not null primary key autoincrement,
                 name          text not null unique,
-                order         char(1) check(type in ('r', 'o', 'm', 'f')),
+                order_by      char(1) check(order_by in ('r', 'o', 'm', 'f'))
             );
             create table if not exists filter_patterns ( 
                 filter_id     int not null references filters on delete cascade,
                 type          char(1) not null check (type in ('a', 't', 'A')),
                 pattern       text not null,
-                unique        (filter_id, type_id, pattern)
+                unique        (filter_id, type, pattern)
             );
             create table if not exists filter_song_lists ( 
                 filter_id     int not null references filters on delete cascade,
@@ -104,19 +109,25 @@ class Db(object):
             create table if not exists filter_chords ( 
                 filter_id     int not null references filters on delete cascade,
                 chord_id      int not null references chords on delete restrict,
-                type          char(1) not null check (type in ('r', 'o', 'x'))
+                type          char(1) not null check (type in ('r', 'o', 'x')),
                 primary key   (filter_id, chord_id)
             );
             create table if not exists filter_tags ( 
                 filter_id     int not null references filters on delete cascade,
                 tag_id        int not null references tags on delete restrict,
-                type          char(1) not null check (type in ('r', 'x'))
+                type          char(1) not null check (type in ('r', 'x')),
                 primary key   (filter_id, tag_id)
             );
         """)
-        self.conn.execute("insert into users (name) values (?)", user)
-        self.conn.execute("insert into song_lists (name) values (?)", '')
-        self.conn.commit();
+        try:
+            self.conn.execute("insert into users (name) values (?)", [user])
+        except sqlite3.IntegrityError:
+            pass
+        try:
+            self.conn.execute("insert into song_lists (name) values (?)", [''])
+        except sqlite3.IntegrityError:
+            pass
+        self.conn.commit()
         
     def getSongLists(self):
         '''
@@ -130,18 +141,23 @@ class Db(object):
         '''
         add a set of song_lists (paths or files) containing songs
         '''
-        self.conn.executemany('INSERT INTO song_lists (name) VALUES (?)', lists)
-        self.conn.commit();
+        try:
+            self.conn.executemany('INSERT INTO song_lists (name) VALUES (?)', lists)
+            self.conn.commit();
+        except sqlite3.IntegrityError:
+            self.conn.rollback();
         
     def addListSong(self, song_list, song_file):
         '''
         add a song and add this to list_songs
-        todo: what if the song already exists?
         '''
         song = ChordsPlay.song.Song(song_file)
-        self.conn.execute('INSERT INTO songs (title, artist, album) VALUES (?, ?, ?)', song.tags())
-        self.conn.execute('INSERT INTO list_songs (song_lists_id, filename, song_id) SELECT id, ?, last_insert_rowid() FROM song_lists WHERE name = ?', song_file, song_list)
-        self.conn.commit();
+        try:
+            self.conn.execute('INSERT INTO songs (title, artist, album) VALUES (?, ?, ?)', song.tags())
+            self.conn.execute('INSERT INTO list_songs (song_lists_id, filename, song_id) SELECT id, ?, last_insert_rowid() FROM song_lists WHERE name = ?', song_file, song_list)
+            self.conn.commit();
+        except sqlite3.IntegrityError:
+            self.conn.rollback();
 
     def uncheckedSongs(self):
         stmt = '''
@@ -152,7 +168,8 @@ class Db(object):
             FROM 
                 songs
             WHERE
-                chord_update is NULL'''
+                chord_update is NULL
+        '''
         for row in self.conn.execute(stmt):
             yield row
 
@@ -161,18 +178,19 @@ class Db(object):
             SELECT 
                 rowid, 
                 title, 
-                artist,
+                artist
             FROM 
                 songs
             WHERE
-                date(chord_update) < date(now, '-1 month')
+                date(chord_update) < date('now', '-1 month')
         '''
         for row in self.conn.execute(stmt):
             yield row
     
     def updateLyrics(self, rowid, lyrics, url):
         if lyrics == None:
+            log.warn("no lyrics at {}".format(url))
             self.conn.execute('UPDATE songs SET chord_update = date(now) WHERE rowid = ?', rowid)
         else:
+            log.info("save lyrics of {}".format(url))
             self.conn.execute('UPDATE songs SET chord_update = date(now), lyrics_url = ?, lyrics_chords = ? WHERE rowid = ?', url, lyrics, rowid)
-            

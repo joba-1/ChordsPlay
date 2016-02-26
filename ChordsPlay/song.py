@@ -6,6 +6,9 @@ Created on 19.02.2016
 
 import os
 import mutagen.easyid3 
+import logging
+
+log = logging.getLogger(__name__)
 
 class Song(object):
     '''
@@ -37,6 +40,8 @@ class Song(object):
         self.title = id3['title']
         self.artist = id3['artist']
         self.album = id3['album']
+        
+        log.info('file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
         # todo: what if file has no tags?
         # todo: what if file has no title tag?
         
