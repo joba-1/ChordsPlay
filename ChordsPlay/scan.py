@@ -26,16 +26,45 @@ class Scan(threading.Thread):
         self.quit = threading.Event()
         self.connector = connector
         self.user = user
+        self.db = None
 
+    def updateLyrics(self, rowid, title, artist):
+        ch = ChordsPlay.chords.Chords()
+        try:
+            ch.request(title, artist)
+        except Exception:
+            log.error("fetching lyrics failed for {} by {}".format(title, artist))
+            self.db.rollback()
+            import traceback
+            traceback.print_exc()
+            return
+        
+        try:
+            self.db.updateLyrics(rowid, ch.lyrics, ch.url)
+        except Exception:
+            log.error("updating lyrics failed for {} by {}".format(title, artist))
+            self.db.rollback()
+            return
+        
+        if ch.lyrics != None:
+            try:
+                self.db.updateChords(rowid, ch.chords)
+            except Exception:
+                log.error("updating chords failed for {} by {}".format(title, artist))
+                self.db.rollback()
+                return
+
+        self.db.commit()
+        
     def run(self):
         log.info("Starting")
-        db = ChordsPlay.db.Db(self.connector, self.user)
+        self.db = ChordsPlay.db.Db(self.connector, self.user)
         try:
             log.debug("Connected")
             if self.quit.is_set(): 
                 return
             
-            song_lists = db.getSongLists()
+            song_lists = self.db.getSongLists()
             log.debug("{} song lists".format(len(song_lists)))
             if self.quit.is_set(): 
                 return
@@ -47,46 +76,33 @@ class Scan(threading.Thread):
                 
                 elif os.path.isfile(song_list):
                     log.debug('add single file "{}"'.format(song_list))
-                    db.addListSong('', song_list)
+                    self.db.addListSong('', song_list)
                     if self.quit.is_set(): 
                         return
 
                 elif os.path.isdir(song_list):
+                    pos = len(song_list)
                     for path, _, files in os.walk(song_list):
+                        rel_path = path[pos:]
                         for file in files:
-                            log.debug('add file "{}/{}"'.format(path, file))
-                            db.addListSong(song_list, os.path.join(path, file))
+                            rel_file = os.path.join(rel_path, file)
+                            log.debug('add file "{}"'.format(rel_file))
+                            self.db.addListSong(song_list, rel_file)
                             if self.quit.is_set(): 
                                 return
                 else:
                     log.info('ignoring song list "{}"'.format(song_list))
 
             log.debug("unchecked songs")
-            for rowid, title, artist in db.uncheckedSongs():
+            for rowid, title, artist in self.db.uncheckedSongs():
                 log.debug("check {} by {}".format(title, artist))
-                ch = ChordsPlay.chords.Chords()
-                try:
-                    if ch.request(title, artist):
-                        # todo capo, chord list
-                        pass
-                    db.updateLyrics(rowid, ch.lyrics, ch.url)
-                except Exception:
-                    log.error("updating lyrics failed for {} by {}".format(title, artist))
-            db.commit()
+                self.updateLyrics(rowid, title, artist)
             
             log.debug("recheck songs")
-            for rowid, title, artist in db.recheckSongs():
+            for rowid, title, artist in self.db.recheckSongs():
                 log.debug("recheck {} by {}".format(title, artist))
-                ch = ChordsPlay.chords.Chords()
-                try:
-                    if ch.request(title, artist):
-                        # todo capo, chord list
-                        pass
-                    db.updateLyrics(rowid, ch.lyrics, ch.url)
-                except Exception:
-                    log.error("updating lyrics failed for {} by {}".format(title, artist))
-            db.commit()
+                self.updateLyrics(rowid, title, artist)
                 
         finally:    
             log.info("Finished")
-            db.conn.close()
+            self.db.conn.close()

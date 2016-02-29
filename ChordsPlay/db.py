@@ -7,6 +7,7 @@ Created on 18.02.2016
 import sqlite3
 import ChordsPlay.song
 import logging
+import os
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class Db(object):
             );
             create table if not exists chords ( 
                 id            integer not null primary key autoincrement,
-                name          char(5) not null unique,
+                name          char(15) not null unique,
                 pattern       char(6)
             );
             create table if not exists chord_aliases ( 
@@ -169,9 +170,12 @@ class Db(object):
         '''
         add a song and add this to list_songs
         '''
-        song = ChordsPlay.song.Song(song_file)
+        # filename = os.path.join(song_list, song_file)
+        filename = song_list + song_file
+        # log.debug('{} + {} = {}'.format(song_list, song_file, filename))
+        song = ChordsPlay.song.Song(filename)
         if song.title == None:
-            log.debug("file without title ignored: {}".format(song_file))
+            log.debug("file without title ignored: {}".format(filename))
             return
             
         try:
@@ -224,6 +228,24 @@ class Db(object):
             else:
                 log.info("save lyrics of {}".format(url))
                 self.conn.execute("UPDATE songs SET chord_update = date('now'), lyrics_url = ?, lyrics_chords = ? WHERE rowid = ?", (url, lyrics, rowid))
+        except:
+            import traceback
+            traceback.print_exc()
+            raise
+
+    def updateChords(self, rowid, chords):
+        try:
+            self.conn.execute("DELETE FROM song_chords WHERE song_id = ?", (rowid,))
+          
+            if chords != None:
+                for chord in chords:
+                    try:
+                        self.conn.execute("INSERT INTO chords (name) VALUES (?)", (chord,))
+                    except sqlite3.IntegrityError:
+                        pass
+                    
+                    self.conn.execute('INSERT INTO song_chords (song_id, chord_id) SELECT ?, id from chords where name = ?', (rowid, chord))
+
         except:
             import traceback
             traceback.print_exc()

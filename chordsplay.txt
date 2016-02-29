@@ -80,3 +80,16 @@ see ChordsPlay/db.py
 * Chord
 * Play
 * Scan
+
+== Lyrics format
+Replace '[.,]' mit space
+Replace '(.*)' mit space
+Anfang:    ABCDEFGH 
+Weiter:    #mb245679 maj sus dim aug add (chord length max 6) opt /chord
+Leer:      >50% spaces oder nur [spaces]chord[nl]
+Next line: <50% spaces, length > 6
+Ausnahmen: 
+
+oder
+
+[chords]

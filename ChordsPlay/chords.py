@@ -21,11 +21,14 @@ class Chords(object):
         '''
         self.lyrics = None
         self.url = None
+        self.chords = None
 
     def request(self, title, artist):
         '''
         get lyrics and chords from the web and store them
         '''
+        
+        # generic request parameters
         url = "https://www.ultimate-guitar.com/search.php"
         params = {
             'view_state': 'advanced',
@@ -38,9 +41,13 @@ class Chords(object):
         headers = {
             'user-agent': 'ChordsPlay/0.1'
         }
+        
+        # request list of lyrics with chords
         rq_chords = requests.get(url, params=params, headers=headers)
         log.debug("Url: {}".format(rq_chords.url))
         log.debug("Text: {}".format(rq_chords.text))
+        
+        # extract url and ranking of lyrics with chords
         songlist = r'<a href="([^"]*?)" class="song result-link".+?<span class="r_([0-9])"></span>.+?<b class="ratdig">([0-9]+)</b>'
         rx_chords = re.compile(songlist, re.DOTALL)
         max_rating = 0
@@ -61,9 +68,13 @@ class Chords(object):
             log.warn('No chords for song "{}" from artist "{}"'.format(title, artist))
             self.url = rq_chords.url
             return False
+        
+        # request best lyrics with chords
         rq_chord = requests.get(best_link, headers=headers)
         log.debug("Url: {}".format(rq_chord.url))
         log.debug("Text: {}".format(rq_chord.text))
+        
+        # extract plain lyrics with chords from html page
         r_chord=r'.*<pre[ >].*</pre>.*(<pre[ >].*</pre>).*/print/'
         rx_chord = re.compile(r_chord, re.DOTALL)
         match = re.match(rx_chord, rq_chord.text)
@@ -73,5 +84,31 @@ class Chords(object):
             return False
         lyrics = match.group(1)
         self.lyrics = re.sub(r'<.*?>', '', lyrics).strip()
-        log.debug("Lyrics: {}".format(self.lyrics))
+        
+        # extract chords from lyrics
+        # heuristic is: chords are within [brackets] or chords are on lines with equal or more spaces than non chord chars
+        r_chordname=r'(\[)?\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)([] ])'
+        rx_chordname = re.compile(r_chordname)
+        rx_braced = re.compile(r'\([a-z]+\)')
+        self.chords = set()
+        for line in self.lyrics.splitlines():
+            line += ' '
+            line_without_chords = rx_chordname.sub('', line)
+            line_without_chords_or_spaces = rx_braced.sub('', line_without_chords.replace(' ', ''))
+            if len(line) > len(line_without_chords) and len(line_without_chords) > 2 * len(line_without_chords_or_spaces):
+                is_chord_line = True
+            else:
+                is_chord_line = False
+            log.debug("Lyrics: '{}'".format(line))
+            log.debug("no cho: '{}'".format(line_without_chords))
+            log.debug("no csp: '{}'".format(line_without_chords_or_spaces))
+            log.debug("chords: {}".format(is_chord_line))
+            for match in rx_chordname.finditer(line):
+                log.debug("match: {}".format(match.group(0)))
+                if is_chord_line or match.group(1) == '[':
+                    self.chords.add(match.group(2))
+        if self.chords == set():            
+            log.info("no chords found")
+        else:
+            log.info("chords: {}".format(', '.join(self.chords)))
         return True
