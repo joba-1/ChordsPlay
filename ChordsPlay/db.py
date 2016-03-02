@@ -44,7 +44,7 @@ class Db(object):
                 album         text,
                 lyrics_chords text default null,
                 lyrics_url    text default null,
-                uses_capo     char(1) default null check(uses_capo in ('y', 'n')),
+                capo          int default null check(capo is null or (capo >= 0 and capo <= 11))),
                 chord_update  char(10) default null,
                 unique        (title, artist)
             );
@@ -220,14 +220,14 @@ class Db(object):
         for row in self.conn.execute(stmt):
             yield row
     
-    def updateLyrics(self, rowid, lyrics, url):
+    def updateLyrics(self, rowid, lyrics, capo, url):
         try:
             if lyrics == None:
                 log.warn("no lyrics at {}".format(url))
                 self.conn.execute("UPDATE songs SET chord_update = date('now') WHERE rowid = ?", (rowid,))
             else:
                 log.info("save lyrics of {}".format(url))
-                self.conn.execute("UPDATE songs SET chord_update = date('now'), lyrics_url = ?, lyrics_chords = ? WHERE rowid = ?", (url, lyrics, rowid))
+                self.conn.execute("UPDATE songs SET chord_update = date('now'), lyrics_url = ?, lyrics_chords = ?, capo = ? WHERE rowid = ?", (url, lyrics, capo, rowid))
         except:
             import traceback
             traceback.print_exc()

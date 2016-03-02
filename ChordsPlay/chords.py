@@ -22,6 +22,7 @@ class Chords(object):
         self.lyrics = None
         self.url = None
         self.chords = None
+        self.capo = None
 
     def request(self, title, artist):
         '''
@@ -111,4 +112,34 @@ class Chords(object):
             log.info("no chords found")
         else:
             log.info("chords: {}".format(', '.join(self.chords)))
+            
+        # extract capo from lyrics
+        capos = {
+            '1':   1,  'I':    1,  'FIR':     1,
+            '2':   2,  'II':   2,  'SECO':    2,
+            '3':   3,  'III':  3,  'THI':     3,
+            '4':   4,  'IV':   4,  'FOUR':    4,
+            '5':   5,  'V':    5,  'FIF':     5,
+            '6':   6,  'VI':   6,  'SIX':     6,
+            '7':   7,  'VII':  7,  'SEVEN':   7,
+            '8':   8,  'VIII': 8,  'EIGH':    8,
+            '9':   9,  'IX':   9,  'NINE':    9,
+            '10': 10,  'X':   10,  'TEN':    10,
+            '11': 11,  'XI':  11,  'ELEVEN': 11 }
+        r_capo = r'\bcapo\b.{0,9} [-+]?([0-9]{1,2}|[ivx]{1,4}|fir|seco|thi|four|fif|six|seven|eigh|nine|ten)(st|nd|rd|th)?\b'
+        rx_capo = re.compile(r_capo, re.IGNORECASE)
+        match = rx_capo.search(self.lyrics)
+        if match != None:
+            self.capo = capos.get(match.group(1).upper())
+    
+        # extract patterns from lyrics
+        r_pattern=r'\W*(\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)\b\W*([x0-9]{6}|(\W+[x0-9]{1,2}){6})\b'
+        rx_pattern = re.compile(r_pattern)
+        self.patterns = {}
+        for line in self.lyrics.splitlines():
+            match = rx_pattern.search(line)
+            if match != None:
+                self.patterns[match.group(1)] = match.group(7)
+        log.info("patterns: {}".format(str(self.patterns)))
+        
         return True

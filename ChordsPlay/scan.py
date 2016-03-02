@@ -40,7 +40,7 @@ class Scan(threading.Thread):
             return
         
         try:
-            self.db.updateLyrics(rowid, ch.lyrics, ch.url)
+            self.db.updateLyrics(rowid, ch.lyrics, ch.capo, ch.url)
         except Exception:
             log.error("updating lyrics failed for {} by {}".format(title, artist))
             self.db.rollback()
