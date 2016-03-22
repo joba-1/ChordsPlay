@@ -100,10 +100,10 @@ class Chords(object):
                 is_chord_line = True
             else:
                 is_chord_line = False
-            log.debug("Lyrics: '{}'".format(line))
-            log.debug("no cho: '{}'".format(line_without_chords))
-            log.debug("no csp: '{}'".format(line_without_chords_or_spaces))
-            log.debug("chords: {}".format(is_chord_line))
+            #log.debug("Lyrics: '{}'".format(line))
+            #log.debug("no cho: '{}'".format(line_without_chords))
+            #log.debug("no csp: '{}'".format(line_without_chords_or_spaces))
+            #log.debug("chords: {}".format(is_chord_line))
             for match in rx_chordname.finditer(line):
                 log.debug("match: {}".format(match.group(0)))
                 if is_chord_line or match.group(1) == '[':
@@ -133,7 +133,7 @@ class Chords(object):
             self.capo = capos.get(match.group(1).upper())
     
         # extract patterns from lyrics
-        r_pattern=r'\W*(\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)\b\W*([x0-9]{6}|(\W+[x0-9]{1,2}){6})\b'
+        r_pattern=r'\W*\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)\b\W*([x0-9]{6}|(\W+[x0-9]{1,2}){6})\b'
         rx_pattern = re.compile(r_pattern)
         self.patterns = {}
         for line in self.lyrics.splitlines():
