@@ -8,7 +8,7 @@ import os
 import mutagen.easyid3 
 import mutagen.id3
 import mutagen.easymp4
-import mutagen.mp4
+import mutagen.oggvorbis
 import logging
 
 log = logging.getLogger(__name__)
@@ -57,6 +57,18 @@ class Song(object):
             self.album = mp4['album'][0]
             
             log.info('mp4 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
+            return
+        except Exception:
+            pass
+        
+        try:
+            ogg = mutagen.oggvorbis.OggVorbis(self.filename)
+            self.title = ogg['title'][0]
+            self.artist = ogg['artist'][0]
+            self.album = ogg['album'][0]
+            
+            log.info('ogg file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
+            return
         except Exception:
             log.debug('format of "{}" not supported'.format(self.filename))
         
