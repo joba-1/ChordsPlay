@@ -105,7 +105,7 @@ def main(argv=None):
         # gui main loop #
         log.debug("Starting main loop")
         gui = ChordsPlay.gui.Gui(program_name)
-        gui.mainloop()
+        gui.mainLoop()
 
         # quit #
         log.debug("Stopping scanner thread")
