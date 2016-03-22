@@ -58,11 +58,16 @@
  * user (or use os user)
 
 == Persistence
-sqlite (or more?)
-see ChordsPlay/db.py
+sqlite for now: see ChordsPlay/db.py
 
 == Classes
 * main (parameters, init, loop)
+* Db (persistence: titles, chords, playlist definitions, ...)
+* Song (title, artist, album, lyrics, chords, capo)
+* Chord (retrieve, parse, alternatives, visual)
+* Scan (get or update online data)
+* Play (songlist, play, pause, next, prev)
+* Gui (main window)
 * UI lyrics with chords
 * UI playlist around current position
 * UI taglist for selection, add, delete, rename
@@ -72,24 +77,6 @@ see ChordsPlay/db.py
 * UI chord pattern definition, change
 * UI edit lyrics and chords
 * UI add or delete song_lists (directories and files)
-* Db
-* Song
 * playlist
 * Tag
 * Filter
-* Chord
-* Play
-* Scan
-
-== Lyrics format
-Replace '[.,]' mit space
-Replace '(.*)' mit space
-Anfang:    ABCDEFGH 
-Weiter:    #mb245679 maj sus dim aug add (chord length max 6) opt /chord
-Leer:      >50% spaces oder nur [spaces]chord[nl]
-Next line: <50% spaces, length > 6
-Ausnahmen: 
-
-oder
-
-[chords]

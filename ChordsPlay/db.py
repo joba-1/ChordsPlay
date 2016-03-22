@@ -7,7 +7,7 @@ Created on 18.02.2016
 import sqlite3
 import ChordsPlay.song
 import logging
-import os
+# import os
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class Db(object):
                 album         text,
                 lyrics_chords text default null,
                 lyrics_url    text default null,
-                capo          int default null check(capo is null or (capo >= 0 and capo <= 11))),
+                capo          int default null check(capo is null or (capo >= 0 and capo <= 11)),
                 chord_update  char(10) default null,
                 unique        (title, artist)
             );
