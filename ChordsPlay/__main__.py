@@ -104,7 +104,7 @@ def main(argv=None):
         
         # gui main loop #
         log.debug("Starting main loop")
-        gui = ChordsPlay.gui.Gui(program_name)
+        gui = ChordsPlay.gui.Gui(program_name, db)
         gui.mainLoop()
 
         # quit #

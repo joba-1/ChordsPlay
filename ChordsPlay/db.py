@@ -250,3 +250,21 @@ class Db(object):
             import traceback
             traceback.print_exc()
             raise
+
+    def getBigPlaylist(self):
+        '''
+        return all songs with lyrics and filename
+        '''
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT title, artist, album, lyrics_chords, filename, name
+            FROM songs
+            INNER JOIN list_songs ON songs.id = list_songs.song_id
+            INNER JOIN song_lists ON list_songs.song_lists_id = song_lists.id
+            WHERE lyrics_chords IS NOT NULL
+            AND (capo IS NULL OR capo = 0)
+            ORDER BY artist, album, songs.id
+        """)
+        ret = list(cur)
+        cur.close()
+        return ret

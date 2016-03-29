@@ -5,47 +5,172 @@ Created on 25.02.2016
 '''
 
 import tkinter as tk
+from tkinter import ttk
+from tkinter import font
+import logging
 
 import ChordsPlay.play
 
+log = logging.getLogger(__name__)
+
+def min_diff(widget):
+    return min([
+        widget.winfo_width() - widget.winfo_reqwidth(), 
+        widget.winfo_height() - widget.winfo_reqheight()])
+    
 class Gui(object):
     '''
     Create GUI to display chords
     '''
 
-    def __init__(self, title):
+    def __init__(self, title, db):
         '''
         Constructor
         '''
+        
+        pad = 15
+        width = 1
+        height = 1
+        
+        self.db = db
+        self.frames = []
+        
         # debug
-        songlist = [
-            r'C:\Users\d064412\workspace\chordsplay\tests\Woodkid\The Golden Age\02 - Run Boy Run.ogg', 
-            r'C:\Users\d064412\workspace\chordsplay\tests\Kansas\Leftoverture\09 Carry on Wayward Son.m4a',
-            r'C:\Users\d064412\workspace\chordsplay\tests\Cake\Short Skirt Long Jacket.mp3']
+        playlist = db.getBigPlaylist()
+        songlist = [song[5] + song[4] for song in playlist]
 
         self.root = tk.Tk()
         self.root.title(title)
-        self.player = ChordsPlay.play.Play(self.root, songlist)
         
-        b_quit = tk.Button(self.root, text="Quit", command=self.quit)
-        b_quit.grid(row=0, column=0, padx=15, pady=15)
+        self.player = ChordsPlay.play.Play(self.root, songlist)
 
-        b_play = tk.Button(self.root, text="Play", command=self.player.play)
-        b_play.grid(row=0, column=1, padx=15, pady=15)
+        self.fonts = []
+        font_template = "Lyrics{}"
+        
+        buttons = [
+            ("Quit", self.quit),
+            ("Play", self.player.play),
+            ("Pause", self.player.pause),
+            ("Next", self.player.next),
+            ("Prev", self.player.prev),
+            ("Frame", self.nextFrame)
+        ]       
+        buttonFrame = ttk.Frame(self.root)
+        buttonFrame.grid(row=1, column=0, sticky=tk.SW)
+        for b in range(len(buttons)):
+            button = ttk.Button(buttonFrame, text=buttons[b][0], command=buttons[b][1])
+            button.grid(row=1, column=b, padx=pad, pady=pad)
 
-        b_pause = tk.Button(self.root, text="Pause", command=self.player.pause)
-        b_pause.grid(row=0, column=2, padx=15, pady=15)
+        textFrame = ttk.Frame(self.root)
+        textFrame.grid(row=0, column=0, sticky=tk.NSEW)
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        b_next = tk.Button(self.root, text="Next", command=self.player.next)
-        b_next.grid(row=0, column=3, padx=15, pady=15)
+        for f in range(5):
+            frame = ttk.Frame(textFrame, height=200)
+            frame.grid(row=0, column=0, sticky=tk.NSEW)
+            font_name = font_template.format(f)
+            lyrics_font = font.Font(name=font_name)
+            lyrics_font.configure(**font.nametofont("TkFixedFont").configure())
+            self.fonts.append(lyrics_font)
+            for t in range(f):
+                text = tk.Text(frame, wrap=tk.NONE, width=width, height=height, font=font_name, state='disabled')
+                text.grid(row=0, column=t, padx=pad, pady=pad, sticky=tk.NSEW)
+                frame.columnconfigure(t, weight=1)
+            frame.rowconfigure(0, weight=1)
+            frame.grid_propagate(False)
+            self.frames.append(frame)
+                    
+        textFrame.columnconfigure(0, weight=1)
+        textFrame.rowconfigure(0, weight=1)
+        textFrame.bind("<Configure>", self.resize)
+        
+        self.currFrame = 0
+        self.nextFrame()
+        
+        if len(playlist) > 0:
+            log.debug('set text for {}'.format(playlist[0][0]))
+            self.setText(playlist[0][3])
 
-        b_prev = tk.Button(self.root, text="Prev", command=self.player.prev)
-        b_prev.grid(row=0, column=4, padx=15, pady=15)
+    def nextFrame(self):
+        self.currFrame += 1
+        if self.currFrame == len(self.frames):
+            self.currFrame = 0
+        self.frames[self.currFrame].lift()
+        for w in self.frames[self.currFrame].winfo_children():
+            log.debug("nextFrame {}: w={}/{} h={}/{}".format(str(w), w.winfo_width(), w.winfo_reqwidth(), w.winfo_height(), w.winfo_reqheight()))
 
+    def setText(self, text):
+        lines = text.splitlines()
+        num_lines = len(lines)
+        for f in self.frames:
+            texts = f.winfo_children()
+            if len(texts) > 0:
+                widths = []
+                num_rows = int((num_lines + len(texts) - 1) / len(texts))
+                for w in range(len(texts)):
+                    w_lines = lines[num_rows * w:num_rows * (w + 1)]
+                    texts[w]['state'] = 'normal'
+                    texts[w].delete('1.0')
+                    texts[w].insert('1.0', '\n'.join(w_lines))
+                    texts[w]['state'] = 'disabled'
+                    width = len(max(w_lines, key=len))
+                    widths.append(width)
+                    texts[w].configure(width=width, height=num_rows) 
+                log.debug("setText {}: rows={} widths={}".format(str(f), num_rows, str(widths)))
+        self.resize
     
+    def resize(self, event=None):
+        i = max([self.currFrame, 1])
+        size = self.resizeFrameFont(i)
+        best_size = size
+        best_frame = i
+        while i > 1 and size >= best_size:
+            i -= 1
+            size = self.resizeFrameFont(i)
+            if size > best_size:
+                best_frame = i
+                best_size = size
+        if best_frame == self.currFrame:
+            size = best_size
+            i = self.currFrame + 1
+            while i < len(self.frames) and size >= best_size:
+                size = self.resizeFrameFont(i)
+                if size > best_size:
+                    best_frame = i
+                    best_size = size
+                i += 1
+        if best_frame != self.currFrame:
+            self.frames[best_frame].lift()
+            self.currFrame = best_frame
+            log.debug("resize: Switched to frame {} with font size {}".format(best_frame, best_size))
+
+    def resizeFrameFont(self, frameIndex):
+        f = self.frames[frameIndex]
+        frame_font = self.fonts[frameIndex]
+        size = old_size = frame_font.actual()["size"]
+        # log.debug("resizeFrameFont: Frame {} current size is {}".format(frameIndex, size))
+
+        self.root.update_idletasks()
+        while min_diff(min(f.winfo_children(), key=min_diff)) > 0 and size < 50:
+            size += 1
+            # log.debug("resizeFrameFont: Frame {} test bigger fontsize {}".format(frameIndex, size))
+            frame_font.configure(size=size)
+            self.root.update_idletasks()
+            
+        while min_diff(min(f.winfo_children(), key=min_diff)) < 0 and size > 6:
+            size -= 1
+            # log.debug("resizeFrameFont: Frame {} test smaller fontsize {}".format(frameIndex, size))
+            frame_font.configure(size=size)
+            self.root.update_idletasks()
+
+        if size != old_size:
+            log.debug("resizeFrameFont: Frame {} fontsize is {}".format(frameIndex, size))
+                
+        return size
+            
     def mainLoop(self):
         self.root.mainloop()
         
     def quit(self):
         self.root.quit()
-        self.root.destroy()
