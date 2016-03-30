@@ -27,7 +27,7 @@ class Gui(object):
         Constructor
         '''
         
-        pad = 15
+        pad = 10
         width = 1
         height = 1
         
@@ -70,7 +70,8 @@ class Gui(object):
             lyrics_font.configure(**font.nametofont("TkFixedFont").configure())
             self.fonts.append(lyrics_font)
             for t in range(f):
-                text = tk.Text(frame, wrap=tk.NONE, width=width, height=height, font=font_name, state='disabled')
+                text = tk.Text(frame, wrap=tk.NONE, width=width, height=height, 
+                               font=font_name, state='disabled', padx=pad, pady=pad)
                 text.grid(row=0, column=t, padx=pad, pady=pad, sticky=tk.NSEW)
                 frame.columnconfigure(t, weight=1)
             frame.rowconfigure(0, weight=1)
