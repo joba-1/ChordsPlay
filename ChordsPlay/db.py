@@ -250,20 +250,33 @@ class Db(object):
             import traceback
             traceback.print_exc()
             raise
+    
+    def getPlayInfo(self, song_id):
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT s.title, s.artist, s.lyrics_chords, l.name || ls.filename
+            FROM songs s
+            INNER JOIN list_songs ls ON s.id = ls.song_id
+            INNER JOIN song_lists l ON ls.song_lists_id = l.id
+            WHERE s.id = ?
+        """, song_id)
+        ret = cur.fetchone()
+        cur.close()
+        return ret
 
-    def getBigPlaylist(self):
+    def getFirstPlaylist(self):
         '''
-        return all songs with lyrics and filename
+        return all id's of songs with lyrics and no capo
         '''
         cur = self.conn.cursor()
         cur.execute("""
-            SELECT title, artist, album, lyrics_chords, filename, name
-            FROM songs
-            INNER JOIN list_songs ON songs.id = list_songs.song_id
-            INNER JOIN song_lists ON list_songs.song_lists_id = song_lists.id
-            WHERE lyrics_chords IS NOT NULL
-            AND (capo IS NULL OR capo = 0)
-            ORDER BY artist, album, songs.id
+            SELECT s.id
+            FROM songs s
+            INNER JOIN list_songs ls ON s.id = ls.song_id
+            INNER JOIN song_lists l ON ls.song_lists_id = l.id
+            WHERE s.lyrics_chords IS NOT NULL
+            AND (s.capo IS NULL OR s.capo = 0)
+            ORDER BY s.artist, s.album, s.id
         """)
         ret = list(cur)
         cur.close()

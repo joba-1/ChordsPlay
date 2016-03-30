@@ -9,8 +9,6 @@ from tkinter import ttk
 from tkinter import font
 import logging
 
-import ChordsPlay.play
-
 log = logging.getLogger(__name__)
 
 def min_diff(widget):
@@ -23,7 +21,7 @@ class Gui(object):
     Create GUI to display chords
     '''
 
-    def __init__(self, title, db):
+    def __init__(self, title):
         '''
         Constructor
         '''
@@ -32,34 +30,30 @@ class Gui(object):
         width = 1
         height = 1
         
-        self.db = db
         self.frames = []
         
-        # debug
-        playlist = db.getBigPlaylist()
-        songlist = [song[5] + song[4] for song in playlist]
-
         self.root = tk.Tk()
-        self.root.title(title)
+        self.title = title
+        self.setTitle(None)
         
-        self.player = ChordsPlay.play.Play(self.root, songlist)
-
         self.fonts = []
         font_template = "Lyrics{}"
         
         buttons = [
             ("Quit", self.quit),
-            ("Play", self.player.play),
-            ("Pause", self.player.pause),
-            ("Next", self.player.next),
-            ("Prev", self.player.prev),
+            ("Pause", None),
+            ("Next", None),
+            ("Prev", None),
+            ("Shuffle", None),
             ("Frame", self.nextFrame)
-        ]       
+        ]
+        self.buttons = {}       
         buttonFrame = ttk.Frame(self.root)
         buttonFrame.grid(row=1, column=0, sticky=tk.SW)
         for b in range(len(buttons)):
             button = ttk.Button(buttonFrame, text=buttons[b][0], command=buttons[b][1])
             button.grid(row=1, column=b, padx=pad, pady=pad)
+            self.buttons[buttons[b][0]] = button
 
         textFrame = ttk.Frame(self.root)
         textFrame.grid(row=0, column=0, sticky=tk.NSEW)
@@ -67,7 +61,8 @@ class Gui(object):
         self.root.rowconfigure(0, weight=1)
 
         for f in range(5):
-            frame = ttk.Frame(textFrame, height=200)
+            frame = ttk.Frame(textFrame, width=textFrame.winfo_screenwidth() // 2, 
+                              height=textFrame.winfo_screenheight() // 2)
             frame.grid(row=0, column=0, sticky=tk.NSEW)
             font_name = font_template.format(f)
             lyrics_font = font.Font(name=font_name)
@@ -87,10 +82,9 @@ class Gui(object):
         
         self.currFrame = 0
         self.nextFrame()
-        
-        if len(playlist) > 0:
-            log.debug('set text for {}'.format(playlist[0][0]))
-            self.setText(playlist[0][3])
+
+    def onButton(self, label, runnable):
+        self.buttons[label].configure(command=runnable)
 
     def nextFrame(self):
         self.currFrame += 1
@@ -99,6 +93,12 @@ class Gui(object):
         self.frames[self.currFrame].lift()
         for w in self.frames[self.currFrame].winfo_children():
             log.debug("nextFrame {}: w={}/{} h={}/{}".format(str(w), w.winfo_width(), w.winfo_reqwidth(), w.winfo_height(), w.winfo_reqheight()))
+
+    def setTitle(self, title):
+        if title == None:
+            self.root.title(self.title)
+        else:
+            self.root.title("{} {}".format(self.title, title))
 
     def setText(self, text):
         lines = text.splitlines()
@@ -111,34 +111,37 @@ class Gui(object):
                 for w in range(len(texts)):
                     w_lines = lines[num_rows * w:num_rows * (w + 1)]
                     texts[w]['state'] = 'normal'
-                    texts[w].delete('1.0')
+                    texts[w].delete('1.0', tk.END)
                     texts[w].insert('1.0', '\n'.join(w_lines))
                     texts[w]['state'] = 'disabled'
                     width = len(max(w_lines, key=len))
                     widths.append(width)
                     texts[w].configure(width=width, height=num_rows) 
                 log.debug("setText {}: rows={} widths={}".format(str(f), num_rows, str(widths)))
-        self.resize
+        self.root.after_idle(self.resize)
     
     def resize(self, event=None):
         i = max([self.currFrame, 1])
-        size = self.resizeFrameFont(i)
+        size, diff = self.resizeFrameFont(i)
         best_size = size
+        best_diff = min(diff, 0)
         best_frame = i
         while i > 1 and size >= best_size:
             i -= 1
-            size = self.resizeFrameFont(i)
-            if size > best_size:
+            size, diff = self.resizeFrameFont(i)
+            if size > best_size or (size == best_size and min(diff, 0) > best_diff):
                 best_frame = i
                 best_size = size
+                best_diff = min(diff, 0)
         if best_frame == self.currFrame:
             size = best_size
             i = self.currFrame + 1
             while i < len(self.frames) and size >= best_size:
-                size = self.resizeFrameFont(i)
-                if size > best_size:
+                size, diff = self.resizeFrameFont(i)
+                if size > best_size or (size == best_size and min(diff, 0) > best_diff):
                     best_frame = i
                     best_size = size
+                    best_diff = min(diff, 0)
                 i += 1
         if best_frame != self.currFrame:
             self.frames[best_frame].lift()
@@ -157,17 +160,19 @@ class Gui(object):
             # log.debug("resizeFrameFont: Frame {} test bigger fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
             self.root.update_idletasks()
-            
-        while min_diff(min(f.winfo_children(), key=min_diff)) < 0 and size > 6:
+         
+        w = min(f.winfo_children(), key=min_diff)   
+        while min_diff(w) < 0 and size > 6:
             size -= 1
             # log.debug("resizeFrameFont: Frame {} test smaller fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
             self.root.update_idletasks()
+            w = min(f.winfo_children(), key=min_diff)   
 
         if size != old_size:
             log.debug("resizeFrameFont: Frame {} fontsize is {}".format(frameIndex, size))
                 
-        return size
+        return size, min_diff(w)
             
     def mainLoop(self):
         self.root.mainloop()

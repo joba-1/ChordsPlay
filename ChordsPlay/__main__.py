@@ -28,11 +28,13 @@ from configparser import SafeConfigParser
 import ChordsPlay.db
 import ChordsPlay.scan
 import ChordsPlay.gui
+import ChordsPlay.play
+import ChordsPlay.playlist
 
 __all__ = []
 __version__ = 0.1
 __date__ = '2016-02-18'
-__updated__ = '2016-02-18'
+__updated__ = '2016-03-30'
 
 DEBUG = 0
 TESTRUN = 0
@@ -43,9 +45,16 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 log.info('Started')
 
+def play(pos, song_id):
+    log.debug("play id {}".format(song_id))
+    title, artist, text, url = db.getPlayInfo(song_id)
+    player.play(url)
+    gui.setText(text)
+    gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
 def main(argv=None):
-
+    global db, gui, player
+    
     # Command line options
     program_name = os.path.basename(sys.argv[0])
     program_version = "v0.1"
@@ -104,7 +113,17 @@ def main(argv=None):
         
         # gui main loop #
         log.debug("Starting main loop")
-        gui = ChordsPlay.gui.Gui(program_name, db)
+        
+        gui = ChordsPlay.gui.Gui(program_name)
+        
+        player = ChordsPlay.play.Play(gui.root) 
+        playlist = ChordsPlay.playlist.Playlist(db, play)
+
+        gui.onButton('Pause', player.pause)
+        gui.onButton('Next', playlist.next)
+        gui.onButton('Prev', playlist.prev)
+        gui.onButton('Shuffle', playlist.shuffle)
+
         gui.mainLoop()
 
         # quit #
