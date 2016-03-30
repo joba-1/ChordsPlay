@@ -7,6 +7,7 @@ Created on 25.02.2016
 import tkinter as tk
 from tkinter import ttk
 from tkinter import font
+from subprocess import call
 import logging
 
 log = logging.getLogger(__name__)
@@ -82,6 +83,37 @@ class Gui(object):
         
         self.currFrame = 0
         self.nextFrame()
+        
+        self.state = True
+        self.root.attributes("-fullscreen", self.state)
+        self.root.bind("<F11>", self.toggleFullscreen)
+        self.root.bind("<Escape>", self.endFullscreen)
+        
+        self.root.bind("<space>", lambda x: self.buttons["Pause"].invoke())
+        self.root.bind("<Return>", lambda x: self.buttons["Next"].invoke())
+        self.root.bind("<Button-1>", lambda x: self.buttons["Next"].invoke())
+        self.root.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
+        self.root.bind("<Button-3>", lambda x: self.buttons["Prev"].invoke())
+        self.root.bind("q", lambda x: self.quit())
+        
+        self.inhibitBlank()
+
+    def inhibitBlank(self):
+        try:
+            call(["xset", "s", "reset"])
+            self.root.after(10000, self.inhibitBlank)
+        except FileNotFoundError:
+            log.warn("Failed to disable screensaver with xset")
+
+    def toggleFullscreen(self, event=None):
+        self.state = not self.state  # Just toggling the boolean
+        self.root.attributes("-fullscreen", self.state)
+        return "break"
+
+    def endFullscreen(self, event=None):
+        self.state = False
+        self.root.attributes("-fullscreen", False)
+        return "break"
 
     def onButton(self, label, runnable):
         self.buttons[label].configure(command=runnable)
