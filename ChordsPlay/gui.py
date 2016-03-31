@@ -82,7 +82,7 @@ class Gui(object):
         textFrame.rowconfigure(0, weight=1)
         textFrame.bind("<Configure>", self.resize)
         
-        self.currFrame = 0
+        self.currFrame = -1
         self.nextFrame()
         
         self.state = True
@@ -92,9 +92,9 @@ class Gui(object):
         
         self.root.bind("<space>", lambda x: self.buttons["Pause"].invoke())
         self.root.bind("<Return>", lambda x: self.buttons["Next"].invoke())
-        self.root.bind("<Button-1>", lambda x: self.buttons["Next"].invoke())
+        self.root.bind("<Button-3>", lambda x: self.buttons["Next"].invoke())
         self.root.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
-        self.root.bind("<Button-3>", lambda x: self.buttons["Prev"].invoke())
+        self.root.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
         self.root.bind("q", lambda x: self.quit())
         
         self.inhibitBlank()
@@ -136,6 +136,7 @@ class Gui(object):
     def setText(self, text):
         lines = text.splitlines()
         num_lines = len(lines)
+        self.frames[0].lift()
         for f in self.frames:
             texts = f.winfo_children()
             if len(texts) > 0:
@@ -176,8 +177,8 @@ class Gui(object):
                     best_size = size
                     best_diff = min(diff, 0)
                 i += 1
+        self.frames[best_frame].lift()
         if best_frame != self.currFrame:
-            self.frames[best_frame].lift()
             self.currFrame = best_frame
             log.debug("resize: Switched to frame {} with font size {}".format(best_frame, best_size))
 
