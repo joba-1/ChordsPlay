@@ -30,6 +30,7 @@ import ChordsPlay.scan
 import ChordsPlay.gui
 import ChordsPlay.play
 import ChordsPlay.playlist
+import ChordsPlay.dialog
 
 __all__ = []
 __version__ = 0.1
@@ -52,6 +53,12 @@ def play(pos, song_id):
     gui.setText(text)
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
+def playlistDialog(playlist):
+    d = ChordsPlay.dialog.Dialog(gui.root, "Select playlist")
+    if d.result != None:
+        log.debug(str(d.result))
+        # playlist.new(d.result)
+        
 def main(argv=None):
     global db, gui, player
     
@@ -123,6 +130,7 @@ def main(argv=None):
         gui.onButton('Next', playlist.next)
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', playlist.shuffle)
+        gui.onButton('Playlist', lambda: playlistDialog(playlist))
 
         gui.mainLoop()
 

@@ -46,7 +46,8 @@ class Gui(object):
             ("Next", None),
             ("Prev", None),
             ("Shuffle", None),
-            ("Frame", self.nextFrame)
+            ("Frame", self.nextFrame),
+            ("Playlist", None)
         ]
         self.buttons = {}       
         buttonFrame = ttk.Frame(self.root)
@@ -96,6 +97,7 @@ class Gui(object):
         self.root.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
         self.root.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
         self.root.bind("q", lambda x: self.quit())
+        self.root.bind("p", lambda x: self.buttons["Playlist"].invoke())
         
         self.inhibitBlank()
 
