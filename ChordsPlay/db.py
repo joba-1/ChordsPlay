@@ -298,12 +298,12 @@ class Db(object):
         predicateClause = ''
         predicateValues = []
         predicateSwitch = {
-            "Titles":  "AND s.title REGEXP ?\n",
-            "Artists": "AND s.artist REGEXP ?\n",
-            "Albums":  "AND s.album REGEXP ?\n",
-            "Capos":   "AND s.capo REGEXP ?\n",
-            "Required Chords": "AND EXISTS SELECT * FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND c.name REGEXP ?\n",
-            "Accepted Chords": "AND NOT EXISTS SELECT * FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND NOT c.name REGEXP ?\n"
+            "Titles":          "AND s.title REGEXP ?\n",
+            "Artists":         "AND s.artist REGEXP ?\n",
+            "Albums":          "AND s.album REGEXP ?\n",
+            "Capos":           "AND s.capo REGEXP ?\n",
+            "Required Chords": "AND EXISTS (SELECT 1 FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND c.name REGEXP ? LIMIT 1)\n",
+            "Accepted Chords": "AND NOT EXISTS (SELECT 1 FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND NOT c.name REGEXP ? LIMIT 1)\n"
             }
         required = patterns.get("Required Chords", None)
         for key in patterns:
@@ -318,13 +318,12 @@ class Db(object):
                         predicateValues.append("({})|({})".format(required, patterns[key]))
         cur = self.conn.cursor()
         stmt = """
-            SELECT s.id
-            FROM songs s
-            INNER JOIN list_songs ls ON s.id = ls.song_id
-            INNER JOIN song_lists l ON ls.song_lists_id = l.id
-            WHERE s.lyrics_chords IS NOT NULL
-            {}ORDER BY s.artist, s.album, s.id
-        """.format(predicateClause)
+SELECT s.id
+FROM songs s
+INNER JOIN list_songs ls ON s.id = ls.song_id
+INNER JOIN song_lists l ON ls.song_lists_id = l.id
+WHERE s.lyrics_chords IS NOT NULL
+{}ORDER BY s.artist, s.album, s.id""".format(predicateClause)
         log.debug('getPatternPlaylist: Statement {}'.format(stmt))
         log.debug('getPatternPlaylist: Parameters {}'.format(str(predicateValues)))
         cur.execute(stmt, predicateValues)
