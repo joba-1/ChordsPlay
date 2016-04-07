@@ -13,7 +13,7 @@ class Dialog(tk.Toplevel):
     Derive from it, implement body(), apply() and optionaly validate() and buttonbox()
     Copy from effbot.org
     '''
-    def __init__(self, parent, title = None):
+    def __init__(self, parent, title=None, label=None):
 
         tk.Toplevel.__init__(self, parent)
         self.transient(parent)
@@ -26,8 +26,10 @@ class Dialog(tk.Toplevel):
         self.result = None
 
         body = ttk.Frame(self)
-        self.initial_focus = self.body(body)
-        body.pack(padx=5, pady=5)
+        self.initial_focus = self.body(body, label=label)
+        body.grid(row=0, column=0, padx=5, pady=5, sticky=tk.NSEW)
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
 
         self.buttonbox()
 
@@ -48,13 +50,13 @@ class Dialog(tk.Toplevel):
     #
     # construction hooks
 
-    def body(self, master):
+    def body(self, master, label=None):
         # create dialog body.  return widget that should have
         # initial focus.  this method should be overridden
         
-        ttk.Label(master, text="Input").grid(row=0, column=0)
+        ttk.Label(master, text=label).grid(row=0, column=0, sticky=tk.W)
         self.entry = ttk.Entry(master)
-        self.entry.grid(row=0, column=1)
+        self.entry.grid(row=0, column=1, sticky=tk.EW)
         
         return self.entry
 
@@ -65,14 +67,14 @@ class Dialog(tk.Toplevel):
         box = ttk.Frame(self)
 
         w = ttk.Button(box, text="OK", width=10, command=self.ok, default=tk.ACTIVE)
-        w.pack(side=tk.LEFT, padx=5, pady=5)
+        w.grid(row=0, sticky=tk.W, padx=5, pady=5)
         w = ttk.Button(box, text="Cancel", width=10, command=self.cancel)
-        w.pack(side=tk.LEFT, padx=5, pady=5)
+        w.grid(row=0, side=tk.LEFT, padx=5, pady=5)
 
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
 
-        box.pack()
+        box.grid()
 
     #
     # standard button semantics

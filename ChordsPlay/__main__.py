@@ -30,7 +30,7 @@ import ChordsPlay.scan
 import ChordsPlay.gui
 import ChordsPlay.play
 import ChordsPlay.playlist
-import ChordsPlay.dialog
+import ChordsPlay.filter
 
 __all__ = []
 __version__ = 0.1
@@ -54,10 +54,10 @@ def play(pos, song_id):
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
 def playlistDialog(playlist):
-    d = ChordsPlay.dialog.Dialog(gui.root, "Select playlist")
+    d = ChordsPlay.filter.Filter(gui.root)
     if d.result != None:
         log.debug(str(d.result))
-        # playlist.new(d.result)
+        playlist.new(d.result)
         
 def main(argv=None):
     global db, gui, player

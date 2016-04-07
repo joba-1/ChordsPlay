@@ -22,6 +22,13 @@ class Playlist(object):
         self.onPlayCommand = cmd
         log.debug("{} = {}".format(self.pos, str(self.playlist)))
 
+    def new(self, patterns):
+        newList = self.db.getPatternPlaylist(patterns)
+        newPos = len(newList)
+        if newPos > 0:
+            self.playlist = newList
+            self.pos = newPos            
+        
     def shuffle(self):
         random.shuffle(self.playlist)
         
