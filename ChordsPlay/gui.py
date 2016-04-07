@@ -36,6 +36,7 @@ class Gui(object):
         self.root = tk.Tk()
         self.title = title
         self.setTitle(None)
+        self.isEmpty = True
         
         self.fonts = []
         font_template = "Lyrics{}"
@@ -86,8 +87,8 @@ class Gui(object):
         self.currFrame = -1
         self.nextFrame()
         
-        self.state = True
-        self.root.attributes("-fullscreen", self.state)
+        self.fullscreenState = True
+        self.root.attributes("-fullscreen", self.fullscreenState)
         self.root.bind("<F11>", self.toggleFullscreen)
         self.root.bind("<Escape>", self.endFullscreen)
         
@@ -109,12 +110,12 @@ class Gui(object):
             log.warn("Failed to disable screensaver with xset")
 
     def toggleFullscreen(self, event=None):
-        self.state = not self.state  # Just toggling the boolean
-        self.root.attributes("-fullscreen", self.state)
+        self.fullscreenState = not self.fullscreenState  # Just toggling the boolean
+        self.root.attributes("-fullscreen", self.fullscreenState)
         return "break"
 
     def endFullscreen(self, event=None):
-        self.state = False
+        self.fullscreenState = False
         self.root.attributes("-fullscreen", False)
         return "break"
 
@@ -136,6 +137,8 @@ class Gui(object):
             self.root.title("{} {}".format(self.title, title))
 
     def setText(self, text):
+        log.debug("setText")
+        self.isEmpty = True
         lines = text.splitlines()
         num_lines = len(lines)
         self.frames[0].lift()
@@ -152,11 +155,16 @@ class Gui(object):
                     texts[w]['state'] = 'disabled'
                     width = len(max(w_lines, key=len))
                     widths.append(width)
-                    texts[w].configure(width=width, height=num_rows) 
+                    texts[w].configure(width=width, height=num_rows)
+                    if width > 0:
+                        self.isEmpty = False 
                 log.debug("setText {}: rows={} widths={}".format(str(f), num_rows, str(widths)))
         self.root.after_idle(self.resize)
     
     def resize(self, event=None):
+        log.debug("resize")
+        if self.isEmpty == True:
+            return
         i = max([self.currFrame, 1])
         size, diff = self.resizeFrameFont(i)
         best_size = size
@@ -169,7 +177,7 @@ class Gui(object):
                 best_frame = i
                 best_size = size
                 best_diff = min(diff, 0)
-        if best_frame == self.currFrame:
+        if self.currFrame in [0, best_frame]:
             size = best_size
             i = self.currFrame + 1
             while i < len(self.frames) and size >= best_size:
@@ -185,6 +193,7 @@ class Gui(object):
             log.debug("resize: Switched to frame {} with font size {}".format(best_frame, best_size))
 
     def resizeFrameFont(self, frameIndex):
+        log.debug("resizeFrameFont({})".format(frameIndex))
         f = self.frames[frameIndex]
         frame_font = self.fonts[frameIndex]
         size = old_size = frame_font.actual()["size"]
@@ -192,7 +201,7 @@ class Gui(object):
 
         self.root.update_idletasks()
         while min_diff(min(f.winfo_children(), key=min_diff)) > 0 and size < 50:
-            size += 1
+            size += 5
             # log.debug("resizeFrameFont: Frame {} test bigger fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
             self.root.update_idletasks()
@@ -206,7 +215,7 @@ class Gui(object):
             w = min(f.winfo_children(), key=min_diff)   
 
         if size != old_size:
-            log.debug("resizeFrameFont: Frame {} fontsize is {}".format(frameIndex, size))
+            log.debug("resizeFrameFont: Frame {} fontsize now {}".format(frameIndex, size))
                 
         return size, min_diff(w)
             
