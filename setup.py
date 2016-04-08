@@ -10,7 +10,7 @@ config = {
     'download_url': 'https://example.org/hg/chordsplay/archive/tip.tar.gz',
     'author_email': 'joba-1@users.noreply.github.com',
     'version': 'tip',
-    'install_requires': ['nose', 'tkinter', 'logging', 'sqlite3', 'mutagen', 'vlc', 'requests'],
+    'install_requires': ['nose', 'mutagen', 'python-vlc', 'requests'],
     'packages': ['ChordsPlay'],
     'scripts': ['chordsplay.py'],
     'license': 'GPL V2 or higher',
