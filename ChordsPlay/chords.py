@@ -4,8 +4,8 @@ Created on 21.02.2016
 @author: joba1
 '''
 
-import requests;
-import re;
+import requests
+import re
 import logging
 
 log = logging.getLogger(__name__)
