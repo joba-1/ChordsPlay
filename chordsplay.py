@@ -33,9 +33,9 @@ import ChordsPlay.playlist
 import ChordsPlay.filter
 
 __all__ = []
-__version__ = 0.1
+__version__ = 1.0
 __date__ = '2016-02-18'
-__updated__ = '2016-03-30'
+__updated__ = '2016-04-08'
 
 DEBUG = 0
 TESTRUN = 0
@@ -64,7 +64,7 @@ def main(argv=None):
     
     # Command line options
     program_name = os.path.basename(sys.argv[0])
-    program_version = "v0.1"
+    program_version = "v1.0"
     program_build_date = "%s" % __updated__
 
     program_version_string = '%%prog %s (%s)' % (program_version, program_build_date)
