@@ -100,6 +100,8 @@ class Gui(object):
         self.root.bind("q", lambda x: self.quit())
         self.root.bind("p", lambda x: self.buttons["Playlist"].invoke())
         
+        self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
+
         self.inhibitBlank()
 
     def inhibitBlank(self):
