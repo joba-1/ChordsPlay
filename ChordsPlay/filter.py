@@ -29,6 +29,10 @@ class Filter(ChordsPlay.dialog.Dialog):
         self.db = db
         ChordsPlay.dialog.Dialog.__init__(self, parent, "Playlist Filter")
 
+    def onFocusLost(self):
+        if self.validate():
+            self.apply()
+        
     def body(self, master, label=None):
         # create dialog body.  
         # return widget that should have initial focus.
@@ -38,9 +42,11 @@ class Filter(ChordsPlay.dialog.Dialog):
         self.entries = {}
         self.errors = {}
         
+        onFocusLostCmd = self.register(self.onFocusLost)
+        
         for row in range(len(labels)):
             ttk.Label(master, text=labels[row]).grid(row=row*2, column=0, sticky=tk.W)
-            self.entries[labels[row]] = ttk.Entry(master)
+            self.entries[labels[row]] = ttk.Entry(master, validate='focusout', validatecommand=(onFocusLostCmd))
             self.entries[labels[row]].grid(row=row*2, column=1, sticky=tk.EW, padx=5, pady=5)
             self.errors[labels[row]] = ttk.Label(master)
             self.errors[labels[row]].grid(row=row*2+1, column=1, sticky=tk.EW)
@@ -97,9 +103,7 @@ class Filter(ChordsPlay.dialog.Dialog):
 
     def load(self):
         # load pattern names from database and display selection list (allow delete)
-        
-        if self.validate():
-            self.apply()
+        pass
     
     def save(self):
         if self.name == None:
