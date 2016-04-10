@@ -9,6 +9,7 @@ from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
 import ChordsPlay.dialog
+import ChordsPlay.mclist
 import os
 import re
 import json
@@ -23,9 +24,10 @@ class Filter(ChordsPlay.dialog.Dialog):
     The list can be saved
     '''
 
-    def __init__(self, parent):
-        ChordsPlay.dialog.Dialog.__init__(self, parent, "Playlist Filter")
+    def __init__(self, parent, db):
         self.name = None
+        self.db = db
+        ChordsPlay.dialog.Dialog.__init__(self, parent, "Playlist Filter")
 
     def body(self, master, label=None):
         # create dialog body.  
@@ -43,6 +45,10 @@ class Filter(ChordsPlay.dialog.Dialog):
             self.errors[labels[row]] = ttk.Label(master)
             self.errors[labels[row]].grid(row=row*2+1, column=1, sticky=tk.EW)
             master.columnconfigure(1, weight=1)
+
+        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo'), [], master)
+        self.mclist.grid(row=2*len(labels), column=0, columnspan=2, sticky=tk.NSEW)
+        master.rowconfigure(2*len(labels), weight=1)
 
         style = ttk.Style()
         # No one would ever have guessed this is necessary! Thanks stackoverflow :)
@@ -91,7 +97,9 @@ class Filter(ChordsPlay.dialog.Dialog):
 
     def load(self):
         # load pattern names from database and display selection list (allow delete)
-        pass
+        
+        if self.validate():
+            self.apply()
     
     def save(self):
         if self.name == None:
@@ -181,7 +189,8 @@ class Filter(ChordsPlay.dialog.Dialog):
         return rc
     
     def apply(self):
-        # put the compiled regexes in result dict
+        # put the regexes in result dict
         self.result = {}
         for entry in self.entries:
             self.result[entry] = self.entries[entry].get()
+        self.mclist.set(self.db.getPatternPlaylistTitles(self.result))

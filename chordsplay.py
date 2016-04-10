@@ -54,7 +54,7 @@ def play(pos, song_id):
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
 def playlistDialog(playlist):
-    d = ChordsPlay.filter.Filter(gui.root)
+    d = ChordsPlay.filter.Filter(gui.root, db)
     if d.result != None:
         log.debug(str(d.result))
         playlist.new(d.result)

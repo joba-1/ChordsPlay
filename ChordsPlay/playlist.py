@@ -23,7 +23,7 @@ class Playlist(object):
         log.debug("{} = {}".format(self.pos, str(self.playlist)))
 
     def new(self, patterns):
-        newList = self.db.getPatternPlaylist(patterns)
+        newList = self.db.getPatternPlaylistIds(patterns)
         newPos = len(newList)
         if newPos > 0:
             self.playlist = newList

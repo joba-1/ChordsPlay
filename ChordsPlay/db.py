@@ -291,7 +291,13 @@ class Db(object):
         cur.close()
         return ret
 
-    def getPatternPlaylist(self, patterns):
+    def getPatternPlaylistIds(self, patterns):
+        return self.getPatternPlaylist(patterns, 's.id')
+
+    def getPatternPlaylistTitles(self, patterns):
+        return self.getPatternPlaylist(patterns, "s.title, s.artist, s.album, coalesce(s.capo, '')")
+
+    def getPatternPlaylist(self, patterns, projection):
         '''
         return all id's of songs with matching patterns
         '''
@@ -318,12 +324,12 @@ class Db(object):
                         predicateValues.append("({})|({})".format(required, patterns[key]))
         cur = self.conn.cursor()
         stmt = """
-SELECT s.id
+SELECT {}
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
 WHERE s.lyrics_chords IS NOT NULL
-{}ORDER BY s.artist, s.album, s.id""".format(predicateClause)
+{}ORDER BY s.artist, s.album, s.id""".format(projection, predicateClause)
         log.debug('getPatternPlaylist: Statement {}'.format(stmt))
         log.debug('getPatternPlaylist: Parameters {}'.format(str(predicateValues)))
         cur.execute(stmt, predicateValues)
