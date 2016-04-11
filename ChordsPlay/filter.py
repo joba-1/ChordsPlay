@@ -29,7 +29,7 @@ class Filter(ChordsPlay.dialog.Dialog):
         self.db = db
         ChordsPlay.dialog.Dialog.__init__(self, parent, "Playlist Filter")
 
-    def onFocusLost(self):
+    def onFocus(self):
         if self.validate():
             self.apply()
         
@@ -42,11 +42,11 @@ class Filter(ChordsPlay.dialog.Dialog):
         self.entries = {}
         self.errors = {}
         
-        onFocusLostCmd = self.register(self.onFocusLost)
+        onFocusCmd = self.register(self.onFocus)
         
         for row in range(len(labels)):
             ttk.Label(master, text=labels[row]).grid(row=row*2, column=0, sticky=tk.W)
-            self.entries[labels[row]] = ttk.Entry(master, validate='focusout', validatecommand=(onFocusLostCmd))
+            self.entries[labels[row]] = ttk.Entry(master, validate='focusin', validatecommand=(onFocusCmd))
             self.entries[labels[row]].grid(row=row*2, column=1, sticky=tk.EW, padx=5, pady=5)
             self.errors[labels[row]] = ttk.Label(master)
             self.errors[labels[row]].grid(row=row*2+1, column=1, sticky=tk.EW)
@@ -103,7 +103,9 @@ class Filter(ChordsPlay.dialog.Dialog):
 
     def load(self):
         # load pattern names from database and display selection list (allow delete)
-        pass
+        if self.validate():
+            self.apply()
+        self.initial_focus.focus_set()
     
     def save(self):
         if self.name == None:
@@ -118,6 +120,9 @@ class Filter(ChordsPlay.dialog.Dialog):
         if dialog.result != None:
             self.name = dialog.result
             self.save()
+        if self.validate():
+            self.apply()
+        self.initial_focus.focus_set()
     
     def importFile(self):
         title = "Import Playlist Pattern"
@@ -142,9 +147,11 @@ class Filter(ChordsPlay.dialog.Dialog):
                                 entry = self.entries[key]
                                 entry.delete(0, tk.END)
                                 entry.insert(0, pattern)
-                            self.validate()
+                            if self.validate():
+                                self.apply()
             except Exception as e:
                 messagebox.showerror(title, 'Import failed:\n{}'.format(str(e)))
+        self.initial_focus.focus_set()
     
     def exportFile(self):
         title = "Export Playlist Pattern"
@@ -172,6 +179,7 @@ class Filter(ChordsPlay.dialog.Dialog):
                     json.dump(content, outfile, sort_keys=True, indent=2)
             except Exception as e:
                 messagebox.showerror(title, 'Export failed:\n{}'.format(str(e)))
+        self.initial_focus.focus_set()
                 
     def validate(self):
         # check if all entries are empty or valid regexes (compile them)
