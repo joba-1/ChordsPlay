@@ -54,7 +54,7 @@ def play(pos, song_id):
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
 def playlistDialog(playlist):
-    d = ChordsPlay.filter.Filter(gui.root, db)
+    d = ChordsPlay.filter.Filter(gui, db)
     if d.result != None:
         log.debug(str(d.result))
         playlist.new(d.result)
@@ -121,9 +121,9 @@ def main(argv=None):
         # gui main loop #
         log.debug("Starting main loop")
         
-        gui = ChordsPlay.gui.Gui(program_name)
+        gui = ChordsPlay.gui.Gui(title=program_name)
         
-        player = ChordsPlay.play.Play(gui.root) 
+        player = ChordsPlay.play.Play(gui) 
         playlist = ChordsPlay.playlist.Playlist(db, play)
 
         gui.onButton('Pause', player.pause)
@@ -132,7 +132,7 @@ def main(argv=None):
         gui.onButton('Shuffle', playlist.shuffle)
         gui.onButton('Playlist', lambda: playlistDialog(playlist))
 
-        gui.mainLoop()
+        gui.mainloop()
 
         # quit #
         log.debug("Stopping scanner thread")

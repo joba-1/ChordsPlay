@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import font
 from subprocess import call
+import ChordsPlay.mclist
 import logging
 
 log = logging.getLogger(__name__)
@@ -17,12 +18,13 @@ def min_diff(widget):
         widget.winfo_width() - widget.winfo_reqwidth(), 
         widget.winfo_height() - widget.winfo_reqheight()])
     
-class Gui(object):
+class Gui(tk.Tk):
     '''
     Create GUI to display chords
     '''
 
-    def __init__(self, title):
+    def __init__(self, *args, title=None):
+        tk.Tk.__init__(self, *args)
         '''
         Constructor
         '''
@@ -31,16 +33,34 @@ class Gui(object):
         width = 1
         height = 1
         
+        # frames with 0..3 text areas and fonts. If there is no text, then isEmpty
         self.frames = []
-        
-        self.root = tk.Tk()
-        self.title = title
-        self.setTitle(None)
         self.isEmpty = True
-        
         self.fonts = []
         font_template = "Lyrics{}"
         
+        if title != None:
+            self.basetitle = title
+        else:
+            self.basetitle = ''
+            
+        self.setTitle(None)
+        
+        # paned window using all of toplevels space and resizing with it
+        panes = tk.PanedWindow(self, showhandle=True, sashrelief=tk.SUNKEN, sashpad=5)
+        panes.grid(row=0, column=0, sticky=tk.NSEW)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        
+        # left pane with playlist and buttons
+        playlist = ttk.Frame(panes)
+        panes.add(playlist, stretch="always", sticky=tk.NSEW)
+        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo'), [], playlist)
+        self.mclist.grid(row=0, column=0, sticky=tk.NSEW)
+        playlist.columnconfigure(0, weight=1)
+        playlist.rowconfigure(0, weight=1)
+        # self.mclist.set(self.db.getPatternPlaylistTitles(self.result))
+                
         buttons = [
             ("Quit", self.quit),
             ("Pause", None),
@@ -51,18 +71,17 @@ class Gui(object):
             ("Playlist", None)
         ]
         self.buttons = {}       
-        buttonFrame = ttk.Frame(self.root)
+        buttonFrame = ttk.Frame(playlist)
         buttonFrame.grid(row=1, column=0, sticky=tk.SW)
         for b in range(len(buttons)):
             button = ttk.Button(buttonFrame, text=buttons[b][0], command=buttons[b][1])
             button.grid(row=1, column=b, padx=pad, pady=pad)
             self.buttons[buttons[b][0]] = button
 
-        textFrame = ttk.Frame(self.root)
-        textFrame.grid(row=0, column=0, sticky=tk.NSEW)
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-
+        # text pane to the right
+        textFrame = ttk.Frame(panes)
+        panes.add(textFrame, stretch="always", sticky=tk.NSEW)
+        
         for f in range(5):
             frame = ttk.Frame(textFrame, width=textFrame.winfo_screenwidth() // 2, 
                               height=textFrame.winfo_screenheight() // 2)
@@ -82,43 +101,44 @@ class Gui(object):
                     
         textFrame.columnconfigure(0, weight=1)
         textFrame.rowconfigure(0, weight=1)
+        
         textFrame.bind("<Configure>", self.resize)
         
         self.currFrame = -1
         self.nextFrame()
         
         self.fullscreenState = True
-        self.root.attributes("-fullscreen", self.fullscreenState)
-        self.root.bind("<F11>", self.toggleFullscreen)
-        self.root.bind("<Escape>", self.endFullscreen)
+        self.attributes("-fullscreen", self.fullscreenState)
+        self.bind("<F11>", self.toggleFullscreen)
+        self.bind("<Escape>", self.endFullscreen)
         
-        self.root.bind("<space>", lambda x: self.buttons["Pause"].invoke())
-        self.root.bind("<Return>", lambda x: self.buttons["Next"].invoke())
-        self.root.bind("<Button-3>", lambda x: self.buttons["Next"].invoke())
-        self.root.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
-        self.root.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
-        self.root.bind("q", lambda x: self.quit())
-        self.root.bind("p", lambda x: self.buttons["Playlist"].invoke())
+        self.bind("<space>", lambda x: self.buttons["Pause"].invoke())
+        self.bind("<Return>", lambda x: self.buttons["Next"].invoke())
+        self.bind("<Button-3>", lambda x: self.buttons["Next"].invoke())
+        self.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
+        self.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
+        self.bind("q", lambda x: self.quit())
+        self.bind("p", lambda x: self.buttons["Playlist"].invoke())
         
-        self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
 
         self.inhibitBlank()
 
     def inhibitBlank(self):
         try:
             call(["xset", "s", "reset"])
-            self.root.after(10000, self.inhibitBlank)
+            self.after(10000, self.inhibitBlank)
         except FileNotFoundError:
             log.warn("Failed to disable screensaver with xset")
 
     def toggleFullscreen(self, event=None):
         self.fullscreenState = not self.fullscreenState  # Just toggling the boolean
-        self.root.attributes("-fullscreen", self.fullscreenState)
+        self.attributes("-fullscreen", self.fullscreenState)
         return "break"
 
     def endFullscreen(self, event=None):
         self.fullscreenState = False
-        self.root.attributes("-fullscreen", False)
+        self.attributes("-fullscreen", False)
         return "break"
 
     def onButton(self, label, runnable):
@@ -134,9 +154,9 @@ class Gui(object):
 
     def setTitle(self, title):
         if title == None:
-            self.root.title(self.title)
+            self.title(self.basetitle)
         else:
-            self.root.title("{} {}".format(self.title, title))
+            self.title("{} {}".format(self.basetitle, title))
 
     def setText(self, text):
         log.debug("setText")
@@ -161,7 +181,7 @@ class Gui(object):
                     if width > 0:
                         self.isEmpty = False 
                 log.debug("setText {}: rows={} widths={}".format(str(f), num_rows, str(widths)))
-        self.root.after_idle(self.resize)
+        self.after_idle(self.resize)
     
     def resize(self, event=None):
         log.debug("resize")
@@ -201,28 +221,22 @@ class Gui(object):
         size = old_size = frame_font.actual()["size"]
         # log.debug("resizeFrameFont: Frame {} current size is {}".format(frameIndex, size))
 
-        self.root.update_idletasks()
+        self.update_idletasks()
         while min_diff(min(f.winfo_children(), key=min_diff)) > 0 and size < 50:
             size += 5
             # log.debug("resizeFrameFont: Frame {} test bigger fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
-            self.root.update_idletasks()
+            self.update_idletasks()
          
         w = min(f.winfo_children(), key=min_diff)   
         while min_diff(w) < 0 and size > 6:
             size -= 1
             # log.debug("resizeFrameFont: Frame {} test smaller fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
-            self.root.update_idletasks()
+            self.update_idletasks()
             w = min(f.winfo_children(), key=min_diff)   
 
         if size != old_size:
             log.debug("resizeFrameFont: Frame {} fontsize now {}".format(frameIndex, size))
                 
         return size, min_diff(w)
-            
-    def mainLoop(self):
-        self.root.mainloop()
-        
-    def quit(self):
-        self.root.quit()
