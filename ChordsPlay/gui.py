@@ -26,7 +26,7 @@ class Gui(tk.Tk):
     def __init__(self, *args, title=None):
         tk.Tk.__init__(self, *args)
         '''
-        Constructor
+        Constructor for main window
         '''
         
         pad = 10
@@ -62,13 +62,13 @@ class Gui(tk.Tk):
         # self.mclist.set(self.db.getPatternPlaylistTitles(self.result))
                 
         buttons = [
-            ("Quit", self.quit),
+            #("Quit", self.quit),
             ("Pause", None),
             ("Next", None),
             ("Prev", None),
             ("Shuffle", None),
-            ("Frame", self.nextFrame),
-            ("Playlist", None)
+            #("Frame", self.nextFrame),
+            ("Filter", None)
         ]
         self.buttons = {}       
         buttonFrame = ttk.Frame(playlist)
@@ -184,6 +184,7 @@ class Gui(tk.Tk):
         self.after_idle(self.resize)
     
     def resize(self, event=None):
+        # todo: resize using font measure of longest line
         log.debug("resize")
         if self.isEmpty == True:
             return
