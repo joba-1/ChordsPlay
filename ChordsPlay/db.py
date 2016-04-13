@@ -8,13 +8,16 @@ import sqlite3
 import ChordsPlay.song
 import logging
 import re
-# import os
+import os
 
 log = logging.getLogger(__name__)
 
 def regexp(expr, item):
-    reg = re.compile(expr)
-    return reg.search(item) is not None
+    try:
+        reg = re.compile(expr)
+        return reg.search(item) is not None
+    except Exception:
+        return False
 
 class Db(object):
     '''
@@ -97,7 +100,7 @@ class Db(object):
             );
             create table if not exists playlists ( 
                 user_id       int not null references users(id) on delete cascade,
-                position      int not null unique,
+                position      int not null,
                 song_id       int not null references songs(id) on delete restrict,
                 primary key   (user_id, position)
             );
@@ -179,9 +182,8 @@ class Db(object):
         '''
         add a song and add this to list_songs
         '''
-        # filename = os.path.join(song_list, song_file)
-        filename = song_list + song_file
-        # log.debug('{} + {} = {}'.format(song_list, song_file, filename))
+        filename = os.path.join(song_list, song_file)
+        log.debug('{} + {} = {}'.format(song_list, song_file, filename))
         song = ChordsPlay.song.Song(filename)
         if song.title == None:
             log.debug("file without title ignored: {}".format(filename))
@@ -312,7 +314,7 @@ class Db(object):
             "Titles":          "AND s.title REGEXP ?\n",
             "Artists":         "AND s.artist REGEXP ?\n",
             "Albums":          "AND s.album REGEXP ?\n",
-            "Capos":           "AND s.capo REGEXP ?\n",
+            "Capos":           "AND cast(coalesce(s.capo, 0) as text) REGEXP ?\n",
             "Required Chords": "AND EXISTS (SELECT 1 FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND c.name REGEXP ? LIMIT 1)\n",
             "Accepted Chords": "AND NOT EXISTS (SELECT 1 FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND NOT c.name REGEXP ? LIMIT 1)\n"
             }
@@ -329,7 +331,7 @@ class Db(object):
                         predicateValues.append("({})|({})".format(required, patterns[key]))
         cur = self.conn.cursor()
         stmt = """
-SELECT s.id, s.title, s.artist, s.album, coalesce(s.capo, '')
+SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
@@ -349,6 +351,7 @@ WHERE s.lyrics_chords IS NOT NULL
         user_id = cur.fetchone()
         cur.close()
         self.conn.execute("DELETE FROM playlists WHERE user_id = ?", user_id)
-        self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)",
-            [(user_id[0], pos, song_id) for pos, song_id in enumerate(song_ids)])
+        rows = [(user_id[0], pos, song_id) for pos, song_id in enumerate(song_ids)]
+        log.debug(str(rows))
+        self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)", rows)
         self.conn.commit()
