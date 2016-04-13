@@ -2,7 +2,7 @@ rem @echo off
 rem The path of the unzipped SchemaCrawler directory
 set SchemaCrawlerPATH=schemacrawler-14.07.07-main
 rem The path of the SQLite database
-set SQLiteDatabaseFILE=%HOMEPATH%\.ChordsPlay.db
+set SQLiteDatabaseFILE=%HOMEPATH%\.chordsplay.py.db
 rem The type of the database system.
 set RDBMS=sqlite
 rem Where to store the image
