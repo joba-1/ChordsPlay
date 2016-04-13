@@ -81,9 +81,8 @@ class Scan(threading.Thread):
                         return
 
                 elif os.path.isdir(song_list):
-                    pos = len(song_list)
                     for path, _, files in os.walk(song_list):
-                        rel_path = path[pos:]
+                        rel_path = os.path.relpath(path, song_list)
                         for file in files:
                             rel_file = os.path.join(rel_path, file)
                             log.debug('add file "{}"'.format(rel_file))

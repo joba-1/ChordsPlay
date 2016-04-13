@@ -109,7 +109,7 @@ def main(argv=None):
         
         # media locations #
         locations = db.getSongLists()
-        new_locations = set([(arg,) for arg in args]) - locations
+        new_locations = set([(os.path.normpath(os.path.join(*arg.split('\\'))),) for arg in args]) - locations
         if len(new_locations) > 0:
             db.addSongLists(new_locations)
             locations = db.getSongLists()
