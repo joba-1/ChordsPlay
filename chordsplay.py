@@ -54,10 +54,11 @@ def play(pos, song_id):
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
 def playlistDialog(playlist):
-    d = ChordsPlay.filter.Filter(gui, db)
-    if d.result != None:
-        log.debug(str(d.result))
-        playlist.new(d.result)
+    dlg = ChordsPlay.filter.Filter(gui, db)
+    if dlg.result != None:
+        log.debug(str(dlg.result))
+        playlist.new(dlg.song_ids)
+        gui.mclist.set(dlg.titles)
         
 def main(argv=None):
     global db, gui, player
@@ -123,11 +124,14 @@ def main(argv=None):
         
         gui = ChordsPlay.gui.Gui(title=program_name)
         
-        player = ChordsPlay.play.Play(gui) 
-        playlist = ChordsPlay.playlist.Playlist(db, play)
+        player = ChordsPlay.play.Play(gui)
+        titles = db.getFirstPlaylist()
+        gui.mclist.set([title[1:] for title in titles])
+        playlist = ChordsPlay.playlist.Playlist(db, play, [title[0] for title in titles])
 
         gui.onButton('Pause', player.pause)
         gui.onButton('Next', playlist.next)
+        # todo: select matching item in gui songlist (onMove(func)?)
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', playlist.shuffle)
         gui.onButton('Playlist', lambda: playlistDialog(playlist))

@@ -15,19 +15,19 @@ class Playlist(object):
     for now: just load all available songs
     '''
 
-    def __init__(self, db, cmd):
+    def __init__(self, db, cmd, song_ids):
         self.db = db
-        self.playlist = db.getFirstPlaylist()
+        self.playlist = song_ids
         self.pos = len(self.playlist)
         self.onPlayCommand = cmd
         log.debug("{} = {}".format(self.pos, str(self.playlist)))
 
-    def new(self, patterns):
-        newList = self.db.getPatternPlaylistIds(patterns)
-        newPos = len(newList)
+    def new(self, song_ids):
+        newPos = len(song_ids)
         if newPos > 0:
-            self.playlist = newList
-            self.pos = newPos            
+            self.playlist = song_ids
+            self.pos = newPos
+            self.db.updatePlaylist(song_ids)            
         
     def shuffle(self):
         random.shuffle(self.playlist)

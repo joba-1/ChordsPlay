@@ -1,5 +1,7 @@
 = Chords Play
-
+== Todo
+* gui.resize: use font.measure() of longest lines
+* gui: select current song in playlist
 == Features
 * Scan music library (list of paths or files)
  * Background task (possibly updating current playlist?)

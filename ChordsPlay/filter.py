@@ -37,7 +37,7 @@ class Filter(ChordsPlay.dialog.Dialog):
         # create dialog body.  
         # return widget that should have initial focus.
         
-        labels = ["Titles", "Artists", "Albums", "Capos", "Required Chords", "Accepted Chords"]
+        labels = ["Titles", "Artists", "Albums", "Capos", "Required Chords", "Accepted Chords", "Tags"]
 
         self.entries = {}
         self.errors = {}
@@ -205,4 +205,9 @@ class Filter(ChordsPlay.dialog.Dialog):
         self.result = {}
         for entry in self.entries:
             self.result[entry] = self.entries[entry].get()
-        self.mclist.set(self.db.getPatternPlaylistTitles(self.result))
+        titles = self.db.getPatternPlaylist(self.result)
+        self.titles = [(row[1:]) for row in titles]
+        self.mclist.set(self.titles)
+        self.song_ids = [(row[0]) for row in titles]
+        # caller does this, if necessary:
+        # self.db.updatePlaylist(self.ids)

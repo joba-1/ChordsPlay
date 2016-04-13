@@ -29,6 +29,7 @@ class Db(object):
         Connect to a database identified by connector
         If the database does not exist, create it
         '''
+        self.user = user
         log.debug('connect with "{}" as "{}"'.format(connector, user))
         self.conn = sqlite3.connect(connector)
         log.debug('Init db')
@@ -267,7 +268,7 @@ class Db(object):
             INNER JOIN list_songs ls ON s.id = ls.song_id
             INNER JOIN song_lists l ON ls.song_lists_id = l.id
             WHERE s.id = ?
-        """, song_id)
+        """, (song_id,))
         ret = cur.fetchone()
         cur.close()
         return ret
@@ -278,26 +279,30 @@ class Db(object):
         '''
         cur = self.conn.cursor()
         cur.execute("""
-            SELECT s.id
+            SELECT s.id, s.title, s.artist, s.album, coalesce(s.capo, '')
             FROM songs s
-            INNER JOIN list_songs ls ON s.id = ls.song_id
-            INNER JOIN song_lists l ON ls.song_lists_id = l.id
-            WHERE s.lyrics_chords IS NOT NULL
-            AND (s.capo IS NULL OR s.capo = 0)
-            ORDER BY s.artist, s.album, s.id
-        """)
+            INNER JOIN playlists l ON s.id = l.song_id
+            INNER JOIN users u ON u.id = l.user_id
+            WHERE u.name = ?
+            ORDER BY l.position
+        """, (self.user,))
         ret = list(cur)
+        if len(ret) == 0:
+            cur.execute("""
+                SELECT s.id, s.title, s.artist, s.album, coalesce(s.capo, '')
+                FROM songs s
+                INNER JOIN list_songs ls ON s.id = ls.song_id
+                INNER JOIN song_lists l ON ls.song_lists_id = l.id
+                WHERE s.lyrics_chords IS NOT NULL
+                AND (s.capo IS NULL OR s.capo = 0)
+                ORDER BY s.artist, s.album, s.id
+            """)
+            ret = list(cur)
         log.debug('getFirstPlaylist: {} entries found'.format(len(ret)))
         cur.close()
         return ret
 
-    def getPatternPlaylistIds(self, patterns):
-        return self.getPatternPlaylist(patterns, 's.id')
-
-    def getPatternPlaylistTitles(self, patterns):
-        return self.getPatternPlaylist(patterns, "s.title, s.artist, s.album, coalesce(s.capo, '')")
-
-    def getPatternPlaylist(self, patterns, projection):
+    def getPatternPlaylist(self, patterns):
         '''
         return all id's of songs with matching patterns
         '''
@@ -324,12 +329,12 @@ class Db(object):
                         predicateValues.append("({})|({})".format(required, patterns[key]))
         cur = self.conn.cursor()
         stmt = """
-SELECT {}
+SELECT s.id, s.title, s.artist, s.album, coalesce(s.capo, '')
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
 WHERE s.lyrics_chords IS NOT NULL
-{}ORDER BY s.artist, s.album, s.id""".format(projection, predicateClause)
+{}ORDER BY s.artist, s.album, s.id""".format(predicateClause)
         log.debug('getPatternPlaylist: Statement {}'.format(stmt))
         log.debug('getPatternPlaylist: Parameters {}'.format(str(predicateValues)))
         cur.execute(stmt, predicateValues)
@@ -337,3 +342,13 @@ WHERE s.lyrics_chords IS NOT NULL
         log.debug('getPatternPlaylist: {} entries found'.format(len(ret)))
         cur.close()
         return ret
+    
+    def updatePlaylist(self, song_ids):
+        cur = self.conn.cursor()
+        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
+        user_id = cur.fetchone()
+        cur.close()
+        self.conn.execute("DELETE FROM playlists WHERE user_id = ?", user_id)
+        self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)",
+            [(user_id[0], pos, song_id) for pos, song_id in enumerate(song_ids)])
+        self.conn.commit()
