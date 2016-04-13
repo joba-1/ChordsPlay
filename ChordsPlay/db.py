@@ -85,7 +85,7 @@ class Db(object):
             );
             create table if not exists chord_aliases ( 
                 chord_id      int not null references chords(id) on delete cascade,
-                alias         char(5) not null unique
+                alias_id      int not null references chords(id) on delete cascade
             );
             create table if not exists tags ( 
                 id            integer not null primary key autoincrement,
@@ -183,7 +183,7 @@ class Db(object):
         add a song and add this to list_songs
         '''
         filename = os.path.join(song_list, song_file)
-        log.debug('{} + {} = {}'.format(song_list, song_file, filename))
+        # log.debug('{} + {} = {}'.format(song_list, song_file, filename))
         song = ChordsPlay.song.Song(filename)
         if song.title == None:
             log.debug("file without title ignored: {}".format(filename))
@@ -265,7 +265,7 @@ class Db(object):
     def getPlayInfo(self, song_id):
         cur = self.conn.cursor()
         cur.execute("""
-            SELECT s.title, s.artist, s.lyrics_chords, l.name || ls.filename
+            SELECT s.title, s.artist, s.lyrics_chords, l.name, ls.filename
             FROM songs s
             INNER JOIN list_songs ls ON s.id = ls.song_id
             INNER JOIN song_lists l ON ls.song_lists_id = l.id
@@ -281,22 +281,28 @@ class Db(object):
         '''
         cur = self.conn.cursor()
         cur.execute("""
-            SELECT s.id, s.title, s.artist, s.album, coalesce(s.capo, '')
+            SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(c.name), '')
             FROM songs s
             INNER JOIN playlists l ON s.id = l.song_id
             INNER JOIN users u ON u.id = l.user_id
+            LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
+            LEFT OUTER JOIN chords c ON sc.chord_id = c.id
             WHERE u.name = ?
+            GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
             ORDER BY l.position
         """, (self.user,))
         ret = list(cur)
         if len(ret) == 0:
             cur.execute("""
-                SELECT s.id, s.title, s.artist, s.album, coalesce(s.capo, '')
+                SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(c.name), '')
                 FROM songs s
                 INNER JOIN list_songs ls ON s.id = ls.song_id
                 INNER JOIN song_lists l ON ls.song_lists_id = l.id
+                LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
+                LEFT OUTER JOIN chords c ON sc.chord_id = c.id
                 WHERE s.lyrics_chords IS NOT NULL
                 AND (s.capo IS NULL OR s.capo = 0)
+                GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
                 ORDER BY s.artist, s.album, s.id
             """)
             ret = list(cur)
@@ -331,12 +337,15 @@ class Db(object):
                         predicateValues.append("({})|({})".format(required, patterns[key]))
         cur = self.conn.cursor()
         stmt = """
-SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
+SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(c.name), '')
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
+LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
+LEFT OUTER JOIN chords c ON sc.chord_id = c.id
 WHERE s.lyrics_chords IS NOT NULL
-{}ORDER BY s.artist, s.album, s.id""".format(predicateClause)
+{}GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
+ORDER BY s.artist, s.album, s.id""".format(predicateClause)
         log.debug('getPatternPlaylist: Statement {}'.format(stmt))
         log.debug('getPatternPlaylist: Parameters {}'.format(str(predicateValues)))
         cur.execute(stmt, predicateValues)

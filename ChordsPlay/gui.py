@@ -55,7 +55,7 @@ class Gui(tk.Tk):
         # left pane with playlist and buttons
         playlist = ttk.Frame(panes)
         panes.add(playlist, stretch="always", sticky=tk.NSEW)
-        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo'), [], playlist)
+        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo', 'Chords'), [], playlist)
         self.mclist.grid(row=0, column=0, sticky=tk.NSEW)
         playlist.columnconfigure(0, weight=1)
         playlist.rowconfigure(0, weight=1)
@@ -103,6 +103,7 @@ class Gui(tk.Tk):
         textFrame.rowconfigure(0, weight=1)
         
         textFrame.bind("<Configure>", self.resize)
+        self.numResize = 0
         
         self.currFrame = -1
         self.nextFrame()
@@ -192,14 +193,20 @@ class Gui(tk.Tk):
         log.debug("resize")
         if self.isEmpty == True:
             return
+        self.numResize += 1 
+        numResize = self.numResize
         i = max([self.currFrame, 1])
-        size, diff = self.resizeFrameFont(i)
+        size, diff = self.resizeFrameFont(i, numResize)
+        if size == None:
+            return
         best_size = size
         best_diff = min(diff, 0)
         best_frame = i
         while i > 1 and size >= best_size:
             i -= 1
-            size, diff = self.resizeFrameFont(i)
+            size, diff = self.resizeFrameFont(i, numResize)
+            if size == None:
+                return
             if size > best_size or (size == best_size and min(diff, 0) > best_diff):
                 best_frame = i
                 best_size = size
@@ -208,7 +215,9 @@ class Gui(tk.Tk):
             size = best_size
             i = self.currFrame + 1
             while i < len(self.frames) and size >= best_size:
-                size, diff = self.resizeFrameFont(i)
+                size, diff = self.resizeFrameFont(i, numResize)
+                if size == None:
+                    return
                 if size > best_size or (size == best_size and min(diff, 0) > best_diff):
                     best_frame = i
                     best_size = size
@@ -219,7 +228,7 @@ class Gui(tk.Tk):
             self.currFrame = best_frame
             log.debug("resize: Switched to frame {} with font size {}".format(best_frame, best_size))
 
-    def resizeFrameFont(self, frameIndex):
+    def resizeFrameFont(self, frameIndex, numResize):
         log.debug("resizeFrameFont({})".format(frameIndex))
         f = self.frames[frameIndex]
         frame_font = self.fonts[frameIndex]
@@ -227,11 +236,17 @@ class Gui(tk.Tk):
         # log.debug("resizeFrameFont: Frame {} current size is {}".format(frameIndex, size))
 
         self.update_idletasks()
+        if numResize < self.numResize:
+            log.debug("resizeFrameFont: canceled")
+            return None, None
         while min_diff(min(f.winfo_children(), key=min_diff)) > 0 and size < 50:
             size += 5
             # log.debug("resizeFrameFont: Frame {} test bigger fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
             self.update_idletasks()
+            if numResize < self.numResize:
+                log.debug("resizeFrameFont: canceled")
+                return None, None
          
         w = min(f.winfo_children(), key=min_diff)   
         while min_diff(w) < 0 and size > 6:
@@ -239,6 +254,9 @@ class Gui(tk.Tk):
             # log.debug("resizeFrameFont: Frame {} test smaller fontsize {}".format(frameIndex, size))
             frame_font.configure(size=size)
             self.update_idletasks()
+            if numResize < self.numResize:
+                log.debug("resizeFrameFont: canceled")
+                return None, None
             w = min(f.winfo_children(), key=min_diff)   
 
         if size != old_size:

@@ -48,8 +48,8 @@ log.info('Started')
 
 def play(pos, song_id):
     log.debug("play id {}".format(song_id))
-    title, artist, text, url = db.getPlayInfo(song_id)
-    player.play(url)
+    title, artist, text, path, file = db.getPlayInfo(song_id)
+    player.play(os.path.join(path, file))
     gui.setText(text)
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
 
