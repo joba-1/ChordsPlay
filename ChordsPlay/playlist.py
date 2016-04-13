@@ -12,7 +12,6 @@ log = logging.getLogger(__name__)
 class Playlist(object):
     '''
     manage playlist
-    for now: just load all available songs
     '''
 
     def __init__(self, db, cmd, song_ids):
