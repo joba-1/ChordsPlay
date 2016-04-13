@@ -118,7 +118,11 @@ class Gui(tk.Tk):
         self.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
         self.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
         self.bind("q", lambda x: self.quit())
-        self.bind("p", lambda x: self.buttons["Playlist"].invoke())
+        self.bind("l", lambda x: self.buttons["Filter"].invoke())
+        self.bind("n", lambda x: self.buttons["Next"].invoke())
+        self.bind("p", lambda x: self.buttons["Prev"].invoke())
+        self.bind("s", lambda x: self.buttons["Shuffle"].invoke())
+        self.bind("m", lambda x: self.buttons["Pause"].invoke())
         
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
