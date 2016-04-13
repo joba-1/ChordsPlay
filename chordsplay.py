@@ -95,7 +95,7 @@ def main(argv=None):
         
         # configuration #
         defaults = {
-                    "user": os.getenv('USER', 'anonymous'),
+                    "user": os.getenv('USER', os.getenv('USERNAME', 'anonymous')),
                     "database": os.path.expanduser("~/.{}.db".format(program_name))
                     }
         config = SafeConfigParser(defaults)
@@ -134,7 +134,7 @@ def main(argv=None):
         # todo: select matching item in gui songlist (onMove(func)?)
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', playlist.shuffle)
-        gui.onButton('Playlist', lambda: playlistDialog(playlist))
+        gui.onButton('Filter', lambda: playlistDialog(playlist))
 
         gui.mainloop()
 
