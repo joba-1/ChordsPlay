@@ -34,22 +34,27 @@ class Song(object):
         self.chord_update = None
         
         if self.filename == None:
+            log.warn('need a filename')
             return None
         
         if os.path.isfile(self.filename) == False:
+            log.warn('file "{}" does not exist'.format(self.filename))
             return None
         
         try:
             id3 = mutagen.easyid3.EasyID3(self.filename)
             self.title = id3['title'][0]
-            self.artist = id3['artist'][0]
-            self.album = id3['album'][0]
+            self.artist = id3.get('artist', [''])[0]
+            self.album = id3.get('album', [''])[0]
         
             log.info('id3 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
             return
+        
+        except KeyError:
+            pass
         except mutagen.id3.ID3NoHeaderError:
             pass
-
+        
         try:
             mp4 = mutagen.easymp4.EasyMP4(self.filename)
             self.title = mp4['title'][0]
