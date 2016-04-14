@@ -32,6 +32,8 @@ class Filter(ChordsPlay.dialog.Dialog):
     def onFocus(self):
         if self.validate():
             self.apply()
+            return True
+        return False
         
     def body(self, master, label=None):
         # create dialog body.  
