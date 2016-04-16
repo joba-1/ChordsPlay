@@ -31,7 +31,7 @@ class Filter(ChordsPlay.dialog.Dialog):
 
     def onFocus(self):
         if self.validate():
-            self.apply()
+            self.update()
             return True
         return False
         
@@ -106,7 +106,7 @@ class Filter(ChordsPlay.dialog.Dialog):
     def load(self):
         # load pattern names from database and display selection list (allow delete)
         if self.validate():
-            self.apply()
+            self.update()
         self.initial_focus.focus_set()
     
     def save(self):
@@ -123,7 +123,7 @@ class Filter(ChordsPlay.dialog.Dialog):
             self.name = dialog.result
             self.save()
         if self.validate():
-            self.apply()
+            self.update()
         self.initial_focus.focus_set()
     
     def importFile(self):
@@ -150,7 +150,7 @@ class Filter(ChordsPlay.dialog.Dialog):
                                 entry.delete(0, tk.END)
                                 entry.insert(0, pattern)
                             if self.validate():
-                                self.apply()
+                                self.update()
             except Exception as e:
                 messagebox.showerror(title, 'Import failed:\n{}'.format(str(e)))
         self.initial_focus.focus_set()
@@ -202,14 +202,17 @@ class Filter(ChordsPlay.dialog.Dialog):
                 self.initial_focus = entry
         return rc
     
-    def apply(self):
-        # put the regexes in result dict
-        self.result = {}
+    def update(self):
+        # update preview list
+        self.patterns = {}
         for entry in self.entries:
-            self.result[entry] = self.entries[entry].get()
-        titles = self.db.getPatternPlaylist(self.result)
+            self.patterns[entry] = self.entries[entry].get()
+        titles = self.db.getPatternPlaylist(self.patterns)
         self.titles = [(row[1:]) for row in titles]
         self.mclist.set(self.titles)
         self.song_ids = [(row[0]) for row in titles]
-        # caller does this, if necessary:
-        # self.db.updatePlaylist(self.ids)
+    
+    def apply(self):
+        # put the regexes in result dict
+        self.update()
+        self.result = self.patterns
