@@ -334,7 +334,7 @@ class Db(object):
                 predicateValues.append("({})|({})".format(required, accepted))
             else:
                 predicateValues.append(accepted)
-            acceptedClause = ' AND ac.name REGEXP ?\n'
+            acceptedClause = ' AND ac.name REGEXP ?'
             
         for key in patterns:
             pattern = patterns[key]
