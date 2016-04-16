@@ -47,7 +47,7 @@ class Song(object):
             self.artist = id3.get('artist', [''])[0]
             self.album = id3.get('album', [''])[0]
         
-            log.info('id3 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
+            # log.info('id3 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
             return
         
         except KeyError:
@@ -61,7 +61,7 @@ class Song(object):
             self.artist = mp4['artist'][0]
             self.album = mp4['album'][0]
             
-            log.info('mp4 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
+            # log.info('mp4 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
             return
         except Exception:
             pass
@@ -72,10 +72,11 @@ class Song(object):
             self.artist = ogg['artist'][0]
             self.album = ogg['album'][0]
             
-            log.info('ogg file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
+            # log.info('ogg file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
             return
         except Exception:
-            log.debug('format of "{}" not supported'.format(self.filename))
+            pass
+            # log.debug('format of "{}" not supported'.format(self.filename))
         
     def tags(self):
         return (self.title, self.artist, self.album)

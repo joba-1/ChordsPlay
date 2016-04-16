@@ -185,7 +185,7 @@ class Db(object):
         # log.debug('{} + {} = {}'.format(song_list, song_file, filename))
         song = ChordsPlay.song.Song(filename)
         if song.title == None:
-            log.debug("file without title ignored: {}".format(filename))
+            # log.debug("file without title ignored: {}".format(filename))
             return
             
         try:
@@ -194,7 +194,7 @@ class Db(object):
             self.conn.commit()
             log.info("added song {}".format(','.join(song.tags())))
         except sqlite3.IntegrityError:
-            log.debug("duplicate song {}".format(','.join(song.tags())))
+            # log.debug("duplicate song {}".format(','.join(song.tags())))
             self.conn.rollback()
         except sqlite3.InterfaceError as e:
             log.error("adding song {} failed:".format(','.join(song.tags())))

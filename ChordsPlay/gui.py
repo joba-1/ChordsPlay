@@ -59,7 +59,6 @@ class Gui(tk.Tk):
         self.mclist.grid(row=0, column=0, sticky=tk.NSEW)
         playlist.columnconfigure(0, weight=1)
         playlist.rowconfigure(0, weight=1)
-        # self.mclist.set(self.db.getPatternPlaylistTitles(self.result))
                 
         buttons = [
             #("Quit", self.quit),

@@ -85,7 +85,7 @@ class Scan(threading.Thread):
                         rel_path = os.path.relpath(path, song_list)
                         for file in files:
                             rel_file = os.path.join(rel_path, file)
-                            log.debug('add file "{}"'.format(rel_file))
+                            # log.debug('add file "{}"'.format(rel_file))
                             self.db.addListSong(song_list, rel_file)
                             if self.quit.is_set(): 
                                 return
