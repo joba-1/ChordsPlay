@@ -324,13 +324,13 @@ class Db(object):
             "Albums":          "AND s.album  REGEXP ?\n",
             "Capos":           "AND cast(coalesce(s.capo, 0) as text) REGEXP ?\n",
             }
-        required = patterns.get("Required Chords", None)
-        if required != None:
+        required = patterns.get("Required Chords", '')
+        if required != '':
             predicateValues.append(required)
             requiredClause = 'LEFT OUTER JOIN chords rc ON sc.chord_id = rc.id AND rc.name REGEXP ?\n'
-        accepted = patterns.get("Accepted Chords", None)
-        if accepted != None:
-            if required != None:
+        accepted = patterns.get("Accepted Chords", '')
+        if accepted != '':
+            if required != '':
                 predicateValues.append("({})|({})".format(required, accepted))
             else:
                 predicateValues.append(accepted)
@@ -338,20 +338,20 @@ class Db(object):
             
         for key in patterns:
             pattern = patterns[key]
-            if pattern != "":
+            if pattern != '':
                 predicate = predicateSwitch.get(key, None)
                 if predicate != None:
                     predicateClause += predicate
-                    if required == None or key != "Accepted Chords":
+                    if required == '' or key != "Accepted Chords":
                         predicateValues.append(pattern)
                     else:
                         predicateValues.append("({})|({})".format(required, pattern))
 
-        if required != None:
+        if required != '':
             havingClause += 'HAVING count(rc.name) = (SELECT count(*) FROM chords WHERE name REGEXP ?)\n'
             predicateValues.append(required)
-        if accepted != None:
-            if required != None:
+        if accepted != '':
+            if required != '':
                 havingClause += 'AND count(*) = count(ac.name)\n'
             else:
                 havingClause += 'HAVING count(*) = count(ac.name)\n'
