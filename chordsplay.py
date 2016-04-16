@@ -47,11 +47,16 @@ log = logging.getLogger(__name__)
 log.info('Started')
 
 def play(pos, song_id):
-    log.debug("play id {}".format(song_id))
+    log.debug("play id {} @ {}".format(song_id, pos))
     title, artist, text, path, file = db.getPlayInfo(song_id)
     player.play(os.path.join(path, file))
     gui.setText(text)
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
+    gui.mclist.tree.selection_clear()
+    item_id = gui.mclist.tree.get_children()[pos]
+    log.debug("select item id {} @ {}".format(item_id, pos))
+    gui.mclist.tree.selection_set([item_id])
+    gui.mclist.tree.see(item_id)
 
 def playlistDialog(playlist):
     dlg = ChordsPlay.filter.Filter(gui, db)
