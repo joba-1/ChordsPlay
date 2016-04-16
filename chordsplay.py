@@ -64,9 +64,16 @@ def playlistDialog(playlist):
         log.debug(str(dlg.result))
         playlist.new(dlg.song_ids)
         gui.mclist.set(dlg.titles)
+
+def onClick(event):
+    tree = event.widget
+    item = tree.identify('item', event.x, event.y)
+    pos = tree.index(item)
+    log.debug("onClick: jump to pos {}".format(pos))
+    playlist.jump(pos)
         
 def main(argv=None):
-    global db, gui, player
+    global db, gui, player, playlist
     
     # Command line options
     program_name = os.path.basename(sys.argv[0])
@@ -100,9 +107,9 @@ def main(argv=None):
         
         # configuration #
         defaults = {
-                    "user": os.getenv('USER', os.getenv('USERNAME', 'anonymous')),
-                    "database": os.path.expanduser("~/.{}.db".format(program_name))
-                    }
+            "user": os.getenv('USER', os.getenv('USERNAME', 'anonymous')),
+            "database": os.path.expanduser("~/.{}.db".format(program_name))
+            }
         config = SafeConfigParser(defaults)
         config.add_section(program_name)
         config.read(os.path.expanduser(opts.cfgfile))
@@ -133,6 +140,8 @@ def main(argv=None):
         titles = db.getFirstPlaylist()
         gui.mclist.set([title[1:] for title in titles])
         playlist = ChordsPlay.playlist.Playlist(db, play, [title[0] for title in titles])
+
+        gui.mclist.tree.bind("<Double-Button-1>", onClick)
 
         gui.onButton('Pause', player.pause)
         gui.onButton('Next', playlist.next)

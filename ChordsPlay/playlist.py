@@ -31,6 +31,11 @@ class Playlist(object):
     def shuffle(self):
         random.shuffle(self.playlist)
         
+    def jump(self, pos):
+        if pos >= 0 and pos < len(self.playlist):
+            self.pos = pos
+            self.onPlayCommand(self.pos, self.playlist[self.pos])
+        
     def next(self):
         if len(self.playlist) == 0:
             return

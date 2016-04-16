@@ -20,7 +20,7 @@ class MCList(ttk.Frame):
         ttk.Frame.__init__(self, master, **kw)
 
         self.headings = headings
-        self.tree = ttk.Treeview(self, columns=headings, show='headings')
+        self.tree = ttk.Treeview(self, columns=headings, show='headings', selectmode='browse')
 
         # add scroll bar and link to tree         
         yscrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
