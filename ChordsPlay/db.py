@@ -14,8 +14,7 @@ log = logging.getLogger(__name__)
 
 def regexp(expr, item):
     try:
-        reg = re.compile(expr)
-        return reg.search(item) is not None
+        return re.search(expr, item) is not None
     except Exception:
         return False
 
@@ -314,17 +313,29 @@ class Db(object):
         '''
         return all id's of songs with matching patterns
         '''
+        havingClause = ''
         predicateClause = ''
+        requiredClause = ''
+        acceptedClause = ''
         predicateValues = []
         predicateSwitch = {
-            "Titles":          "AND s.title REGEXP ?\n",
+            "Titles":          "AND s.title  REGEXP ?\n",
             "Artists":         "AND s.artist REGEXP ?\n",
-            "Albums":          "AND s.album REGEXP ?\n",
+            "Albums":          "AND s.album  REGEXP ?\n",
             "Capos":           "AND cast(coalesce(s.capo, 0) as text) REGEXP ?\n",
-            "Required Chords": "AND EXISTS (SELECT 1 FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND c.name REGEXP ? LIMIT 1)\n",
-            "Accepted Chords": "AND NOT EXISTS (SELECT 1 FROM chords c INNER JOIN song_chords sc ON c.id = sc.chord_id WHERE sc.song_id = s.id AND NOT c.name REGEXP ? LIMIT 1)\n"
             }
         required = patterns.get("Required Chords", None)
+        if required != None:
+            predicateValues.append(required)
+            requiredClause = 'LEFT OUTER JOIN chords rc ON sc.chord_id = rc.id AND rc.name REGEXP ?\n'
+        accepted = patterns.get("Accepted Chords", None)
+        if accepted != None:
+            if required != None:
+                predicateValues.append("({})|({})".format(required, accepted))
+            else:
+                predicateValues.append(accepted)
+            acceptedClause = ' AND ac.name REGEXP ?\n'
+            
         for key in patterns:
             pattern = patterns[key]
             if pattern != "":
@@ -332,20 +343,30 @@ class Db(object):
                 if predicate != None:
                     predicateClause += predicate
                     if required == None or key != "Accepted Chords":
-                        predicateValues.append(patterns[key])
+                        predicateValues.append(pattern)
                     else:
-                        predicateValues.append("({})|({})".format(required, patterns[key]))
+                        predicateValues.append("({})|({})".format(required, pattern))
+
+        if required != None:
+            havingClause += 'HAVING count(rc.name) = (SELECT count(*) FROM chords WHERE name REGEXP ?)\n'
+            predicateValues.append(required)
+        if accepted != None:
+            if required != None:
+                havingClause += 'AND count(*) = count(ac.name)\n'
+            else:
+                havingClause += 'HAVING count(*) = count(ac.name)\n'
+           
         cur = self.conn.cursor()
         stmt = """
-SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(c.name), '')
+SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(ac.name), '')
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
-LEFT OUTER JOIN chords c ON sc.chord_id = c.id
+{}LEFT OUTER JOIN chords ac ON sc.chord_id = ac.id{}
 WHERE s.lyrics_chords IS NOT NULL
 {}GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
-ORDER BY s.artist, s.album, s.id""".format(predicateClause)
+{}ORDER BY s.artist, s.album, s.id""".format(requiredClause, acceptedClause, predicateClause, havingClause)
         log.debug('getPatternPlaylist: Statement {}'.format(stmt))
         log.debug('getPatternPlaylist: Parameters {}'.format(str(predicateValues)))
         cur.execute(stmt, predicateValues)
