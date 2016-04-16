@@ -2,7 +2,6 @@
 
 == Todo
 * gui.resize: use font.measure() of longest lines
-* gui: select current song in playlist
 * playlist: shuffle including gui titles list
 * filter dialog pre-filled with current settings
 
