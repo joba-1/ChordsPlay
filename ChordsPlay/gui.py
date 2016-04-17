@@ -47,14 +47,14 @@ class Gui(tk.Tk):
         self.setTitle(None)
         
         # paned window using all of toplevels space and resizing with it
-        panes = tk.PanedWindow(self, showhandle=True, sashrelief=tk.SUNKEN, sashpad=5)
-        panes.grid(row=0, column=0, sticky=tk.NSEW)
+        self.panes = tk.PanedWindow(self, showhandle=True, sashrelief=tk.SUNKEN, sashpad=5)
+        self.panes.grid(row=0, column=0, sticky=tk.NSEW)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         
         # left pane with playlist and buttons
-        playlist = ttk.Frame(panes)
-        panes.add(playlist, stretch="always", sticky=tk.NSEW)
+        playlist = ttk.Frame(self.panes)
+        self.panes.add(playlist, stretch="always", sticky=tk.NSEW)
         self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo', 'Chords'), [], playlist)
         self.mclist.grid(row=0, column=0, sticky=tk.NSEW)
         playlist.columnconfigure(0, weight=1)
@@ -78,8 +78,10 @@ class Gui(tk.Tk):
             self.buttons[buttons[b][0]] = button
 
         # text pane to the right
-        textFrame = ttk.Frame(panes)
-        panes.add(textFrame, stretch="always", sticky=tk.NSEW)
+        textFrame = ttk.Frame(self.panes)
+        self.panes.add(textFrame, stretch="always", sticky=tk.NSEW)
+        
+        self.sashPos = textFrame.winfo_screenwidth() // 3
         
         for f in range(5):
             frame = ttk.Frame(textFrame, width=textFrame.winfo_screenwidth() // 2, 
@@ -118,16 +120,25 @@ class Gui(tk.Tk):
         self.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
         self.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
         self.bind("q", lambda x: self.quit())
-        self.bind("l", lambda x: self.buttons["Filter"].invoke())
+        self.bind("f", lambda x: self.buttons["Filter"].invoke())
         self.bind("n", lambda x: self.buttons["Next"].invoke())
         self.bind("p", lambda x: self.buttons["Prev"].invoke())
         self.bind("s", lambda x: self.buttons["Shuffle"].invoke())
         self.bind("m", lambda x: self.buttons["Pause"].invoke())
+        self.bind("l", self.toggleList)
         
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
         self.inhibitBlank()
 
+    def toggleList(self, _):
+        x, y = self.panes.sash_coord(0)
+        if x < 50:
+            self.panes.sash_place(0, self.sashPos, y)
+        else:
+            self.sashPos = x
+            self.panes.sash_place(0, 0, y)
+    
     def inhibitBlank(self):
         try:
             call(["xset", "s", "reset"])
