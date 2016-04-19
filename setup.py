@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-version='1.3'
+version='1.4'
 
 config = {
     'description': 'Play your music matching filters like artists or chords while showing lyrics and guitar chords',
@@ -19,7 +19,7 @@ config = {
     'name': 'chordsplay'
 }
 
-# Install this package by calling pip install {download_url}
+# Install this package by calling pip install {download_url|path_to_setup.py}
 # In the doenload_url you can replace the version with "tip" to get the bleeding edge
 # Or create a source distribution archive with python setup.py sdist
 # Then copy and unpack the resulting tar file on the target machine,
