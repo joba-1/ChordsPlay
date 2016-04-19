@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-version='1.4'
+version='1.5'
 
 config = {
     'description': 'Play your music matching filters like artists or chords while showing lyrics and guitar chords',
