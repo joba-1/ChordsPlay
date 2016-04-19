@@ -59,6 +59,9 @@ class Db(object):
                 chord_update  char(10) default null,
                 unique        (title, artist)
             );
+            create index if not exists songs_groups on songs (
+                id, title, artist, album, capo 
+            );
             create table if not exists user_songs ( 
                 user_id       int not null references users(id) on delete restrict,
                 song_id       int not null references songs(id) on delete restrict,

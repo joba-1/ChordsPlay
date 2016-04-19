@@ -35,11 +35,12 @@ class MCList(ttk.Frame):
         self.columnconfigure(0, weight=1)
         
         # configure headings
+        self.font = tk.font.Font()
         self.ascending = True
         for column in headings:
             self.tree.heading(column, text=column.title(),
                 command=lambda c=column: self.sort(c, self.ascending))           
-            self.tree.column(column, width=tk.font.Font().measure(column.title()))
+            self.tree.column(column, width=self.font.measure(column.title()))
              
         # add data columns
         for row in data:
@@ -55,7 +56,7 @@ class MCList(ttk.Frame):
         # configure headings
         self.ascending = True
         for column in self.headings:
-            self.tree.column(column, width=tk.font.Font().measure(column.title()))
+            self.tree.column(column, width=self.font.measure(column.title()))
              
         # remove old rows
         for child in self.tree.get_children(''):
@@ -67,8 +68,8 @@ class MCList(ttk.Frame):
              
             # adjust column widths
             for index, value in enumerate(row):
-                log.debug("set: index {}: '{}'".format(index, value))
-                width = tk.font.Font().measure(value)
+                # log.debug("set: index {}: '{}'".format(index, value))
+                width = self.font.measure(value)
                 if self.tree.column(self.headings[index], 'width') < width:
                     self.tree.column(self.headings[index], width=width)
         
