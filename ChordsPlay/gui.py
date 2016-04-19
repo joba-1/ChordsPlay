@@ -33,11 +33,11 @@ class Gui(tk.Tk):
         width = 1
         height = 1
         
-        # frames with 0..3 text areas and fonts. If there is no text, then isEmpty
+        # frames with 0..3 text areas. If there is no text, then isEmpty
         self.frames = []
         self.isEmpty = True
-        self.fonts = []
         font_template = "Lyrics{}"
+        self.pad = pad
         
         if title != None:
             self.basetitle = title
@@ -66,7 +66,6 @@ class Gui(tk.Tk):
             ("Next", None),
             ("Prev", None),
             ("Shuffle", None),
-            #("Frame", self.nextFrame),
             ("Filter", None)
         ]
         self.buttons = {}       
@@ -90,7 +89,7 @@ class Gui(tk.Tk):
             font_name = font_template.format(f)
             lyrics_font = font.Font(name=font_name)
             lyrics_font.configure(**font.nametofont("TkFixedFont").configure())
-            self.fonts.append(lyrics_font)
+            frame.font = lyrics_font
             for t in range(f):
                 text = tk.Text(frame, wrap=tk.NONE, width=width, height=height, 
                                font=font_name, state='disabled', padx=pad, pady=pad)
@@ -106,8 +105,8 @@ class Gui(tk.Tk):
         textFrame.bind("<Configure>", self.resize)
         self.numResize = 0
         
-        self.currFrame = -1
-        self.nextFrame()
+        self.currFrame = self.frames[0]
+        self.currFrame.lift()
         
         self.fullscreenState = True
         self.attributes("-fullscreen", self.fullscreenState)
@@ -159,14 +158,6 @@ class Gui(tk.Tk):
     def onButton(self, label, runnable):
         self.buttons[label].configure(command=runnable)
 
-    def nextFrame(self):
-        self.currFrame += 1
-        if self.currFrame == len(self.frames):
-            self.currFrame = 0
-        self.frames[self.currFrame].lift()
-        for w in self.frames[self.currFrame].winfo_children():
-            log.debug("nextFrame {}: w={}/{} h={}/{}".format(str(w), w.winfo_width(), w.winfo_reqwidth(), w.winfo_height(), w.winfo_reqheight()))
-
     def setTitle(self, title):
         if title == None:
             self.title(self.basetitle)
@@ -179,6 +170,7 @@ class Gui(tk.Tk):
         lines = text.splitlines()
         num_lines = len(lines)
         self.frames[0].lift()
+        self.currFrame = self.frames[0]
         for f in self.frames:
             texts = f.winfo_children()
             if len(texts) > 0:
@@ -196,80 +188,66 @@ class Gui(tk.Tk):
                     if width > 0:
                         self.isEmpty = False 
                 log.debug("setText {}: rows={} widths={}".format(str(f), num_rows, str(widths)))
-        self.after_idle(self.resize)
-    
+        self.resize()
+
     def resize(self, event=None):
-        # todo: resize using font measure of longest line
         log.debug("resize")
+
         if self.isEmpty == True:
             return
-        self.numResize += 1 
-        numResize = self.numResize
-        i = max([self.currFrame, 1])
-        size, diff = self.resizeFrameFont(i, numResize)
-        if size == None:
-            return
-        best_size = size
-        best_diff = min(diff, 0)
-        best_frame = i
-        while i > 1 and size >= best_size:
-            i -= 1
-            size, diff = self.resizeFrameFont(i, numResize)
-            if size == None:
-                return
-            if size > best_size or (size == best_size and min(diff, 0) > best_diff):
-                best_frame = i
-                best_size = size
-                best_diff = min(diff, 0)
-        if self.currFrame in [0, best_frame]:
-            size = best_size
-            i = self.currFrame + 1
-            while i < len(self.frames) and size >= best_size:
-                size, diff = self.resizeFrameFont(i, numResize)
-                if size == None:
-                    return
-                if size > best_size or (size == best_size and min(diff, 0) > best_diff):
-                    best_frame = i
-                    best_size = size
-                    best_diff = min(diff, 0)
-                i += 1
-        self.frames[best_frame].lift()
-        if best_frame != self.currFrame:
-            self.currFrame = best_frame
-            log.debug("resize: Switched to frame {} with font size {}".format(best_frame, best_size))
 
-    def resizeFrameFont(self, frameIndex, numResize):
-        log.debug("resizeFrameFont({})".format(frameIndex))
-        f = self.frames[frameIndex]
-        frame_font = self.fonts[frameIndex]
-        size = old_size = frame_font.actual()["size"]
-        # log.debug("resizeFrameFont: Frame {} current size is {}".format(frameIndex, size))
-
+        maxSize = 50
+        minSize = 6
+        
+        bestSize = minSize
+        bestFrame = None
+        
+        font = self.frames[0].font
+        frames = self.frames[1:]
+        
         self.update_idletasks()
-        if numResize < self.numResize:
-            log.debug("resizeFrameFont: canceled")
-            return None, None
-        while min_diff(min(f.winfo_children(), key=min_diff)) > 0 and size < 50:
-            size += 5
-            # log.debug("resizeFrameFont: Frame {} test bigger fontsize {}".format(frameIndex, size))
-            frame_font.configure(size=size)
-            self.update_idletasks()
-            if numResize < self.numResize:
-                log.debug("resizeFrameFont: canceled")
-                return None, None
-         
-        w = min(f.winfo_children(), key=min_diff)   
-        while min_diff(w) < 0 and size > 6:
-            size -= 1
-            # log.debug("resizeFrameFont: Frame {} test smaller fontsize {}".format(frameIndex, size))
-            frame_font.configure(size=size)
-            self.update_idletasks()
-            if numResize < self.numResize:
-                log.debug("resizeFrameFont: canceled")
-                return None, None
-            w = min(f.winfo_children(), key=min_diff)   
+        
+        while maxSize >= minSize:
+            # we still have font sizes to check
+            currSize = (maxSize + minSize) // 2
+            log.debug("resize: min/max = {}/{}: try {}".format(minSize, maxSize, currSize))
+            font.configure(size=currSize)
+            bestDiff = -100000
+            
+            for frame in frames:
+                # for all frames
+                for text in frame.winfo_children():
+                    # for all text boxes in the current frame
+                    haveWidth = text.winfo_width() - 2 * (self.pad + 2)
+                    haveHeight = text.winfo_height() - 2 * (self.pad + 2)
+                    chars = text["width"]
+                    lines = text["height"]
+                    wantWidth = font.measure("g" * chars)
+                    wantHeight = font.metrics("linespace") * lines
+                    minDiff = min(haveHeight - wantHeight, haveWidth - wantWidth)
+                    log.debug("resize: chars = {}, lines = {}, have/want width = {}/{}, have/want height = {}/{} -> Diff = {}".format(chars, lines, haveWidth, wantWidth, haveHeight, wantHeight, minDiff))
+                    if (currSize > bestSize and minDiff >= 0) or (currSize == bestSize and minDiff > bestDiff):
+                        # better than all we've seen so far
+                        bestSize = currSize
+                        bestDiff = minDiff
+                        bestFrame = frame
+                        log.debug("resize: better {} with diff {}".format(currSize, minDiff))
+            
+            if bestDiff >= 0:
+                # we found a font that fits, might be even bigger
+                minSize = currSize + 1
+            else:
+                # we found no font that fits, try smaller 
+                maxSize = currSize - 1
 
-        if size != old_size:
-            log.debug("resizeFrameFont: Frame {} fontsize now {}".format(frameIndex, size))
-                
-        return size, min_diff(w)
+        if bestFrame == None:
+            log.debug("resize: nothing found, use last frame")
+            bestFrame = self.frames[-1:][0]
+
+        log.debug("resize: best {}".format(bestSize))
+        bestFrame.font.configure(size=bestSize)
+            
+        if bestFrame != self.currFrame:
+            log.debug("resize: switch to frame {}".format(len(bestFrame.winfo_children())))
+            self.currFrame = bestFrame
+            bestFrame.lift()

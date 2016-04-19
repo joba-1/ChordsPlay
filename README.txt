@@ -1,7 +1,6 @@
 = Chords Play
 
 == Todo
-* gui.resize: use font.measure() of longest lines
 * playlist: shuffle including gui titles list
 * filter dialog pre-filled with current settings
 
