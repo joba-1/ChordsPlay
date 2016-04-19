@@ -184,7 +184,7 @@ class Db(object):
         filename = os.path.join(song_list, song_file)
         # log.debug('{} + {} = {}'.format(song_list, song_file, filename))
         song = ChordsPlay.song.Song(filename)
-        if song.title == None:
+        if song == None or song.title == None:
             # log.debug("file without title ignored: {}".format(filename))
             return
             

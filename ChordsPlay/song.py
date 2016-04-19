@@ -58,8 +58,8 @@ class Song(object):
         try:
             mp4 = mutagen.easymp4.EasyMP4(self.filename)
             self.title = mp4['title'][0]
-            self.artist = mp4['artist'][0]
-            self.album = mp4['album'][0]
+            self.artist = mp4.get('artist', [''])[0]
+            self.album = mp4.get('album', [''])[0]
             
             # log.info('mp4 file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
             return
@@ -69,8 +69,8 @@ class Song(object):
         try:
             ogg = mutagen.oggvorbis.OggVorbis(self.filename)
             self.title = ogg['title'][0]
-            self.artist = ogg['artist'][0]
-            self.album = ogg['album'][0]
+            self.artist = ogg.get('artist', [''])[0]
+            self.album = ogg.get('album', [''])[0]
             
             # log.info('ogg file "{}" is title "{}" by "{}" on "{}"'.format(self.filename, self.title, self.artist, self.album))
             return
