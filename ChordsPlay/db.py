@@ -59,8 +59,8 @@ class Db(object):
                 chord_update  char(10) default null,
                 unique        (title, artist)
             );
-            create index if not exists songs_groups on songs (
-                id, title, artist, album, capo 
+            create index if not exists songs_ix1 on songs (
+                lyrics_chords, id, title, artist, album, capo 
             );
             create table if not exists user_songs ( 
                 user_id       int not null references users(id) on delete restrict,
@@ -84,6 +84,9 @@ class Db(object):
                 id            integer not null primary key autoincrement,
                 name          char(15) not null unique,
                 pattern       char(6)
+            );
+            create index if not exists chords_ix1 on chords (
+                name, id
             );
             create table if not exists chord_aliases ( 
                 chord_id      int not null references chords(id) on delete cascade,
@@ -291,7 +294,7 @@ class Db(object):
             LEFT OUTER JOIN chords c ON sc.chord_id = c.id
             WHERE u.name = ?
             GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
-            ORDER BY l.position
+            ORDER BY l.user_id, l.position
         """, (self.user,))
         ret = list(cur)
         if len(ret) == 0:
