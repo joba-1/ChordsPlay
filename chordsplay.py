@@ -53,7 +53,7 @@ def play(pos, song_id):
     gui.setText(text)
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
     gui.mclist.tree.selection_clear()
-    item_id = gui.mclist.tree.get_children()[pos]
+    item_id = gui.mclist.get()[pos]
     log.debug("select item id {} @ {}".format(item_id, pos))
     gui.mclist.tree.selection_set([item_id])
     gui.mclist.tree.see(item_id)
@@ -62,8 +62,8 @@ def playlistDialog(playlist):
     dlg = ChordsPlay.filter.Filter(gui, db)
     if dlg.result != None:
         log.debug(str(dlg.result))
-        playlist.new(dlg.song_ids)
         gui.mclist.set(dlg.titles)
+        playlist.new(gui.mclist)
 
 def onClick(event):
     tree = event.widget
@@ -138,8 +138,8 @@ def main(argv=None):
         
         player = ChordsPlay.play.Play(gui)
         titles = db.getFirstPlaylist()
-        gui.mclist.set([title[1:] for title in titles])
-        playlist = ChordsPlay.playlist.Playlist(db, play, [title[0] for title in titles])
+        gui.mclist.set(titles)
+        playlist = ChordsPlay.playlist.Playlist(db, play, gui.mclist)
 
         gui.mclist.tree.bind("<Double-Button-1>", onClick)
 
@@ -147,8 +147,8 @@ def main(argv=None):
         gui.onButton('Next', playlist.next)
         # todo: select matching item in gui songlist (onMove(func)?)
         gui.onButton('Prev', playlist.prev)
-        gui.onButton('Shuffle', playlist.shuffle)
-        gui.onButton('Filter', lambda: playlistDialog(playlist))
+        gui.onButton('Shuffle', gui.mclist.shuffle)
+        gui.onButton('Filter', lambda: playlistDialog(gui.mclist))
 
         gui.mainloop()
 

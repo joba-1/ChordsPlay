@@ -4,7 +4,6 @@ Created on 30.03.2016
 @author: joba1
 '''
 
-import random
 import logging
 
 log = logging.getLogger(__name__)
@@ -14,44 +13,43 @@ class Playlist(object):
     manage playlist
     '''
 
-    def __init__(self, db, cmd, song_ids):
+    def __init__(self, db, cmd, mclist):
         self.db = db
-        self.playlist = song_ids
-        self.pos = len(self.playlist)
+        self.mclist = mclist
+        self.pos = self.mclist.len()
         self.onPlayCommand = cmd
-        log.debug("{} = {}".format(self.pos, str(self.playlist)))
+        log.debug("playlist len = {}".format(self.pos))
 
-    def new(self, song_ids):
-        newPos = len(song_ids)
+    def new(self, mclist):
+        newPos = mclist.len()
         if newPos > 0:
-            self.playlist = song_ids
+            self.mclist = mclist
             self.pos = newPos
-            self.db.updatePlaylist(song_ids)            
-        
-    def shuffle(self):
-        random.shuffle(self.playlist)
+            self.db.updatePlaylist(self.mclist.get())            
         
     def jump(self, pos):
-        if pos >= 0 and pos < len(self.playlist):
+        if pos >= 0 and pos < self.mclist.len():
             self.pos = pos
-            self.onPlayCommand(self.pos, self.playlist[self.pos])
+            self.onPlayCommand(pos, self.mclist.get()[pos])
         
     def next(self):
-        if len(self.playlist) == 0:
+        length = self.mclist.len()
+        if length == 0:
             return
         
         self.pos += 1
-        if self.pos >= len(self.playlist):
+        if self.pos >= length:
             self.pos = 0
         
-        self.onPlayCommand(self.pos, self.playlist[self.pos])
+        self.onPlayCommand(self.pos, self.mclist.get()[self.pos])
             
     def prev(self):
-        if len(self.playlist) == 0:
+        length = self.mclist.len()
+        if length == 0:
             return
         
         self.pos -= 1
         if self.pos < 0:
-            self.pos = len(self.playlist) - 1
+            self.pos = length - 1
         
-        self.onPlayCommand(self.pos, self.playlist[self.pos])
+        self.onPlayCommand(self.pos, self.mclist.get()[self.pos])

@@ -27,8 +27,9 @@ class Filter(ChordsPlay.dialog.Dialog):
     def __init__(self, parent, db):
         self.name = None
         self.db = db
+        self.patterns = None
         ChordsPlay.dialog.Dialog.__init__(self, parent, "Playlist Filter")
-
+        
     def onFocus(self):
         if self.validate():
             self.update()
@@ -204,13 +205,12 @@ class Filter(ChordsPlay.dialog.Dialog):
     
     def update(self):
         # update preview list
-        self.patterns = {}
-        for entry in self.entries:
-            self.patterns[entry] = self.entries[entry].get()
-        titles = self.db.getPatternPlaylist(self.patterns)
-        self.titles = [(row[1:]) for row in titles]
-        self.mclist.set(self.titles)
-        self.song_ids = [(row[0]) for row in titles]
+        patterns = {key: self.entries[key].get() for key in self.entries}
+        
+        if patterns != self.patterns:
+            self.titles = self.db.getPatternPlaylist(patterns)
+            self.mclist.set(self.titles)
+            self.patterns = patterns
     
     def apply(self):
         # put the regexes in result dict

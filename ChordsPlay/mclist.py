@@ -6,6 +6,7 @@ Created on 09.04.2016
 
 import tkinter as tk
 from tkinter import ttk
+import random
 import logging
 
 log = logging.getLogger(__name__)
@@ -44,14 +45,23 @@ class MCList(ttk.Frame):
              
         # add data columns
         for row in data:
-            self.tree.insert('', 'end', values=row)
-             
+            item = self.tree.insert('', 'end', iid=row[0], values=row[1:])
             # adjust column widths
-            for index, value in enumerate(row):
+            for column in headings:
+                value = self.tree.set(item, column=column)
                 width = tk.font.Font().measure(value)
-                if self.tree.column(headings[index], 'width') < width:
-                    self.tree.column(headings[index], width=width)
+                if self.tree.column(column, 'width') < width:
+                    self.tree.column(column, width=width)
      
+    def len(self):
+        return len(self.tree.get_children(''))
+    
+    def get(self, pos=None):
+        items = self.tree.get_children('')
+        if pos == None:
+            return items
+        return self.tree.set(items[pos])
+    
     def set(self, data):   
         # configure headings
         self.ascending = True
@@ -59,19 +69,20 @@ class MCList(ttk.Frame):
             self.tree.column(column, width=self.font.measure(column.title()))
              
         # remove old rows
-        for child in self.tree.get_children(''):
-            self.tree.delete(child)
+        children = self.tree.get_children('')
+        if len(children) > 0:
+            log.debug("set: first child to delete: {}".format(children[0]))
+            self.tree.delete(*children)
 
         # add data columns
         for row in data:
-            self.tree.insert('', 'end', values=row)
-             
+            item = self.tree.insert('', 'end', iid=row[0], values=row[1:])
             # adjust column widths
-            for index, value in enumerate(row):
-                # log.debug("set: index {}: '{}'".format(index, value))
-                width = self.font.measure(value)
-                if self.tree.column(self.headings[index], 'width') < width:
-                    self.tree.column(self.headings[index], width=width)
+            for column in self.headings:
+                value = self.tree.set(item, column=column)
+                width = tk.font.Font().measure(value)
+                if self.tree.column(column, 'width') < width:
+                    self.tree.column(column, width=width)
         
     def sort(self, column, ascending=True):
 
@@ -84,3 +95,15 @@ class MCList(ttk.Frame):
          
         # next time reverse sort
         self.ascending = not ascending
+        
+    def shuffle(self):
+
+        # list of column values with column id          
+        items = list(self.tree.get_children(''))
+        random.shuffle(items)
+        
+        for index, item in enumerate(items):
+            self.tree.move(item, '', index)   # pair[1] = column id
+
+        # next time ascending sort
+        self.ascending = True
