@@ -210,7 +210,7 @@ class Gui(tk.Tk):
         while maxSize >= minSize:
             # we still have font sizes to check
             currSize = (maxSize + minSize) // 2
-            log.debug("resize: min/max = {}/{}: try {}".format(minSize, maxSize, currSize))
+            # log.debug("resize: min/max = {}/{}: try {}".format(minSize, maxSize, currSize))
             font.configure(size=currSize)
             bestDiff = -100000
             
@@ -225,13 +225,13 @@ class Gui(tk.Tk):
                     wantWidth = font.measure("g" * chars)
                     wantHeight = font.metrics("linespace") * lines
                     minDiff = min(haveHeight - wantHeight, haveWidth - wantWidth)
-                    log.debug("resize: chars = {}, lines = {}, have/want width = {}/{}, have/want height = {}/{} -> Diff = {}".format(chars, lines, haveWidth, wantWidth, haveHeight, wantHeight, minDiff))
+                    # log.debug("resize: chars = {}, lines = {}, have/want width = {}/{}, have/want height = {}/{} -> Diff = {}".format(chars, lines, haveWidth, wantWidth, haveHeight, wantHeight, minDiff))
                     if (currSize > bestSize and minDiff >= 0) or (currSize == bestSize and minDiff > bestDiff):
                         # better than all we've seen so far
                         bestSize = currSize
                         bestDiff = minDiff
                         bestFrame = frame
-                        log.debug("resize: better {} with diff {}".format(currSize, minDiff))
+                        # log.debug("resize: better {} with diff {}".format(currSize, minDiff))
             
             if bestDiff >= 0:
                 # we found a font that fits, might be even bigger
