@@ -1,8 +1,18 @@
 = Chords Play
 
 == Todo
-* playlist: shuffle including gui titles list
-* filter dialog pre-filled with current settings
+* Filter dialog pre-filled with current settings
+* Allow lyrics update override (lock metadata, exclude songs)
+* Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
+* Update current playlist after scan
+* Configure tags (assign keys to tag-strings)
+* Remember date of played song and restarts (at restart)
+* Filter for longest time not played or recently played
+* Filter for played most
+* Dialog: Display chord-patterns used in current song
+* Dialog: Chord pattern definition, change
+* Dialog: Add or delete song_lists (directories and files)
+* Chordie
 
 == Features
 * Scan music library (list of paths or files)
@@ -13,16 +23,16 @@
   * Allow override (lock metadata, exclude songs)  
   * Save lyrics with chords, list of used chords, capo flag, audio file uri, songname, artist, album
  * Generate or update songlist for all songs, each path and one for all single files
+ * List of used chords
+ * Capo
  * TODO (V2)
-  * Update current playlist?
+  * Update current playlist after scan?
   * Chordie or others
-  * List of used chords
-  * Capo
   
 * Play music and display chords according to songlists and filters
  * Play: start, stop, pause, restart, next, prev, update (and try to go to current song), shuffle (but still respect filters)
-  * Next, prev: show playlist around current position for some time
-  * Use different play techniques depending on availability and audio file uri (an external player or a library)
+  * no: Next, prev: show playlist around current position for some time
+  * no: Use different play techniques depending on availability and audio file uri (an external player or a library)
   * Display lyrics with chords optimally sized for given window (dynamic)
  * Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
   * Configure tags (assign keys to tag-strings)
@@ -35,7 +45,7 @@
   * Played most
   * Required chords (list)
   * Optional chords (list)
-  * Excluded chords (list)
+  * no: Excluded chords (list)
   * Required tags (list)
   * Excluded tags (list)
   * Needs capo
@@ -73,7 +83,7 @@ sqlite for now: see ChordsPlay/db.py
 * Play (songlist, play, pause, next, prev)
 * Gui (main window)
 * UI lyrics with chords
-* UI playlist around current position
+* UI playlist, see current position
 * UI taglist for selection, add, delete, rename
 * UI filterlist for selection
 * UI filter definition, delete, change (with live preview)
@@ -81,6 +91,6 @@ sqlite for now: see ChordsPlay/db.py
 * UI chord pattern definition, change
 * UI edit lyrics and chords
 * UI add or delete song_lists (directories and files)
-* playlist
+* Playlist
 * Tag
 * Filter
