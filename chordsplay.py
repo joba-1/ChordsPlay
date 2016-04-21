@@ -55,7 +55,7 @@ def play(pos, song_id):
     gui.mclist.tree.selection_clear()
     item_id = gui.mclist.get()[pos]
     log.debug("select item id {} @ {}".format(item_id, pos))
-    gui.mclist.tree.selection_set([item_id])
+    gui.mclist.tree.selection_set(item_id)
     gui.mclist.tree.see(item_id)
 
 def playlistDialog(playlist):
