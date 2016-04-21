@@ -48,8 +48,8 @@ log.info('Started')
 
 def play(pos, song_id):
     log.debug("play id {} @ {}".format(song_id, pos))
-    title, artist, text, path, file = db.getPlayInfo(song_id)
-    player.play(os.path.join(path, file))
+    title, artist, text, path, songfile = db.getPlayInfo(song_id)
+    player.play(os.path.join(path, songfile))
     gui.setText(text)
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
     gui.mclist.tree.selection_clear()
@@ -148,7 +148,7 @@ def main(argv=None):
         # todo: select matching item in gui songlist (onMove(func)?)
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', gui.mclist.shuffle)
-        gui.onButton('Filter', lambda: playlistDialog(gui.mclist))
+        gui.onButton('Filter', lambda: playlistDialog(playlist))
 
         gui.mainloop()
 
