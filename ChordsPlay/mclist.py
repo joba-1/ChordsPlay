@@ -49,7 +49,7 @@ class MCList(ttk.Frame):
             # adjust column widths
             for column in headings:
                 value = self.tree.set(item, column=column)
-                width = tk.font.Font().measure(value)
+                width = self.font.measure(value)
                 if self.tree.column(column, 'width') < width:
                     self.tree.column(column, width=width)
      
@@ -71,7 +71,7 @@ class MCList(ttk.Frame):
         # remove old rows
         children = self.tree.get_children('')
         if len(children) > 0:
-            log.debug("set: first child to delete: {}".format(children[0]))
+            log.debug("set: first child and len to delete: {}, {}".format(children[0], len(children)))
             self.tree.delete(*children)
 
         # add data columns
@@ -80,7 +80,7 @@ class MCList(ttk.Frame):
             # adjust column widths
             for column in self.headings:
                 value = self.tree.set(item, column=column)
-                width = tk.font.Font().measure(value)
+                width = self.font.measure(value)
                 if self.tree.column(column, 'width') < width:
                     self.tree.column(column, width=width)
         
