@@ -287,10 +287,15 @@ class Db(object):
         '''
         cur = self.conn.cursor()
         cur.execute("""
-            SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(c.name), '')
+            SELECT s.id, s.title, s.artist, s.album, 
+                cast(coalesce(s.capo, 0) as text), 
+                coalesce(group_concat(c.name), ''),
+                count(played) as played,
+                coalesce(max(played), 'never') as last
             FROM songs s
             INNER JOIN playlists l ON s.id = l.song_id
-            INNER JOIN users u ON u.id = l.user_id
+            LEFT OUTER JOIN users u ON u.id = l.user_id
+            LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
             LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
             LEFT OUTER JOIN chords c ON sc.chord_id = c.id
             WHERE u.name = ?
@@ -300,17 +305,24 @@ class Db(object):
         ret = list(cur)
         if len(ret) == 0:
             cur.execute("""
-                SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(c.name), '')
+                SELECT s.id, s.title, s.artist, s.album, 
+                    cast(coalesce(s.capo, 0) as text), 
+                    coalesce(group_concat(c.name), ''),
+                    count(played) as played,
+                    coalesce(max(played), 'never') as last
                 FROM songs s
                 INNER JOIN list_songs ls ON s.id = ls.song_id
                 INNER JOIN song_lists l ON ls.song_lists_id = l.id
+                LEFT OUTER JOIN users u ON u.id = l.user_id
+                LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
                 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
                 LEFT OUTER JOIN chords c ON sc.chord_id = c.id
                 WHERE s.lyrics_chords IS NOT NULL
                 AND (s.capo IS NULL OR s.capo = 0)
+                AND u.name = ?
                 GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
                 ORDER BY s.artist, s.album, s.id
-            """)
+            """, (self.user,))
             ret = list(cur)
         log.debug('getFirstPlaylist: {} entries found'.format(len(ret)))
         cur.close()
@@ -324,7 +336,7 @@ class Db(object):
         predicateClause = ''
         requiredClause = ''
         acceptedClause = ''
-        predicateValues = []
+        predicateValues = [self.user]
         predicateSwitch = {
             "Titles":          "AND s.title  REGEXP ?\n",
             "Artists":         "AND s.artist REGEXP ?\n",
@@ -365,10 +377,16 @@ class Db(object):
            
         cur = self.conn.cursor()
         stmt = """
-SELECT s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text), coalesce(group_concat(ac.name), '')
+SELECT s.id, s.title, s.artist, s.album, 
+    cast(coalesce(s.capo, 0) as text), 
+    coalesce(group_concat(ac.name), ''),
+    count(played) as played,
+    coalesce(max(played), 'never') as last
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
+LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
+LEFT OUTER JOIN users u ON u.name = ?
 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
 {}LEFT OUTER JOIN chords ac ON sc.chord_id = ac.id{}
 WHERE s.lyrics_chords IS NOT NULL
