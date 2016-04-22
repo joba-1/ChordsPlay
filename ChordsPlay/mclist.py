@@ -44,12 +44,17 @@ class MCList(ttk.Frame):
             self.tree.column(column, width=self.font.measure(column.title()))
              
         # add data columns
+        widths = {column: 0 for column in headings}
         for row in data:
             item = self.tree.insert('', 'end', iid=row[0], values=row[1:])
             # adjust column widths
             for column in headings:
                 value = self.tree.set(item, column=column)
-                width = self.font.measure(value)
+                widths[column] += self.font.measure(value)
+
+        if len(data) > 0:
+            for column in headings:
+                width = widths[column]//len(data)*120//100
                 if self.tree.column(column, 'width') < width:
                     self.tree.column(column, width=width)
      
@@ -75,12 +80,17 @@ class MCList(ttk.Frame):
             self.tree.delete(*children)
 
         # add data columns
+        widths = {column: 0 for column in self.headings}
         for row in data:
             item = self.tree.insert('', 'end', iid=row[0], values=row[1:])
             # adjust column widths
             for column in self.headings:
                 value = self.tree.set(item, column=column)
-                width = self.font.measure(value)
+                widths[column] += self.font.measure(value)
+
+        if len(data) > 0:
+            for column in self.headings:
+                width = widths[column]//len(data)*120//100
                 if self.tree.column(column, 'width') < width:
                     self.tree.column(column, width=width)
         
