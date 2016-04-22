@@ -49,7 +49,7 @@ log.info('Started')
 def play(pos, song_id):
     log.debug("play id {} @ {}".format(song_id, pos))
     title, artist, text, path, songfile = db.getPlayInfo(song_id)
-    player.play(os.path.join(path, songfile))
+    player.play(os.path.join(path, songfile), song_id)
     gui.setText(text)
     gui.setTitle("{}: {} - {}".format(pos, title, artist))
     gui.mclist.tree.selection_clear()
@@ -136,7 +136,7 @@ def main(argv=None):
         
         gui = ChordsPlay.gui.Gui(title=program_name)
         
-        player = ChordsPlay.play.Play(gui)
+        player = ChordsPlay.play.Play(gui, db)
         titles = db.getFirstPlaylist()
         gui.mclist.set(titles)
         playlist = ChordsPlay.playlist.Playlist(db, play, gui.mclist)

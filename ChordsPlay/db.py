@@ -63,11 +63,12 @@ class Db(object):
                 lyrics_chords, id, title, artist, album, capo 
             );
             create table if not exists user_songs ( 
-                user_id       int not null references users(id) on delete restrict,
-                song_id       int not null references songs(id) on delete restrict,
-                last_played   char(10),
-                num_played    int not null default 0,
-                primary key   (user_id, song_id)
+                user_id      int not null references users(id) on delete restrict,
+                song_id      int not null references songs(id) on delete restrict,
+                played       char(19) not null
+            );
+            create index if not exists user_songs_ix1 on user_songs (
+                user_id, song_id, played
             );
             create table if not exists song_chords ( 
                 song_id       int not null references songs(id) on delete cascade,
@@ -391,3 +392,38 @@ WHERE s.lyrics_chords IS NOT NULL
         log.debug(str(rows))
         self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)", rows)
         self.conn.commit()
+
+    def songPlayed(self, song_id):
+        log.debug('songPlayed: {}'.format(song_id))
+        cur = self.conn.cursor()
+        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
+        user_id = cur.fetchone()
+        cur.close()
+        row = (user_id[0], song_id, 'now')
+        self.conn.execute("INSERT INTO user_songs (user_id, song_id, played) VALUES(?, ?, datetime(?))", row)
+        self.conn.commit()
+    
+    def numPlayed(self, song_id):
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT count(*) 
+            FROM users u
+            INNER JOIN user_songs s ON u.id = s.user_id
+            WHERE u.name = ?
+            AND s.song_id = ?""", (self.user, song_id))
+        num = cur.fetchone()
+        cur.close()
+        return num[0]
+    
+    def lastPlayed(self, song_id):
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT max(played) 
+            FROM users u
+            INNER JOIN user_songs s ON u.id = s.user_id
+            WHERE u.name = ?
+            AND s.song_id = ?""", (self.user, song_id))
+        last = cur.fetchone()
+        cur.close()
+        return last[0]
+    
