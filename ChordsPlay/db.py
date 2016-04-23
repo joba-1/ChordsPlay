@@ -313,13 +313,12 @@ class Db(object):
                 FROM songs s
                 INNER JOIN list_songs ls ON s.id = ls.song_id
                 INNER JOIN song_lists l ON ls.song_lists_id = l.id
-                LEFT OUTER JOIN users u ON u.id = l.user_id
+                LEFT OUTER JOIN users u ON u.name = ?
                 LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
                 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
                 LEFT OUTER JOIN chords c ON sc.chord_id = c.id
                 WHERE s.lyrics_chords IS NOT NULL
                 AND (s.capo IS NULL OR s.capo = 0)
-                AND u.name = ?
                 GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
                 ORDER BY s.artist, s.album, s.id
             """, (self.user,))
