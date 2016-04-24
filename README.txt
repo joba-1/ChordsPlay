@@ -1,14 +1,10 @@
 = Chords Play
 
 == Todo
-* Filter dialog pre-filled with current settings
 * Allow lyrics update override (lock metadata, exclude songs)
 * Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
 * Update current playlist after scan
 * Configure tags (assign keys to tag-strings)
-* Remember date of played song and restarts (at restart)
-* Filter for longest time not played or recently played
-* Filter for played most
 * Dialog: Display chord-patterns used in current song
 * Dialog: Chord pattern definition, change
 * Dialog: Add or delete song_lists (directories and files)

@@ -110,6 +110,12 @@ class Db(object):
                 song_id       int not null references songs(id) on delete restrict,
                 primary key   (user_id, position)
             );
+            create table if not exists user_filters ( 
+                user_id       int not null references users(id) on delete cascade,
+                name          text not null,
+                json_dict     text not null,
+                primary key   (user_id, name)
+            );
             create table if not exists filters ( 
                 id            integer not null primary key autoincrement,
                 name          text not null unique,
@@ -444,3 +450,32 @@ WHERE s.lyrics_chords IS NOT NULL
         cur.close()
         return last[0]
     
+    def getUserFilter(self, name):
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT f.json_dict
+            FROM users u
+            INNER JOIN user_filters f ON u.id = f.user_id
+            WHERE u.name = ?
+            AND f.name = ?""", (self.user, name))
+        row = cur.fetchone()
+        cur.close()
+        log.debug('getUserFilter: {} is {}'.format(name, row[0]))
+        return row[0]
+        
+    def setUserFilter(self, name, jsonString):
+        log.debug('setUserFilter: {} as {}'.format(name, jsonString))
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT u.id, f.name FROM users u
+            LEFT OUTER JOIN user_filters f ON u.id = f.user_id AND f.name = ?
+            WHERE u.name = ?""", (name, self.user))
+        row = cur.fetchone()
+        cur.close()
+        parms = (jsonString, row[0], name)
+        if row[1] == None:
+            self.conn.execute("INSERT INTO user_filters (json_dict, user_id, name) VALUES(?, ?, ?)", parms)
+        else:
+            self.conn.execute("UPDATE user_filters set json_dict = ? WHERE user_id = ? and name = ?", parms)            
+        self.conn.commit()
+        

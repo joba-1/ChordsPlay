@@ -25,11 +25,12 @@ class Filter(ChordsPlay.dialog.Dialog):
     '''
 
     def __init__(self, parent, db):
+        log.debug("__init__")
         self.name = None
         self.db = db
         self.patterns = None
         ChordsPlay.dialog.Dialog.__init__(self, parent, "Playlist Filter")
-        
+     
     def onFocus(self):
         if self.validate():
             self.update()
@@ -78,6 +79,24 @@ class Filter(ChordsPlay.dialog.Dialog):
                 })])
         style.configure('Pink.TEntry', fieldbackground='pink')
             
+        try:
+            desc = "Playlist patterns"
+            vers = 1
+            jsonString = self.db.getUserFilter('__previous')
+            if jsonString != None:
+                content = json.loads(jsonString)
+                if type(content) == type({}):
+                    if content.get("type") == desc and content.get("version") == vers:
+                        for key in self.entries:
+                            pattern = content.get(key, '')
+                            entry = self.entries[key]
+                            entry.delete(0, tk.END)
+                            entry.insert(0, pattern)
+                        if self.validate():
+                            self.update()
+        except Exception:
+            pass
+
         return self.entries[labels[0]]
 
     def buttonbox(self):
@@ -106,25 +125,53 @@ class Filter(ChordsPlay.dialog.Dialog):
 
     def load(self):
         # load pattern names from database and display selection list (allow delete)
-        if self.validate():
-            self.update()
+        dialog = ChordsPlay.dialog.Dialog(self, "Load Filter", "Name") 
+        if dialog.result != None:
+            self.name = dialog.result
+            desc = "Playlist patterns"
+            vers = 1
+            try:
+                jsonString = self.db.getUserFilter(self.name)
+                if jsonString != None:
+                    content = json.loads(jsonString)
+                    if type(content) == type({}):
+                        if content.get("type") == desc and content.get("version") == vers:
+                            for key in self.entries:
+                                pattern = content.get(key, '')
+                                entry = self.entries[key]
+                                entry.delete(0, tk.END)
+                                entry.insert(0, pattern)
+                            if self.validate():
+                                self.update()
+            except Exception as e:
+                messagebox.showerror("Load Playlist Pattern", 'Load failed:\n{}'.format(str(e)))
         self.initial_focus.focus_set()
     
     def save(self):
         if self.name == None:
             self.saveAs()
         else:
-            # save filter patterns in db
-            pass
-    
+            # save filter patterns in db as json string
+            desc = "Playlist patterns"
+            vers = 1
+            try:
+                content = { 
+                    'type':   desc,
+                    'version': vers
+                    }
+                for key in self.entries:
+                    content[key] = self.entries[key].get()
+                jsonString = json.dumps(content, sort_keys=True, indent=2)
+                self.db.setUserFilter(self.name, jsonString)
+            except Exception as e:
+                messagebox.showerror("Save Playlist Pattern", 'Save failed:\n{}'.format(str(e)))
+   
     def saveAs(self):
         # maybe load names from db and allow selection for overwrite?
         dialog = ChordsPlay.dialog.Dialog(self, "Save Filter as", "Name")
         if dialog.result != None:
             self.name = dialog.result
             self.save()
-        if self.validate():
-            self.update()
         self.initial_focus.focus_set()
     
     def importFile(self):
@@ -215,4 +262,19 @@ class Filter(ChordsPlay.dialog.Dialog):
     def apply(self):
         # put the regexes in result dict
         self.update()
+        
+        desc = "Playlist patterns"
+        vers = 1
+        try:
+            content = { 
+                'type':   desc,
+                'version': vers
+                }
+            for key in self.entries:
+                content[key] = self.entries[key].get()
+            jsonString = json.dumps(content, sort_keys=True, indent=2)
+            self.db.setUserFilter('__previous', jsonString)
+        except Exception:
+            pass
+        
         self.result = self.patterns
