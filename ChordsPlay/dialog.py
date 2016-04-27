@@ -67,9 +67,9 @@ class Dialog(tk.Toplevel):
         box = ttk.Frame(self)
 
         w = ttk.Button(box, text="OK", width=10, command=self.ok, default=tk.ACTIVE)
-        w.grid(row=0, sticky=tk.W, padx=5, pady=5)
+        w.grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
         w = ttk.Button(box, text="Cancel", width=10, command=self.cancel)
-        w.grid(row=0, sticky=tk.W, padx=5, pady=5)
+        w.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
 
         self.bind("<Return>", self.ok)
         self.bind("<Escape>", self.cancel)
