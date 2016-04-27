@@ -1,6 +1,8 @@
 = Chords Play
 
 == Todo
+* Filter load and save as dialogs list available entries
+* Filter dialogs with OK and Cancel buttons
 * Allow lyrics update override (lock metadata, exclude songs)
 * Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
 * Update current playlist after scan

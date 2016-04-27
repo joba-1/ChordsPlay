@@ -20,7 +20,7 @@ config = {
 }
 
 # Install this package by calling pip install {download_url|path_to_setup.py}
-# In the doenload_url you can replace the version with "tip" to get the bleeding edge
+# In the download_url you can replace the version with "tip" to get the bleeding edge
 # Or create a source distribution archive with python setup.py sdist
 # Then copy and unpack the resulting tar file on the target machine,
 # change to the unpacked directory and call python setup.py install
