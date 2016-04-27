@@ -5,6 +5,7 @@ Created on 06.03.2016
 '''
 
 import vlc
+import json
 import logging
 
 log = logging.getLogger(__name__)
@@ -12,8 +13,35 @@ log = logging.getLogger(__name__)
 class Play(object):
     '''
     play songs
-    TODO: implement playlist class with next/prev/shuffle setting gui.text and player.song
     '''
+    def audioOut(self):
+        """Enumerate the defined audio output devices.
+
+        @return: list of dicts {name:, description:, devices:}
+        """
+        result = []
+
+        mods = self.instance.audio_output_list_get()
+        if mods:
+            mod = mods
+            while mod:
+                mod = mod.contents
+                # log.info("init: aolg: contents {}".format(dir(mod)))
+                
+                devices = []
+                devs = self.instance.audio_output_device_list_get(mod.name)
+                if devs:
+                    dev = devs
+                    while dev:
+                        dev = dev.contents
+                        # log.info("init: aodlg: contents {}".format(dir(dev)))
+                        devices.append({'device': dev.device, 'description': vlc.bytes_to_str(dev.description)})
+                        dev = dev.next
+                        
+                result.append({'name': mod.name, 'description': vlc.bytes_to_str(mod.description), 'devices': devices})
+                mod = mod.next
+
+        return result
 
     def __init__(self, widget, db):
         '''
@@ -31,6 +59,11 @@ class Play(object):
         self.url = None
         self.song_id = None        
         self.db = db
+        
+        log.info("init: aflg: {}".format(json.dumps(self.instance.audio_filter_list_get(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.info("init: aolg: {}".format(json.dumps(self.audioOut(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        # vlc.MediaPlayer.audio_output_device_set(self, module, device_id)
+        # vlc.MediaPlayer.audio_output_set(self, psz_name)
         
     @vlc.callbackmethod
     def onEnd(self, event):
