@@ -47,7 +47,6 @@ class Dialog(tk.Toplevel):
 
         self.wait_window(self)
 
-    #
     # construction hooks
 
     def body(self, master, label=None):

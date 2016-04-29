@@ -31,6 +31,9 @@ import ChordsPlay.gui
 import ChordsPlay.play
 import ChordsPlay.playlist
 import ChordsPlay.filter
+import ChordsPlay.selector
+
+from tkinter import messagebox
 
 __all__ = []
 __version__ = 1.0
@@ -64,6 +67,29 @@ def playlistDialog(playlist):
         log.debug(str(dlg.result))
         gui.mclist.set(dlg.titles)
         playlist.new(gui.mclist)
+
+def audioDialog(player):
+    title = 'Select Audio Output'
+    audioIds = []
+    audioNames = []
+    idx = 0
+    modules = player.getAudioOut()
+    for module in modules:
+        idx += 1
+        audioIds.append((module["name"], None))
+        audioNames.append((idx, module["description"], "default"))
+        for device in module["devices"]:
+            idx += 1
+            audioIds.append((module["name"], device["device"]))
+            audioNames.append((idx, module["description"], device["description"]))
+
+    if idx > 0:    
+        dlg = ChordsPlay.selector.Selector(gui, title, ("Module", "Device"), audioNames)
+        if dlg.result != None:
+            log.debug("Audio out now module '{}' device '{}'".format(audioNames[dlg.result][1], audioNames[dlg.result][2]))
+            player.setAudioOut(audioIds[dlg.result][0], audioIds[dlg.result][1])
+    else:
+        messagebox.showerror(title, 'No audio devices found!')
 
 def onClick(event):
     tree = event.widget
@@ -149,6 +175,7 @@ def main(argv=None):
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', gui.mclist.shuffle)
         gui.onButton('Filter', lambda: playlistDialog(playlist))
+        gui.onButton('Audio', lambda: audioDialog(player))
 
         gui.mainloop()
 
