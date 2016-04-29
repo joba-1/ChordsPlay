@@ -74,6 +74,8 @@ class Play(object):
         """Activate device of module for audio output.
         TODO: might need to wrap this in a getPos(), stop(), ..., start(), setPos()
         """
+        mediaPos = vlc.libvlc_media_player_get_position(self.player)
+        
         if moduleName != self.module:
             log.info("setAudioOut: module {}".format(moduleName))
             status = self.player.audio_output_set(moduleName)
@@ -88,6 +90,10 @@ class Play(object):
             log.info("setAudioOut: module {} device {}".format(moduleName, deviceId))
             self.player.audio_output_device_set(moduleName, deviceId)
             self.device = deviceId
+
+        if mediaPos != -1:
+            self.play(self.url, self.song_id)
+            vlc.libvlc_media_player_set_position(self.player, mediaPos)
     
     @vlc.callbackmethod
     def onEnd(self, event):
