@@ -168,6 +168,7 @@ def main(argv=None):
         playlist = ChordsPlay.playlist.Playlist(db, play, gui.mclist)
 
         gui.mclist.tree.bind("<Double-Button-1>", onClick)
+        gui.bind("A", lambda x: player.setNextAudioOut())
 
         gui.onButton('Pause', player.pause)
         gui.onButton('Next', playlist.next)

@@ -70,10 +70,32 @@ class Play(object):
             
         return result
 
+    def setNextAudioOut(self):
+        log.debug("setNextAudioOut")
+        devices = []
+        modules = self.getAudioOut()
+        for module in modules:
+            devices.append((module["name"], None))
+            for device in module["devices"]:
+                devices.append((module["name"], device["device"]))
+
+        found = False
+        for device in devices:
+            if found:
+                self.setAudioOut(device[0], device[1])
+                return
+            if device[0] == self.module and device[1] == self.device:
+                found = True
+
+        self.setAudioOut(devices[0][0], devices[0][1])       
+
     def setAudioOut(self, moduleName, deviceId):
         """Activate device of module for audio output.
         TODO: might need to wrap this in a getPos(), stop(), ..., start(), setPos()
         """
+        
+        log.debug("setAudioOut module {} device {}".format(moduleName, deviceId))
+        
         mediaPos = vlc.libvlc_media_player_get_position(self.player)
         
         if moduleName != self.module:
