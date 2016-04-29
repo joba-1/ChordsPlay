@@ -41,9 +41,9 @@ class Selector(ChordsPlay.dialog.Dialog):
         master.rowconfigure(0, weight=1)
 
         self.mclist.tree.bind("<Double-Button-1>", self.ok)
-        self.mclist.tree["takefocus"] = True
-        if len(self.items) > 0:
-            self.mclist.tree.focus([self.items[0][0]])
+#        self.mclist.tree["takefocus"] = True
+#        if len(self.items) > 0:
+#            self.mclist.tree.focus([self.items[0][0]])
 
         return self.mclist
     
