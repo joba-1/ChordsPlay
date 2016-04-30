@@ -14,12 +14,12 @@ class Play(object):
     '''
     play songs
     '''
-    def __init__(self, widget, db):
+    def __init__(self, widget, db, verbosity=0):
         '''
         init player (currently a python wrapper of libvlc)
         '''
         # VLC player controls
-        self.instance = vlc.Instance()
+        self.instance = vlc.Instance('--verbose {:d}'.format(verbosity))
         
         self.player = self.instance.media_player_new()
 
@@ -33,8 +33,9 @@ class Play(object):
         self.module = None
         self.device = None
         
-        log.info("init: aflg: {}".format(json.dumps(self.instance.audio_filter_list_get(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
-        log.info("init: aolg: {}".format(json.dumps(self.getAudioOut(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        # devs = self.instance.audio_output_enumerate_devices()
+        log.debug("init: aflg: {}".format(json.dumps(self.instance.audio_filter_list_get(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.debug("init: aolg: {}".format(json.dumps(self.getAudioOut(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
         
     def getAudioOut(self):
         """Enumerate the defined audio output devices.
