@@ -6,6 +6,9 @@ Created on 06.03.2016
 
 import vlc
 import json
+import subprocess
+import re
+import os
 import logging
 
 log = logging.getLogger(__name__)
@@ -32,10 +35,83 @@ class Play(object):
         self.db = db
         self.module = None
         self.device = None
+        self.sinks = None
+        self.stream = None
         
         log.info("init: aflg: {}".format(json.dumps(self.instance.audio_filter_list_get(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
         log.info("init: aolg: {}".format(json.dumps(self.getAudioOut(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
-        
+    
+    def getPulseInfo(self):
+        sinks = []
+        stream = None
+        pattern = re.compile(r'\s*([^#:=]*?)\s*([#:=])\s*(.*)')
+        portPattern = re.compile(r'([^\(]*?)\s*\((.*)')
+        env = os.environ
+        env['LANG'] = 'C'
+        try:
+            output = subprocess.check_output(["pactl", "list"], env=env, universal_newlines=True)
+        except:
+            output = ''
+        sink = None
+        inp = None
+        ports = None
+        for line in output.splitlines():
+            match = pattern.match(line)
+            if match != None:
+                key, sep, value = match.groups()
+                log.debug("getPulseInfo: match key '{}' sep '{}' value '{}'".format(key, sep, value))
+                if sep == '#':
+                    if sink != None:
+                        sinks.append(sink)
+                        sink = None
+                    elif inp != None:
+                        stream = inp
+                        inp = None
+                    if key == 'Sink':
+                        sink = {'Nr': value}
+                    elif key == 'Sink Input':
+                        inp = {'Nr': value}
+                else:
+                    if sink != None:
+                        if key in ['Name', 'Description', 'Channel Map', 'Active Port']:
+                            sink[key] = value
+                        elif key == 'Ports':
+                            ports = []
+                        if key == 'Active Port':
+                            sink['Ports'] = ports
+                            ports = None
+                        if ports != None:
+                            log.debug("getPulseInfo: match port {}".format(value)) 
+                            match = portPattern.match(value)
+                            if match != None:
+                                log.debug("getPulseInfo: matched port {}".format(str(match.groups()))) 
+                                ports.append({
+                                    'Name': key, 
+                                    'Description': match.group(1), 
+                                    'Available': (match.group(2).find('not available') == -1)})
+                    elif inp != None:
+                        if key == 'Sink':
+                            inp[key] = int(value)
+                        elif key == 'Channel Map':
+                            inp[key] = value
+                        elif key == 'application.process.id':
+                            if os.getpid() != int(value.strip('"')):
+                                inp = None
+        log.info("getPulseInfo sinks: {}".format(json.dumps(sinks, ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.info("getPulseInfo stream: {}".format(json.dumps(stream, ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        self.sinks = sinks
+        self.stream = stream
+    
+    def getPulseDevices(self):
+        self.getPulseInfo()
+        devices = []
+        for sink in self.sinks:
+            for port in sink['Ports']:
+                devices.append({
+                    'device': sink['Nr'] + ':' + port['Name'], 
+                    'description': port['Description']})
+        return devices
+    
     def getAudioOut(self):
         """Enumerate the defined audio output devices.
 
@@ -58,12 +134,20 @@ class Play(object):
                     while dev:
                         dev = dev.contents
                         # log.info("init: aodlg: contents {}".format(dir(dev)))
-                        devices.append({'device': dev.device, 'description': vlc.bytes_to_str(dev.description)})
+                        devices.append({
+                            'device': dev.device, 
+                            'description': vlc.bytes_to_str(dev.description)})
                         dev = dev.next
                 
                     vlc.libvlc_audio_output_device_list_release(devs)
-                    
-                result.append({'name': mod.name, 'description': vlc.bytes_to_str(mod.description), 'devices': devices})
+                
+                if mod.name == b'pulse' and len(devices) == 0:
+                    devices = self.getPulseDevices()
+                
+                result.append({
+                    'name': mod.name, 
+                    'description': vlc.bytes_to_str(mod.description), 
+                    'devices': devices})
                 mod = mod.next
                 
             vlc.libvlc_audio_output_list_release(mods)
@@ -90,9 +174,7 @@ class Play(object):
         self.setAudioOut(devices[0][0], devices[0][1])       
 
     def setAudioOut(self, moduleName, deviceId):
-        """Activate device of module for audio output.
-        TODO: might need to wrap this in a getPos(), stop(), ..., start(), setPos()
-        """
+        """Activate device of module for audio output."""
         
         log.debug("setAudioOut module {} device {}".format(moduleName, deviceId))
         
@@ -107,10 +189,20 @@ class Play(object):
                 log.error("setAudioOut failed module {}".format(moduleName))
         
         if deviceId != self.device:
-            if deviceId != None:
-                moduleName = None
             log.info("setAudioOut: module {} device {}".format(moduleName, deviceId))
-            self.player.audio_output_device_set(moduleName, deviceId)
+            match = None
+            if moduleName == b'pulse' and deviceId != None and self.stream != None:
+                match = re.match(r'(\d+):(.*)', deviceId)
+            if match != None:
+                sink, port = match.groups()
+                env = os.environ
+                env['LANG'] = 'C'
+                subprocess.call(["pactl", "move-sink-input", self.stream['Nr'], sink], env=env)
+                subprocess.call(["pactl", "set-sink-port", sink, port], env=env)
+            else:
+                if deviceId != None:
+                    moduleName = None
+                self.player.audio_output_device_set(moduleName, deviceId)
             self.device = deviceId
 
         if mediaPos != -1:
