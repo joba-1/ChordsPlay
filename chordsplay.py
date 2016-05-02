@@ -44,11 +44,6 @@ DEBUG = 0
 TESTRUN = 0
 PROFILE = 0
 
-# log init
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger(__name__)
-log.info('Started')
-
 def play(pos, song_id):
     log.debug("play id {} @ {}".format(song_id, pos))
     title, artist, text, path, songfile = db.getPlayInfo(song_id)
@@ -99,11 +94,11 @@ def onClick(event):
     playlist.jump(pos)
         
 def main(argv=None):
-    global db, gui, player, playlist
+    global db, gui, player, playlist, log
     
     # Command line options
     program_name = os.path.basename(sys.argv[0])
-    program_version = "v1.0"
+    program_version = "2.7" # update also in setup.py
     program_build_date = "%s" % __updated__
 
     program_version_string = '%%prog %s (%s)' % (program_version, program_build_date)
@@ -124,22 +119,32 @@ def main(argv=None):
         # process options
         (opts, args) = parser.parse_args(argv)
 
-        if opts.verbose != None:
-            log.debug("verbosity level = %d" % opts.verbose)
-        if opts.cfgfile:
-            log.debug("cfgfile = %s" % opts.cfgfile)
-
         # MAIN BODY #
         
         # configuration #
         defaults = {
             "user": os.getenv('USER', os.getenv('USERNAME', 'anonymous')),
-            "database": os.path.expanduser("~/.{}.db".format(program_name))
+            "database": os.path.expanduser("~/.{}.db".format(program_name)),
+            "verbosity": '0'
             }
         config = SafeConfigParser(defaults)
         config.add_section(program_name)
         config.read(os.path.expanduser(opts.cfgfile))
-        
+
+        if opts.verbose == None:
+            opts.verbose = int(config.get(program_name, 'verbosity'))
+        if opts.verbose == None:
+            opts.verbose = 0
+            
+        # log init
+        if opts.verbose != 0:        
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.INFO)
+            
+        log = logging.getLogger(__name__)
+        log.info('Started')
+
         # db connection #
         connector = config.get(program_name, 'database')
         user = config.get(program_name, 'user')
@@ -162,7 +167,7 @@ def main(argv=None):
         
         gui = ChordsPlay.gui.Gui(title=program_name)
         
-        player = ChordsPlay.play.Play(gui, db)
+        player = ChordsPlay.play.Play(gui, db, opts.verbose)
         titles = db.getFirstPlaylist()
         gui.mclist.set(titles)
         playlist = ChordsPlay.playlist.Playlist(db, play, gui.mclist)

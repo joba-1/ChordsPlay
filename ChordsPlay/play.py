@@ -17,12 +17,12 @@ class Play(object):
     '''
     play songs
     '''
-    def __init__(self, widget, db):
+    def __init__(self, widget, db, verbosity=0):
         '''
         init player (currently a python wrapper of libvlc)
         '''
         # VLC player controls
-        self.instance = vlc.Instance()
+        self.instance = vlc.Instance('--verbose {:d}'.format(verbosity))
         
         self.player = self.instance.media_player_new()
 
