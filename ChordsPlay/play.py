@@ -38,8 +38,8 @@ class Play(object):
         self.sinks = None
         self.stream = None
         
-        log.info("init: aflg: {}".format(json.dumps(self.instance.audio_filter_list_get(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
-        log.info("init: aolg: {}".format(json.dumps(self.getAudioOut(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.debug("init: aflg: {}".format(json.dumps(self.instance.audio_filter_list_get(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.debug("init: aolg: {}".format(json.dumps(self.getAudioOut(), ensure_ascii=False, sort_keys=True, indent=2, default=str)))
     
     def getPulseInfo(self):
         sinks = []
@@ -97,8 +97,8 @@ class Play(object):
                         elif key == 'application.process.id':
                             if os.getpid() != int(value.strip('"')):
                                 inp = None
-        log.info("getPulseInfo sinks: {}".format(json.dumps(sinks, ensure_ascii=False, sort_keys=True, indent=2, default=str)))
-        log.info("getPulseInfo stream: {}".format(json.dumps(stream, ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.debug("getPulseInfo sinks: {}".format(json.dumps(sinks, ensure_ascii=False, sort_keys=True, indent=2, default=str)))
+        log.debug("getPulseInfo stream: {}".format(json.dumps(stream, ensure_ascii=False, sort_keys=True, indent=2, default=str)))
         self.sinks = sinks
         self.stream = stream
     

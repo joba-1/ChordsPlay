@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = 1.0
+__version__ = '2.8'
 __date__ = '2016-02-18'
-__updated__ = '2016-04-08'
+__updated__ = '2016-05-09'
 
 DEBUG = 0
 TESTRUN = 0
@@ -98,7 +98,7 @@ def main(argv=None):
     
     # Command line options
     program_name = os.path.basename(sys.argv[0])
-    program_version = "2.7" # update also in setup.py
+    program_version = __version__ # update also in setup.py
     program_build_date = "%s" % __updated__
 
     program_version_string = '%%prog %s (%s)' % (program_version, program_build_date)
