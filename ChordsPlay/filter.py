@@ -125,9 +125,12 @@ class Filter(ChordsPlay.dialog.Dialog):
 
     def load(self):
         # load pattern names from database and display selection list (allow delete)
-        dialog = ChordsPlay.dialog.Dialog(self, "Load Filter", "Name") 
+        filters = [(row[0], row[1][0]) for row in enumerate(self.db.getUserFilters())]
+        log.debug("load {}".format(str(filters)))
+        dialog = ChordsPlay.selector.Selector(self, "Load Filter", ["Name"], filters) 
         if dialog.result != None:
-            self.name = dialog.result
+            self.name = filters[dialog.result][1]
+            log.debug("load selected {}".format(self.name))
             desc = "Playlist patterns"
             vers = 1
             try:

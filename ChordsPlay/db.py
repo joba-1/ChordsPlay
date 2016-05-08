@@ -450,6 +450,18 @@ WHERE s.lyrics_chords IS NOT NULL
         cur.close()
         return last[0]
     
+    def getUserFilters(self):
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT f.name
+            FROM users u
+            INNER JOIN user_filters f ON u.id = f.user_id
+            WHERE u.name = ?""", (self.user,))
+        rows = list(cur)
+        cur.close()
+        log.debug('getUserFilters: len = {}'.format(len(rows)))
+        return rows
+        
     def getUserFilter(self, name):
         cur = self.conn.cursor()
         cur.execute("""
