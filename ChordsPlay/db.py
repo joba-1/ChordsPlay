@@ -295,7 +295,7 @@ class Db(object):
         cur.execute("""
             SELECT s.id, s.title, s.artist, s.album, 
                 cast(coalesce(s.capo, 0) as text), 
-                coalesce(group_concat(c.name), ''),
+                coalesce(group_concat(distinct c.name), ''),
                 count(played) as played,
                 coalesce(max(played), 'never') as last
             FROM songs s
@@ -313,7 +313,7 @@ class Db(object):
             cur.execute("""
                 SELECT s.id, s.title, s.artist, s.album, 
                     cast(coalesce(s.capo, 0) as text), 
-                    coalesce(group_concat(c.name), ''),
+                    coalesce(group_concat(distinct c.name), ''),
                     count(played) as played,
                     coalesce(max(played), 'never') as last
                 FROM songs s
@@ -384,7 +384,7 @@ class Db(object):
         stmt = """
 SELECT s.id, s.title, s.artist, s.album, 
     cast(coalesce(s.capo, 0) as text), 
-    coalesce(group_concat(ac.name), ''),
+    coalesce(group_concat(distinct ac.name), ''),
     count(played) as played,
     coalesce(max(played), 'never') as last
 FROM songs s
