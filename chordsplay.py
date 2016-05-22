@@ -38,7 +38,7 @@ from tkinter import messagebox
 __all__ = []
 __version__ = '2.8'
 __date__ = '2016-02-18'
-__updated__ = '2016-05-09'
+__updated__ = '2016-05-22'
 
 DEBUG = 0
 TESTRUN = 0
