@@ -67,6 +67,7 @@ class Gui(tk.Tk):
             ("Prev", None),
             ("Shuffle", None),
             ("Filter", None),
+            ("Tags", None),
             ("Audio", None)
         ]
         self.buttons = {}       
@@ -125,6 +126,7 @@ class Gui(tk.Tk):
         self.bind("p", lambda x: self.buttons["Prev"].invoke())
         self.bind("s", lambda x: self.buttons["Shuffle"].invoke())
         self.bind("m", lambda x: self.buttons["Pause"].invoke())
+        self.bind("t", lambda x: self.buttons["Tags"].invoke())
         self.bind("a", lambda x: self.buttons["Audio"].invoke())
         self.bind("l", self.toggleList)
         

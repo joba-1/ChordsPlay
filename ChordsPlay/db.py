@@ -150,13 +150,26 @@ class Db(object):
             log.info("created user {}".format(user))
         except sqlite3.IntegrityError:
             log.debug("found user {}".format(user))
-            pass
+        
+        try:
+            tags = [
+                (1, 'Favorit', 'f'),
+                (2, 'Schwer', 's'),
+                (3, 'Leicht', 'l'),
+                (4, 'Unfertig', 'u'),
+                (5, 'Capo', 'c')
+            ]
+            self.conn.executemany("insert into tags (id, name, key) values (?, ?, ?)", tags)
+            log.info("tags initialized")
+        except sqlite3.IntegrityError:
+            log.debug("found tags")
+
         try:
             self.conn.execute("insert into song_lists (name) values (?)", ('',))
             log.info("db initialized")
         except sqlite3.IntegrityError:
             log.debug("db opened")
-            pass
+        
         self.conn.commit()
     
     def commit(self):
@@ -491,3 +504,41 @@ WHERE s.lyrics_chords IS NOT NULL
             self.conn.execute("UPDATE user_filters set json_dict = ? WHERE user_id = ? and name = ?", parms)            
         self.conn.commit()
         
+    def getUserTags(self, song_id): # TODO: list of tuples (id, key, on, description)
+        log.debug('getUserTags')
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT 
+                t.id, 
+                coalesce(t.key, ''), 
+                CASE WHEN s.song_id IS NULL THEN ' ' ELSE 'X' END,
+                t.name 
+            FROM tags t
+            LEFT OUTER JOIN users u ON u.name = ?
+            LEFT OUTER JOIN song_tags s ON s.tag_id = t.id AND s.user_id = u.id AND s.song_id = ?
+            ORDER BY t.key, t.name""", 
+            (self.user, song_id))
+        rows = list(cur)
+        cur.close()
+        return rows
+    
+    def setUserTag(self, song_id, tag_id):
+        log.debug('setUserTag {} for {}'.format(tag_id, song_id))
+        cur = self.conn.cursor()
+        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
+        user_id = cur.fetchone()
+        cur.close()
+        row = (user_id[0], song_id, tag_id)
+        self.conn.execute("INSERT INTO song_tags (user_id, song_id, tag_id) VALUES(?, ?, ?)", row)
+        self.conn.commit()
+    
+    def delUserTag(self, song_id, tag_id):
+        log.debug('delUserTag {} for {}'.format(tag_id, song_id))
+        cur = self.conn.cursor()
+        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
+        user_id = cur.fetchone()
+        cur.close()
+        row = (user_id[0], song_id, tag_id)
+        self.conn.execute("DELETE FROM song_tags WHERE user_id = ? AND song_id = ? AND tag_id = ?", row)
+        self.conn.commit()
+

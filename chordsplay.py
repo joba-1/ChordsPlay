@@ -86,6 +86,24 @@ def audioDialog(player):
     else:
         messagebox.showerror(title, 'No audio devices found!')
 
+def tagDialog(song_id):
+    if song_id == None:
+        return
+    title, artist, _, _, _ = db.getPlayInfo(song_id)
+    log.debug("tag song {}: {} - {}".format(song_id, title, artist))
+    if title == None:
+        return
+    tags = db.getUserTags(song_id)
+    dlg = ChordsPlay.selector.Selector(gui, "Tag {} - {}".format(title, artist), ("Key", "On", "Tag"), tags, key_pos=1)
+    if dlg.result != None:
+        if tags[dlg.result][2] == ' ':
+            status = "set"
+            db.setUserTag(song_id, tags[dlg.result][0])
+        else:
+            status = "unset"
+            db.delUserTag(song_id, tags[dlg.result][0])
+        log.info("tag song '{}': {} '{}'".format(title, status, tags[dlg.result][3]))
+
 def onClick(event):
     tree = event.widget
     item = tree.identify('item', event.x, event.y)
@@ -181,6 +199,7 @@ def main(argv=None):
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', gui.mclist.shuffle)
         gui.onButton('Filter', lambda: playlistDialog(playlist))
+        gui.onButton('Tags', lambda: tagDialog(player.song_id))
         gui.onButton('Audio', lambda: audioDialog(player))
 
         gui.mainloop()
