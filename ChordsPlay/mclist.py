@@ -7,6 +7,7 @@ Created on 09.04.2016
 import tkinter as tk
 from tkinter import ttk
 import random
+import re
 import logging
 
 log = logging.getLogger(__name__)
@@ -96,9 +97,15 @@ class MCList(ttk.Frame):
         
     def sort(self, column, ascending=True):
 
+        def atoi(text):
+            return int(text) if text.isdigit() else text
+
+        def natural(pair):
+            return [ atoi(text) for text in re.split('(\d+)', pair[0]) ]
+        
         # list of column values with column id          
         data = [(self.tree.set(child, column), child) for child in self.tree.get_children('')]
-        data.sort(reverse=not ascending)
+        data.sort(key=natural, reverse=not ascending)
         
         for index, pair in enumerate(data):
             self.tree.move(pair[1], '', index)   # pair[1] = column id
