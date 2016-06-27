@@ -88,13 +88,15 @@ def audioDialog(player):
 
 def tagDialog(song_id):
     if song_id == None:
+        messagebox.showinfo("Tags", 'Please start a song first')
         return
     title, artist, _, _, _ = db.getPlayInfo(song_id)
     log.debug("tag song {}: {} - {}".format(song_id, title, artist))
     if title == None:
+        messagebox.showerror("Tags", 'No song information available')
         return
     tags = db.getUserTags(song_id)
-    dlg = ChordsPlay.selector.Selector(gui, "Tag {} - {}".format(title, artist), ("Key", "On", "Tag"), tags, key_pos=1)
+    dlg = ChordsPlay.selector.TagSelector(gui, "Tag {} - {}".format(title, artist), ("Key", "On", "Tag"), tags)
     if dlg.result != None:
         if tags[dlg.result][2] == ' ':
             status = "set"
