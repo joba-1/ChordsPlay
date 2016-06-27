@@ -55,7 +55,7 @@ class Gui(tk.Tk):
         # left pane with playlist and buttons
         playlist = ttk.Frame(self.panes)
         self.panes.add(playlist, stretch="always", sticky=tk.NSEW)
-        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo', 'Chords'), [], playlist)
+        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo', 'Chords', 'Played', 'Last'), [], playlist)
         self.mclist.grid(row=0, column=0, sticky=tk.NSEW)
         playlist.columnconfigure(0, weight=1)
         playlist.rowconfigure(0, weight=1)
