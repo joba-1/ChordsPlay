@@ -360,6 +360,7 @@ class Db(object):
             "Artists":         "AND s.artist REGEXP ?\n",
             "Albums":          "AND s.album  REGEXP ?\n",
             "Capos":           "AND cast(coalesce(s.capo, 0) as text) REGEXP ?\n",
+            "Tag Keys":            "AND exists (select 1 from song_tags st inner join tags t on st.tag_id = t.id where st.user_id = u.id and st.song_id = s.id and t.key REGEXP ?)\n",
             }
         required = patterns.get("Required Chords", '')
         if required != '':
@@ -504,8 +505,8 @@ WHERE s.lyrics_chords IS NOT NULL
             self.conn.execute("UPDATE user_filters set json_dict = ? WHERE user_id = ? and name = ?", parms)            
         self.conn.commit()
         
-    def getUserTags(self, song_id): # TODO: list of tuples (id, key, on, description)
-        log.debug('getUserTags')
+    def getUserTags(self, song_id):
+        log.debug('getUserTags(song_id={})'.format(song_id))
         cur = self.conn.cursor()
         cur.execute("""
             SELECT 

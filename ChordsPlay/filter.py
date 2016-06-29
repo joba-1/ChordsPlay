@@ -41,7 +41,7 @@ class Filter(ChordsPlay.dialog.Dialog):
         # create dialog body.  
         # return widget that should have initial focus.
         
-        labels = ["Titles", "Artists", "Albums", "Capos", "Required Chords", "Accepted Chords", "Tags"]
+        labels = ["Titles", "Artists", "Albums", "Capos", "Required Chords", "Accepted Chords", "Tag Keys"]
 
         self.entries = {}
         self.errors = {}

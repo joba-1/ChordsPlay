@@ -197,7 +197,6 @@ def main(argv=None):
 
         gui.onButton('Pause', player.pause)
         gui.onButton('Next', playlist.next)
-        # todo: select matching item in gui songlist (onMove(func)?)
         gui.onButton('Prev', playlist.prev)
         gui.onButton('Shuffle', gui.mclist.shuffle)
         gui.onButton('Filter', lambda: playlistDialog(playlist))
