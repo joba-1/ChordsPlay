@@ -110,7 +110,7 @@ class Gui(tk.Tk):
         self.currFrame = self.frames[0]
         self.currFrame.lift()
         
-        self.fullscreenState = True
+        self.fullscreenState = False
         self.attributes("-fullscreen", self.fullscreenState)
         self.bind("<F11>", self.toggleFullscreen)
         self.bind("<Escape>", self.endFullscreen)
