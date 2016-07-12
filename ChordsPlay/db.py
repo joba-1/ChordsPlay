@@ -314,9 +314,9 @@ class Db(object):
             FROM songs s
             INNER JOIN playlists l ON s.id = l.song_id
             LEFT OUTER JOIN users u ON u.id = l.user_id
-            LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
             LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
             LEFT OUTER JOIN chords c ON sc.chord_id = c.id
+            LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
             WHERE u.name = ?
             GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
             ORDER BY l.user_id, l.position
@@ -333,9 +333,9 @@ class Db(object):
                 INNER JOIN list_songs ls ON s.id = ls.song_id
                 INNER JOIN song_lists l ON ls.song_lists_id = l.id
                 LEFT OUTER JOIN users u ON u.name = ?
-                LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
                 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
                 LEFT OUTER JOIN chords c ON sc.chord_id = c.id
+                LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
                 WHERE s.lyrics_chords IS NOT NULL
                 AND (s.capo IS NULL OR s.capo = 0)
                 GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
@@ -404,10 +404,10 @@ SELECT s.id, s.title, s.artist, s.album,
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
-LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
 LEFT OUTER JOIN users u ON u.name = ?
 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
 {}LEFT OUTER JOIN chords ac ON sc.chord_id = ac.id{}
+LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
 WHERE s.lyrics_chords IS NOT NULL
 {}GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
 {}ORDER BY s.artist, s.album, s.id""".format(requiredClause, acceptedClause, predicateClause, havingClause)
@@ -506,7 +506,8 @@ WHERE s.lyrics_chords IS NOT NULL
         self.conn.commit()
         
     def getUserTags(self, song_id):
-        log.debug('getUserTags(song_id={})'.format(song_id))
+        log.debug('getUserTags(song_id={})'.format(song_id)) 
+        # TODO tags act strange (existing song tags not always displayed in tagging dialog, filter not finding all songs) 
         cur = self.conn.cursor()
         cur.execute("""
             SELECT 
