@@ -56,7 +56,7 @@ class Filter(ChordsPlay.dialog.Dialog):
             self.errors[labels[row]].grid(row=row*2+1, column=1, sticky=tk.EW)
             master.columnconfigure(1, weight=1)
 
-        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo', 'Chords', 'Played', 'Last'), [], master)
+        self.mclist = ChordsPlay.mclist.MCList(('Title', 'Artist', 'Album', 'Capo', 'Chords', 'Tags', 'Played', 'Last'), [], master)
         self.mclist.grid(row=2*len(labels), column=0, columnspan=2, sticky=tk.NSEW)
         master.rowconfigure(2*len(labels), weight=1)
 

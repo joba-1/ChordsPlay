@@ -309,12 +309,15 @@ class Db(object):
             SELECT s.id, s.title, s.artist, s.album, 
                 cast(coalesce(s.capo, 0) as text), 
                 coalesce(group_concat(distinct c.name), ''),
-                count(played) as played,
+                coalesce(group_concat(distinct t.key), ''),
+                count(distinct played) as played,
                 coalesce(max(played), 'never') as last
             FROM songs s
             INNER JOIN playlists l ON s.id = l.song_id
             LEFT OUTER JOIN users u ON u.id = l.user_id
             LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
+            LEFT OUTER JOIN song_tags st ON st.user_id = u.id and st.song_id = s.id
+            LEFT OUTER JOIN tags t ON t.id = st.tag_id
             LEFT OUTER JOIN chords c ON sc.chord_id = c.id
             LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
             WHERE u.name = ?
@@ -327,13 +330,16 @@ class Db(object):
                 SELECT s.id, s.title, s.artist, s.album, 
                     cast(coalesce(s.capo, 0) as text), 
                     coalesce(group_concat(distinct c.name), ''),
-                    count(played) as played,
+                    coalesce(group_concat(distinct t.key), ''),
+                    count(distinct played) as played,
                     coalesce(max(played), 'never') as last
                 FROM songs s
                 INNER JOIN list_songs ls ON s.id = ls.song_id
                 INNER JOIN song_lists l ON ls.song_lists_id = l.id
                 LEFT OUTER JOIN users u ON u.name = ?
                 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
+                LEFT OUTER JOIN song_tags st ON st.user_id = u.id and st.song_id = s.id
+                LEFT OUTER JOIN tags t ON t.id = st.tag_id
                 LEFT OUTER JOIN chords c ON sc.chord_id = c.id
                 LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
                 WHERE s.lyrics_chords IS NOT NULL
@@ -350,18 +356,18 @@ class Db(object):
         '''
         return all id's of songs with matching patterns
         '''
-        havingClause = ''
+        havingClause = 'HAVING count(*) > 0\n'
         predicateClause = ''
         requiredClause = ''
         acceptedClause = ''
         predicateValues = [self.user]
         predicateSwitch = {
-            "Titles":          "AND s.title  REGEXP ?\n",
-            "Artists":         "AND s.artist REGEXP ?\n",
-            "Albums":          "AND s.album  REGEXP ?\n",
-            "Capos":           "AND cast(coalesce(s.capo, 0) as text) REGEXP ?\n",
-            "Tag Keys":            "AND exists (select 1 from song_tags st inner join tags t on st.tag_id = t.id where st.user_id = u.id and st.song_id = s.id and t.key REGEXP ?)\n",
+            "Titles":   "AND s.title  REGEXP ?\n",
+            "Artists":  "AND s.artist REGEXP ?\n",
+            "Albums":   "AND s.album  REGEXP ?\n",
+            "Capos":    "AND cast(coalesce(s.capo, 0) as text) REGEXP ?\n",
             }
+        tags = patterns.get("Tag Keys", '')
         required = patterns.get("Required Chords", '')
         if required != '':
             predicateValues.append(required)
@@ -385,27 +391,31 @@ class Db(object):
                     else:
                         predicateValues.append("({})|({})".format(required, pattern))
 
+        
         if required != '':
-            havingClause += 'HAVING count(rc.name) = (SELECT count(*) FROM chords WHERE name REGEXP ?)\n'
+            havingClause += "AND count(rc.name) = (SELECT count(*) FROM chords WHERE name REGEXP ?)\n"
             predicateValues.append(required)
         if accepted != '':
-            if required != '':
-                havingClause += 'AND count(*) = count(ac.name)\n'
-            else:
-                havingClause += 'HAVING count(*) = count(ac.name)\n'
-           
+            havingClause += "AND count(*) = count(ac.name)\n"
+        if tags != '':
+            havingClause += "AND coalesce(group_concat(distinct t.key), '') REGEXP ?\n"
+            predicateValues.append(tags)
+
         cur = self.conn.cursor()
         stmt = """
 SELECT s.id, s.title, s.artist, s.album, 
     cast(coalesce(s.capo, 0) as text), 
     coalesce(group_concat(distinct ac.name), ''),
-    count(played) as played,
+    coalesce(group_concat(distinct t.key), ''),
+    count(distinct played) as played,
     coalesce(max(played), 'never') as last
 FROM songs s
 INNER JOIN list_songs ls ON s.id = ls.song_id
 INNER JOIN song_lists l ON ls.song_lists_id = l.id
 LEFT OUTER JOIN users u ON u.name = ?
 LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
+LEFT OUTER JOIN song_tags st ON st.user_id = u.id and st.song_id = s.id
+LEFT OUTER JOIN tags t ON t.id = st.tag_id
 {}LEFT OUTER JOIN chords ac ON sc.chord_id = ac.id{}
 LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
 WHERE s.lyrics_chords IS NOT NULL
