@@ -8,6 +8,7 @@
 * Dialog: Chord pattern definition, change
 * Dialog: Add or delete song_lists (directories and files)
 * Chordie
+* Shared or synced DB
 
 == Features
 * Scan music library (list of paths or files)

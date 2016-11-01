@@ -89,10 +89,7 @@ class Db(object):
             create index if not exists chords_ix1 on chords (
                 name, id
             );
-            create table if not exists chord_aliases ( 
-                chord_id      int not null references chords(id) on delete cascade,
-                alias_id      int not null references chords(id) on delete cascade
-            );
+            drop table if exists chord_aliases;
             create table if not exists tags ( 
                 id            integer not null primary key autoincrement,
                 name          text not null unique,
@@ -116,34 +113,11 @@ class Db(object):
                 json_dict     text not null,
                 primary key   (user_id, name)
             );
-            create table if not exists filters ( 
-                id            integer not null primary key autoincrement,
-                name          text not null unique,
-                order_by      char(1) check(order_by in ('r', 'o', 'm', 'f'))
-            );
-            create table if not exists filter_patterns ( 
-                filter_id     int not null references filters(id) on delete cascade,
-                type          char(1) not null check (type in ('a', 't', 'A')),
-                pattern       text not null,
-                unique        (filter_id, type, pattern)
-            );
-            create table if not exists filter_song_lists ( 
-                filter_id     int not null references filters(id) on delete cascade,
-                song_list_id  int not null references song_lists(id) on delete restrict,
-                primary key   (filter_id, song_list_id)
-            );
-            create table if not exists filter_chords ( 
-                filter_id     int not null references filters(id) on delete cascade,
-                chord_id      int not null references chords(id) on delete restrict,
-                type          char(1) not null check (type in ('r', 'o', 'x')),
-                primary key   (filter_id, chord_id)
-            );
-            create table if not exists filter_tags ( 
-                filter_id     int not null references filters(id) on delete cascade,
-                tag_id        int not null references tags(id) on delete restrict,
-                type          char(1) not null check (type in ('r', 'x')),
-                primary key   (filter_id, tag_id)
-            );
+            drop table if exists filters;
+            drop table if exists filter_patterns;
+            drop table if exists filter_song_lists;
+            drop table if exists filter_chords;
+            drop table if exists filter_tags;
         """)
         try:
             self.conn.execute("insert into users (name) values (?)", (user,))
