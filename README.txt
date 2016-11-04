@@ -8,7 +8,10 @@
 * Dialog: Chord pattern definition, change
 * Dialog: Add or delete song_lists (directories and files)
 * Chordie
-* Shared or synced DB
+* Synced DB
+ * commandline: 2 files and 2 user names
+ * print stats on users, songs, user_songs (to sync), song_tags (to sync) and user_filters (to sync)
+ * if sync option, then transfer missing data   
 
 == Features
 * Scan music library (list of paths or files)
