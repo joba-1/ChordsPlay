@@ -18,7 +18,7 @@ class Scan(threading.Thread):
     Since sqlite3 does not support connection sharing, a separate connection is used
     '''
 
-    def __init__(self, connector, user):
+    def __init__(self, connector, user, toFile=None):
         '''
         Constructor
         '''
@@ -27,16 +27,20 @@ class Scan(threading.Thread):
         self.connector = connector
         self.user = user
         self.db = None
+        self.fileName = toFile
 
-    def updateLyrics(self, rowid, title, artist):
+    def updateLyrics(self, rowid, title, artist, toFile=None):
         ch = ChordsPlay.chords.Chords()
         try:
-            ch.request(title, artist)
+            ch.request(title, artist, toFile)
         except Exception:
             log.error("fetching lyrics failed for {} by {}".format(title, artist))
             self.db.rollback()
             import traceback
             traceback.print_exc()
+            return
+           
+        if toFile != None:
             return
         
         try:
@@ -64,6 +68,10 @@ class Scan(threading.Thread):
             if self.quit.is_set(): 
                 return
             
+            if self.fileName != None:
+                log.debug("Test song")
+                self.updateLyrics(None, "House of the rising sun", "", toFile=self.fileName)
+
             song_lists = self.db.getSongLists()
             log.debug("{} song lists".format(len(song_lists)))
             if self.quit.is_set(): 

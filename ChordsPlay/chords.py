@@ -24,7 +24,7 @@ class Chords(object):
         self.chords = None
         self.capo = None
 
-    def request(self, title, artist):
+    def request(self, title, artist, toFile=None):
         '''
         get lyrics and chords from the web and store them
         '''
@@ -47,16 +47,21 @@ class Chords(object):
         rq_chords = requests.get(url, params=params, headers=headers)
         log.debug("Url: {}".format(rq_chords.url))
         log.debug("Text: {}".format(rq_chords.text))
+        if toFile != None:
+            f = open(toFile + '_ChordsPlay_List.txt', 'w');
+            f.write("List Url: {}\n".format(rq_chords.url))
+            f.write(rq_chords.text)
+            f.close()
         
         # extract url and ranking of lyrics with chords
-        songlist = r'<a href="([^"]*?)" class="song result-link".+?<span class="rating">(.+?) </span>.+?<b class="ratdig">([0-9]+)</b>'
+        songlist = r'href="([^"]*?)".+? class="song result-link.+?<span class="rating" title="([0-9.]+).+?</span>.+?<b class="ratdig">([0-9]+)</b>'
         rx_chords = re.compile(songlist, re.DOTALL)
         max_rating = 0
         max_ratings = 0
         best_link = None
         for match in rx_chords.finditer(rq_chords.text):
             link, str_rating, str_ratings = match.groups()
-            rating = sum(1 for _ in re.finditer('active', str_rating))
+            rating = int(float(str_rating)*2)
             ratings = int(str_ratings)
             log.debug("{0}*{1:2d}: {2}".format(rating, ratings, link))
             if rating >= max_rating:
@@ -74,7 +79,12 @@ class Chords(object):
         rq_chord = requests.get(best_link, headers=headers)
         log.debug("Url: {}".format(rq_chord.url))
         log.debug("Text: {}".format(rq_chord.text))
-        
+        if toFile != None:
+            f = open(toFile + '_ChordsPlay_Best.txt', 'w');
+            f.write("Best Url: {}\n".format(rq_chords.url))
+            f.write(rq_chords.text)
+            f.close()
+
         # extract plain lyrics with chords from html page
         r_chord=r'.*<pre[ >].*</pre>.*(<pre[ >].*</pre>).*/print/'
         rx_chord = re.compile(r_chord, re.DOTALL)

@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.2'  # update also in setup.py
+__version__ = '3.3'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2016-11-01'
+__updated__ = '2017-06-09'
 
 DEBUG = 0
 TESTRUN = 0
@@ -131,6 +131,7 @@ def main(argv=None):
         # setup option parser
         parser = OptionParser(version=program_version_string, epilog=program_longdesc, description=program_license)
         parser.add_option("-c", "--config", dest="cfgfile", help="config file [default: %default]", metavar="FILE")
+        parser.add_option("-t", "--testfile", dest="testfile", help="dump html to this file", metavar="FILE")
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
 
         # set defaults
@@ -179,7 +180,9 @@ def main(argv=None):
 
         # media scanner #
         log.debug("Starting scanner thread")
-        scanner = ChordsPlay.scan.Scan(connector, user)
+        if opts.testfile != None:
+            log.debug("Scanner test file {}".format(opts.testfile))
+        scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile)
         scanner.start()
         
         # gui main loop #
