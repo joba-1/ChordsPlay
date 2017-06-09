@@ -54,7 +54,7 @@ class Chords(object):
             f.close()
         
         # extract url and ranking of lyrics with chords
-        songlist = r'<a[^>]*? href="([^"]*?)".+? class="song result-link.+?<span class="rating" title="([0-9.]+).+?</span>.+?<b class="ratdig">([0-9]+)</b>.+?<strong>(.)'
+        songlist = r'<a onclick[^>]*? href="([^"]*?)"[\t\n ]*class="song result-link.+?<span class="rating" title="([0-9.]+).+?</span>.+?<b class="ratdig">([0-9]+)</b>.+?<strong>(.)'
         rx_chords = re.compile(songlist, re.DOTALL)
         max_rating = 0
         max_ratings = 0

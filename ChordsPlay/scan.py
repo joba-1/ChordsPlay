@@ -70,7 +70,7 @@ class Scan(threading.Thread):
             
             if self.fileName != None:
                 log.debug("Test song")
-                self.updateLyrics(None, "House of the rising sun", "", toFile=self.fileName)
+                self.updateLyrics(None, "Pride And Joy", "Stevie Ray Vaughan", toFile=self.fileName)
 
             song_lists = self.db.getSongLists()
             log.debug("{} song lists".format(len(song_lists)))

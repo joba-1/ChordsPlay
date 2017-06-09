@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.4'  # update also in setup.py
+__version__ = '3.5'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2017-06-09'
+__updated__ = '2017-06-10'
 
 DEBUG = 0
 TESTRUN = 0
@@ -164,7 +164,7 @@ def main(argv=None):
             logging.basicConfig(level=logging.INFO)
             
         log = logging.getLogger(__name__)
-        log.info('Started')
+        log.info('Started {}'.format(program_version_string))
 
         # db connection #
         connector = config.get(program_name, 'database')
