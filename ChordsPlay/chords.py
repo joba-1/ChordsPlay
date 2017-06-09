@@ -54,17 +54,17 @@ class Chords(object):
             f.close()
         
         # extract url and ranking of lyrics with chords
-        songlist = r'href="([^"]*?)".+? class="song result-link.+?<span class="rating" title="([0-9.]+).+?</span>.+?<b class="ratdig">([0-9]+)</b>'
+        songlist = r'<a[^>]*? href="([^"]*?)".+? class="song result-link.+?<span class="rating" title="([0-9.]+).+?</span>.+?<b class="ratdig">([0-9]+)</b>.+?<strong>(.)'
         rx_chords = re.compile(songlist, re.DOTALL)
         max_rating = 0
         max_ratings = 0
         best_link = None
         for match in rx_chords.finditer(rq_chords.text):
-            link, str_rating, str_ratings = match.groups()
+            link, str_rating, str_ratings, link_type = match.groups()
             rating = int(float(str_rating)*2)
             ratings = int(str_ratings)
             log.debug("{0}*{1:2d}: {2}".format(rating, ratings, link))
-            if rating >= max_rating:
+            if rating >= max_rating and link_type == 'c':
                 if rating > max_rating or ratings > max_ratings:
                     max_rating = rating
                     max_ratings = ratings
