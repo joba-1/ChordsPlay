@@ -225,7 +225,7 @@ class Db(object):
             FROM 
                 songs
             WHERE
-                date(chord_update) < date('now', '-1 hour')
+                date(chord_update) < date('now', '-1 month')
         '''
         for row in self.conn.execute(stmt):
             yield row

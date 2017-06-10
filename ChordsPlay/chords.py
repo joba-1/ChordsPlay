@@ -29,6 +29,8 @@ class Chords(object):
         get lyrics and chords from the web and store them
         '''
         
+        title = re.sub('[(].*?[)][ ]*', '', title)
+        
         # generic request parameters
         url = "https://www.ultimate-guitar.com/search.php"
         params = {
