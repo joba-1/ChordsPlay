@@ -121,7 +121,7 @@ def main(argv=None):
     program_version = __version__
     program_build_date = "%s" % __updated__
 
-    program_version_string = '%%prog %s (%s)' % (program_version, program_build_date)
+    program_version_string = '%s %s (%s)' % (program_name, program_version, program_build_date)
     program_longdesc = '''supports guitar players by showing lyrics and chords while playing songs'''
     program_license = "Copyright 2016 joba1. Licensed under the GPL 2.0"
 
