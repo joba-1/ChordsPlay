@@ -9,7 +9,7 @@ It defines main
 
 @author:     joba1
 
-@copyright:  2016 joba1. All rights reserved.
+@copyright:  2016-17 joba1. All rights reserved.
 
 @license:    GPL 2.0
 
@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.7'  # update also in setup.py
+__version__ = '3.8'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2017-06-10'
+__updated__ = '2017-12-01'
 
 DEBUG = 0
 TESTRUN = 0

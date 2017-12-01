@@ -84,11 +84,11 @@ class Chords(object):
         if toFile != None:
             f = open(toFile + '_ChordsPlay_Best.txt', 'w');
             f.write("Best Url: {}\n".format(rq_chords.url))
-            f.write(rq_chords.text)
+            f.write(rq_chord.text)
             f.close()
 
         # extract plain lyrics with chords from html page
-        r_chord=r'.*<pre[ >].*</pre>.*(<pre[ >].*</pre>).*/print/'
+        r_chord=r'.*<pre[ >].*</pre>.*(<pre[ >].*</pre>).*<pre'
         rx_chord = re.compile(r_chord, re.DOTALL)
         match = re.match(rx_chord, rq_chord.text)
         self.url = rq_chord.url
