@@ -9,7 +9,7 @@ It defines main
 
 @author:     joba1
 
-@copyright:  2016 joba1. All rights reserved.
+@copyright:  2016-18 joba1. All rights reserved.
 
 @license:    GPL 2.0
 
