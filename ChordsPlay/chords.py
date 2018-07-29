@@ -7,8 +7,16 @@ Created on 21.02.2016
 import requests
 import re
 import logging
+import json
+import traceback
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+
 
 log = logging.getLogger(__name__)
+
 
 class Chords(object):
     '''
@@ -46,6 +54,7 @@ class Chords(object):
         }
         
         # request list of lyrics with chords
+        self.url = url
         rq_chords = requests.get(url, params=params, headers=headers)
         log.debug("Url: {}".format(rq_chords.url))
         log.debug("Text: {}".format(rq_chords.text))
@@ -56,28 +65,37 @@ class Chords(object):
             f.close()
         
         # extract url and ranking of lyrics with chords
-        songlist = r'<a onclick[^>]*? href="([^"]*?)"[\t\n ]*class="song result-link.+?<span class="rating" title="([0-9.]+).+?</span>.+?<b class="ratdig">([0-9]+)</b>.+?<strong>(.)'
-        rx_chords = re.compile(songlist, re.DOTALL)
+        try:
+            js_songpage = json.loads(re.search('window.UGAPP.store.page = (.*);', rq_chords.text).group(1))
+        except Exception:
+            log.warning("Song {} from {} ranking page not found or has malformed json".format(title, artist))
+            traceback.print_exc()
+            
         max_rating = 0
-        max_ratings = 0
+        max_votes = 0
         best_link = None
-        for match in rx_chords.finditer(rq_chords.text):
-            link, str_rating, str_ratings, link_type = match.groups()
-            rating = int(float(str_rating)*2)
-            ratings = int(str_ratings)
-            log.debug("{0}*{1:2d}: {2}".format(rating, ratings, link))
-            if rating >= max_rating and link_type == 'c':
-                if rating > max_rating or ratings > max_ratings:
-                    max_rating = rating
-                    max_ratings = ratings
-                    best_link = link
-                    log.debug("new best link")
+        try:
+            for song in js_songpage['data']['results']:
+                if song.get('type') == 'Chords':
+                    if song['rating'] >= max_rating:
+                        if song['rating'] > max_rating or song['votes'] > max_votes:
+                            max_rating = song['rating']
+                            max_votes = song['votes']
+                            best_link = song['tab_url']
+                            log.debug("new best link {}".format(song.get('id')))
+        except KeyError:
+            log.debug("Song page data invalid")
+        except Exception:
+            log.warning("Song page parser failed")
+            traceback.print_exc()
+
         if best_link == None:
             log.warn('No chords for song "{}" from artist "{}"'.format(title, artist))
             self.url = rq_chords.url
             return False
         
         # request best lyrics with chords
+        self.url = best_link
         rq_chord = requests.get(best_link, headers=headers)
         log.debug("Url: {}".format(rq_chord.url))
         log.debug("Text: {}".format(rq_chord.text))
@@ -88,44 +106,36 @@ class Chords(object):
             f.close()
 
         # extract plain lyrics with chords from html page
-        r_chord=r'.*<pre[ >].*</pre>.*(<pre[ >].*</pre>).*/print/'
-        rx_chord = re.compile(r_chord, re.DOTALL)
-        match = re.match(rx_chord, rq_chord.text)
-        self.url = rq_chord.url
-        if match == None:
-            log.warn('No chords at "{}"'.format(rq_chord.url))
-            return False
-        lyrics = match.group(1)
-        self.lyrics = re.sub(r'<.*?>', '', lyrics).strip()
+        try:
+            js_chordspage = json.loads(re.search('window.UGAPP.store.page = (.*);', rq_chord.text).group(1))
+        except Exception:
+            log.warning("Chord page {} not found or has malformed json".format(best_link))
+            traceback.print_exc()
+
+        try:
+            self.lyrics = js_chordspage['data']['tab_view']['wiki_tab']['content']
+        except KeyError:
+            log.debug("Chord page data invalid")
+        except Exception:
+            log.warning("Chord page parser failed")
+            traceback.print_exc()
         
-        # extract chords from lyrics
-        # heuristic is: chords are within [brackets] or chords are on lines with equal or more spaces than non chord chars
-        r_chordname=r'(\[)?\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)([] ])'
+        # extract chords from lyrics. They look like [ch]chordname[/ch]
+        r_chordname = r'[[]ch[]](.*?)[[]\/ch[]]'
         rx_chordname = re.compile(r_chordname)
-        rx_braced = re.compile(r'\([a-z]+\)')
         self.chords = set()
-        for line in self.lyrics.splitlines():
-            line += ' '
-            line_without_chords = rx_chordname.sub('', line)
-            line_without_chords_or_spaces = rx_braced.sub('', line_without_chords.replace(' ', ''))
-            if len(line) > len(line_without_chords) and len(line_without_chords) > 2 * len(line_without_chords_or_spaces):
-                is_chord_line = True
-            else:
-                is_chord_line = False
-            #log.debug("Lyrics: '{}'".format(line))
-            #log.debug("no cho: '{}'".format(line_without_chords))
-            #log.debug("no csp: '{}'".format(line_without_chords_or_spaces))
-            #log.debug("chords: {}".format(is_chord_line))
-            for match in rx_chordname.finditer(line):
-                log.debug("match: {}".format(match.group(0)))
-                if is_chord_line or match.group(1) == '[':
-                    self.chords.add(match.group(2))
+        for match in rx_chordname.finditer(self.lyrics):
+            self.chords.add(match.group(1))
+
         if self.chords == set():            
             log.info("no chords found")
         else:
-            log.info("chords: {}".format(', '.join(self.chords)))
+            log.info("chords: {}".format(', '.join(sorted(self.chords))))
             
-        # extract capo from lyrics
+        # remove chords "markup" [ch] and [/ch] from lyrics
+        self.lyrics = self.lyrics.replace('[ch]', '').replace('[/ch]', '')
+        
+        # extract capo from lyrics (still works?)
         capos = {
             '1':   1,  'I':    1,  'FIR':     1,
             '2':   2,  'II':   2,  'SECO':    2,
@@ -144,7 +154,7 @@ class Chords(object):
         if match != None:
             self.capo = capos.get(match.group(1).upper())
     
-        # extract patterns from lyrics
+        # extract patterns from lyrics (still works? Better use json result)
         r_pattern=r'\W*\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)\b\W*([x0-9]{6}|(\W+[x0-9]{1,2}){6})\b'
         rx_pattern = re.compile(r_pattern)
         self.patterns = {}
@@ -155,3 +165,13 @@ class Chords(object):
         log.info("patterns: {}".format(str(self.patterns)))
         
         return True
+
+
+if __name__ == "__main__":
+    log.info('Started {}'.format("Chords Debug"))
+    ch = Chords()
+    ch.request("House of the rising sun", "The Animals")
+    print("Lyrics: [{}]".format(ch.lyrics))
+    print("Capo: [{}]".format(ch.capo))
+    print("URL: [{}]".format(ch.url))
+    print("Chords: [{}]".format(ch.chords))

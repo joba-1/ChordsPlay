@@ -1,5 +1,12 @@
 = Chords Play
 
+== Fix chord download
+Often times ultimate guitar website changes causing my chord download fail.
+
+To fix it, look at chords.py class Chords method request().
+You can test with python3 chordsplay.py -t test (generates a file test.dat_ChordsPlay_List.txt), 
+or call python ChordsPlay/chords.py (prints request results).
+
 == Todo
 * Allow lyrics update override (lock metadata, exclude songs)
 * Update current playlist after scan
