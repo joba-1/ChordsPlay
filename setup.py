@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-version='3.8' # update also in chordsplay.py
+version='3.9' # update also in chordsplay.py
 
 config = {
     'description': 'Play your music matching filters like artists or chords while showing lyrics and guitar chords',
