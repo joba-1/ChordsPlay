@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.9'  # update also in setup.py
+__version__ = '3.10'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2018-07-29'
+__updated__ = '2019-01-10'
 
 DEBUG = 0
 TESTRUN = 0

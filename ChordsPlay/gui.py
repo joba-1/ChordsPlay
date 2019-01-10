@@ -10,6 +10,7 @@ from tkinter import font
 from subprocess import call
 import ChordsPlay.mclist
 import logging
+import ctypes
 
 log = logging.getLogger(__name__)
 
@@ -144,10 +145,16 @@ class Gui(tk.Tk):
     
     def inhibitBlank(self):
         try:
-            call(["xset", "s", "reset"])
+            call(["xset", "s", "reset"]) # Linux
             self.after(10000, self.inhibitBlank)
         except FileNotFoundError:
-            log.warn("Failed to disable screensaver with xset")
+            self.inhibitBlankWin(); # Windows
+
+    def inhibitBlankWin(self):
+        try:
+            ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
+        except:
+            log.warn("Failed to disable screensaver")
 
     def toggleFullscreen(self, event=None):
         self.fullscreenState = not self.fullscreenState  # Just toggling the boolean
