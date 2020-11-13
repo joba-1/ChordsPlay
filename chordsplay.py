@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.10'  # update also in setup.py
+__version__ = '3.11'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2019-01-10'
+__updated__ = '2020-11-13'
 
 DEBUG = 0
 TESTRUN = 0
@@ -123,7 +123,7 @@ def main(argv=None):
 
     program_version_string = '%s %s (%s)' % (program_name, program_version, program_build_date)
     program_longdesc = '''supports guitar players by showing lyrics and chords while playing songs'''
-    program_license = "Copyright 2016 joba1. Licensed under the GPL 2.0"
+    program_license = "Copyright 2016-2020 joba1. Licensed under the GPL 2.0"
 
     if argv is None:
         argv = sys.argv[1:]
@@ -133,6 +133,7 @@ def main(argv=None):
         parser.add_option("-c", "--config", dest="cfgfile", help="config file [default: %default]", metavar="FILE")
         parser.add_option("-t", "--testfile", dest="testfile", help="dump html to this file", metavar="FILE")
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
+        parser.add_option("-f", "--fix", dest="fix", action="count", help="fix database issues")
 
         # set defaults
         parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
@@ -170,54 +171,65 @@ def main(argv=None):
         connector = config.get(program_name, 'database')
         user = config.get(program_name, 'user')
         db = ChordsPlay.db.Db(connector, user)
-        
-        # media locations #
-        locations = db.getSongLists()
-        new_locations = set([(os.path.normpath(os.path.join(*arg.split('\\'))),) for arg in args]) - locations
-        if len(new_locations) > 0:
-            db.addSongLists(new_locations)
+
+        if opts.fix != None:
+            # add/remove code to fix stuff as needed
+            db.fixTabTags()
+        else:
+            # media locations #
             locations = db.getSongLists()
+            new_locations = set([(os.path.normpath(os.path.join(*arg.split('\\'))),) for arg in args]) - locations
+            if len(new_locations) > 0:
+                db.addSongLists(new_locations)
+                locations = db.getSongLists()
 
-        # media scanner #
-        log.debug("Starting scanner thread")
-        if opts.testfile != None:
-            log.debug("Scanner test file {}".format(opts.testfile))
-        scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile)
-        scanner.start()
-        
-        # gui main loop #
-        log.debug("Starting main loop")
-        
-        gui = ChordsPlay.gui.Gui(title=program_name)
-        
-        player = ChordsPlay.play.Play(gui, db, opts.verbose)
-        titles = db.getFirstPlaylist()
-        gui.mclist.set(titles)
-        playlist = ChordsPlay.playlist.Playlist(db, play, gui.mclist)
+            # media scanner #
+            log.debug("Starting scanner thread")
+            if opts.testfile != None:
+                log.debug("Scanner test file {}".format(opts.testfile))
+            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile)
+            scanner.start()
+            
+            # gui main loop (only if not a test run with one fixed song) #
+            if opts.testfile == None:
+                log.debug("Starting main loop")
+                
+                gui = ChordsPlay.gui.Gui(title=program_name)
+                
+                player = ChordsPlay.play.Play(gui, db, opts.verbose)
+                titles = db.getFirstPlaylist()
+                gui.mclist.set(titles)
+                playlist = ChordsPlay.playlist.Playlist(db, play, gui.mclist)
 
-        gui.mclist.tree.bind("<Double-Button-1>", onClick)
-        gui.bind("A", lambda x: player.setNextAudioOut())
+                gui.mclist.tree.bind("<Double-Button-1>", onClick)
+                gui.bind("A", lambda x: player.setNextAudioOut())
 
-        gui.onButton('Pause', player.pause)
-        gui.onButton('Next', playlist.next)
-        gui.onButton('Prev', playlist.prev)
-        gui.onButton('Shuffle', gui.mclist.shuffle)
-        gui.onButton('Filter', lambda: playlistDialog(playlist))
-        gui.onButton('Tags', lambda: tagDialog(player.song_id))
-        gui.onButton('Audio', lambda: audioDialog(player))
+                gui.onButton('Pause', player.pause)
+                gui.onButton('Next', playlist.next)
+                gui.onButton('Prev', playlist.prev)
+                gui.onButton('Shuffle', gui.mclist.shuffle)
+                gui.onButton('Filter', lambda: playlistDialog(playlist))
+                gui.onButton('Tags', lambda: tagDialog(player.song_id))
+                gui.onButton('Audio', lambda: audioDialog(player))
 
-        gui.mainloop()
+                gui.mainloop()
 
-        # quit #
-        log.debug("Stopping scanner thread")
-        scanner.quit.set()
-        scanner.join()
+                # quit #
+                log.debug("Stopping scanner thread")
+                scanner.quit.set()
+
+            scanner.join()
         
     except Exception:
         traceback.print_exc()
         return 2
     
     finally:
+        try:
+            if log:
+                pass
+        except:
+            log = logging.getLogger(__name__)
         log.info('Finished')
 
 

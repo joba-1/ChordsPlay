@@ -8,6 +8,7 @@ import requests
 import re
 import logging
 import json
+import html
 import traceback
 
 
@@ -50,7 +51,7 @@ class Chords(object):
             'band_name':  artist
         }
         headers = {
-            'user-agent': 'ChordsPlay/0.1'
+            'user-agent': 'ChordsPlay/0.2'
         }
         
         # request list of lyrics with chords
@@ -66,16 +67,22 @@ class Chords(object):
         
         # extract url and ranking of lyrics with chords
         try:
-            js_songpage = json.loads(re.search('window.UGAPP.store.page = (.*);', rq_chords.text).group(1))
+            js_songpage = json.loads(html.unescape(re.search('data-content="(.*)"', rq_chords.text).group(1)))
         except Exception:
-            log.warning("Song {} from {} ranking page not found or has malformed json".format(title, artist))
+            log.warning("request(): Song {} from {} ranking page not found or has malformed json".format(title, artist))
             traceback.print_exc()
+
+        # try:
+        #     js_songpage = json.loads(re.search('window.UGAPP.store.page = (.*);', rq_chords.text).group(1))
+        # except Exception:
+        #     log.warning("Song {} from {} ranking page not found or has malformed json".format(title, artist))
+        #     traceback.print_exc()
             
         max_rating = 0
         max_votes = 0
         best_link = None
         try:
-            for song in js_songpage['data']['results']:
+            for song in js_songpage['store']['page']['data']['results']:
                 if song.get('type') == 'Chords':
                     if song['rating'] >= max_rating:
                         if song['rating'] > max_rating or song['votes'] > max_votes:
@@ -85,12 +92,15 @@ class Chords(object):
                             log.debug("new best link {}".format(song.get('id')))
         except KeyError:
             log.debug("Song page data invalid")
+            log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
         except Exception:
             log.warning("Song page parser failed")
+            log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
             traceback.print_exc()
 
         if best_link == None:
             log.warn('No chords for song "{}" from artist "{}"'.format(title, artist))
+            log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
             self.url = rq_chords.url
             return False
         
@@ -107,17 +117,19 @@ class Chords(object):
 
         # extract plain lyrics with chords from html page
         try:
-            js_chordspage = json.loads(re.search('window.UGAPP.store.page = (.*);', rq_chord.text).group(1))
+            js_chordspage = json.loads(html.unescape(re.search('data-content="(.*)"', rq_chord.text).group(1)))
         except Exception:
             log.warning("Chord page {} not found or has malformed json".format(best_link))
             traceback.print_exc()
 
         try:
-            self.lyrics = js_chordspage['data']['tab_view']['wiki_tab']['content']
+            self.lyrics = js_chordspage['store']['page']['data']['tab_view']['wiki_tab']['content']
         except KeyError:
             log.debug("Chord page data invalid")
+            log.debug('Chords JSON (html decoded):"{}"'.format(json.dumps(js_chordspage, indent=4)))
         except Exception:
             log.warning("Chord page parser failed")
+            log.debug('Chords JSON (html decoded):"{}"'.format(json.dumps(js_chordspage, indent=4)))
             traceback.print_exc()
         
         # extract chords from lyrics. They look like [ch]chordname[/ch]
@@ -129,11 +141,12 @@ class Chords(object):
 
         if self.chords == set():            
             log.info("no chords found")
+            log.debug('Chords JSON (html decoded):"{}"'.format(json.dumps(js_chordspage, indent=4)))
         else:
             log.info("chords: {}".format(', '.join(sorted(self.chords))))
             
-        # remove chords "markup" [ch] and [/ch] from lyrics
-        self.lyrics = self.lyrics.replace('[ch]', '').replace('[/ch]', '')
+        # remove chords "markup" [ch], [/ch], [tab] and [/tab] from lyrics
+        self.lyrics = self.lyrics.replace('[ch]', '').replace('[/ch]', '').replace('[tab]', '').replace('[/tab]', '')
         
         # extract capo from lyrics (still works?)
         capos = {

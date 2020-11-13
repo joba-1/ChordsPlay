@@ -528,3 +528,16 @@ WHERE s.lyrics_chords IS NOT NULL
         self.conn.execute("DELETE FROM song_tags WHERE user_id = ? AND song_id = ? AND tag_id = ?", row)
         self.conn.commit()
 
+    def fixTabTags(self):
+        log.info('fixTabTags')
+        cur = self.conn.cursor()
+        cur.execute("SELECT id, title, artist, lyrics_chords FROM songs WHERE lyrics_chords IS NOT NULL")
+        rows = cur.fetchall()
+        cur.close()
+        for row in rows:
+            log.info("Fix {} {}".format(row[2], row[1]))
+            lyrics = row[3].replace('[tab]', '')
+            lyrics = lyrics.replace('[/tab]', '')
+            parms = (lyrics, row[0])
+            self.conn.execute("UPDATE songs set lyrics_chords = ? WHERE id = ?", parms)            
+        self.conn.commit()
