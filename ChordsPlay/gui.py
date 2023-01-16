@@ -213,7 +213,7 @@ class Gui(tk.Tk):
         bestSize = minSize
         bestFrame = None
         
-        font = self.frames[0].font
+        frame_font = self.frames[0].font
         frames = self.frames[1:]
         
         self.update_idletasks()
@@ -222,7 +222,7 @@ class Gui(tk.Tk):
             # we still have font sizes to check
             currSize = (maxSize + minSize) // 2
             # log.debug("resize: min/max = {}/{}: try {}".format(minSize, maxSize, currSize))
-            font.configure(size=currSize)
+            frame_font.configure(size=currSize)
             bestDiff = -100000
             
             for frame in frames:
@@ -233,8 +233,8 @@ class Gui(tk.Tk):
                     haveHeight = text.winfo_height() - 2 * (self.pad + 2)
                     chars = text["width"]
                     lines = text["height"]
-                    wantWidth = font.measure("g" * chars)
-                    wantHeight = font.metrics("linespace") * lines
+                    wantWidth = frame_font.measure("g" * chars)
+                    wantHeight = frame_font.metrics("linespace") * lines
                     minDiff = min(haveHeight - wantHeight, haveWidth - wantWidth)
                     # log.debug("resize: chars = {}, lines = {}, have/want width = {}/{}, have/want height = {}/{} -> Diff = {}".format(chars, lines, haveWidth, wantWidth, haveHeight, wantHeight, minDiff))
                     if (currSize > bestSize and minDiff >= 0) or (currSize == bestSize and minDiff > bestDiff):
