@@ -21,10 +21,11 @@ class MCList(ttk.Frame):
     def __init__(self, headings, data, master=None, **kw):
         ttk.Frame.__init__(self, master, **kw)
 
-        font_height = 9
+        # adjust row height in tree view
+        font_height = tk.font.Font(font='TkDefaultFont').metrics('linespace')
         style = ttk.Style()
-        style.configure("Treeview.Heading", font=(None, font_height), rowheight=int(font_height*3.5))
-        style.configure("Treeview", font=(None, font_height), rowheight=int(font_height*3.5))
+        style.configure("Treeview.Heading", rowheight=int(font_height*1.2))
+        style.configure("Treeview", rowheight=int(font_height*1.2))
 
         self.headings = headings
         self.tree = ttk.Treeview(self, columns=headings, show='headings', selectmode='browse')
