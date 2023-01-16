@@ -1,5 +1,24 @@
 = Chords Play
 
+== Install
+
+git clone from-whereever... chordsplay
+sudo pip3 install chordsplay/
+python3 /usr/bin/chordsplay.py /your/music/folder
+
+== Desktop Icon
+
+~/.local/share/applications/ChordsPlay.desktop
+```
+[Desktop Entry]
+Exec=bash -i -c 'mount /srv/music; python3 /usr/bin/chordsplay.py /srv/music/Musik/Favoriten'
+Icon=/usr/share/icons/Adwaita/scalable/places/folder-music-symbolic.svg
+Name=ChordsPlay
+StartupNotify=true
+Terminal=true
+Type=Application
+```
+
 == Fix chord download
 Often times ultimate guitar website changes causing my chord download fail.
 
