@@ -22,10 +22,10 @@ class MCList(ttk.Frame):
         ttk.Frame.__init__(self, master, **kw)
 
         # adjust row height in tree view
-        font_height = tk.font.Font(font='TkDefaultFont').metrics('linespace')
+        font_height = tk.font.Font(font='TkDefaultFont').metrics('linespace') * 1.0
         style = ttk.Style()
-        style.configure("Treeview.Heading", rowheight=int(font_height*1.2))
-        style.configure("Treeview", rowheight=int(font_height*1.2))
+        style.configure("Treeview.Heading", rowheight=int(font_height))
+        style.configure("Treeview", rowheight=int(font_height))
 
         self.headings = headings
         self.tree = ttk.Treeview(self, columns=headings, show='headings', selectmode='browse')
