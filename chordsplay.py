@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.12'  # update also in setup.py
+__version__ = '3.13'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2023-01-16'
+__updated__ = '2023-02-27'
 
 DEBUG = 0
 TESTRUN = 0
@@ -125,12 +125,20 @@ def main(argv=None):
     program_longdesc = '''supports guitar players by showing lyrics and chords while playing songs'''
     program_license = "Copyright 2016-2020 joba1. Licensed under the GPL 2.0"
 
+    # program options are taken from defaults dict, then configParser ini file, then main argv or sys.argv
+    # opts contains the merged result where argv overrides ini file which overrides defaults
+    # complication: program arguments can contain the config file to use so merge to opts is done manually
+ 
     if argv is None:
         argv = sys.argv[1:]
     try:
+        print("parser setup")
+
         # setup option parser
         parser = OptionParser(version=program_version_string, epilog=program_longdesc, description=program_license)
         parser.add_option("-c", "--config", dest="cfgfile", help="config file [default: %default]", metavar="FILE")
+        parser.add_option("-d", "--database", dest="database", help="use this database file", metavar="FILE")
+        parser.add_option("-u", "--user", dest="user", help="database user")
         parser.add_option("-t", "--testfile", dest="testfile", help="dump html to this file", metavar="FILE")
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
         parser.add_option("-f", "--fix", dest="fix", action="count", help="fix database issues")
@@ -153,10 +161,20 @@ def main(argv=None):
         config.add_section(program_name)
         config.read(os.path.expanduser(opts.cfgfile))
 
+        # merge config file to program arguments
         if opts.verbose == None:
             opts.verbose = int(config.get(program_name, 'verbosity'))
         if opts.verbose == None:
             opts.verbose = 0
+
+        if opts.testfile is None:
+            opts.testfile = config.get(program_name, 'testfile', fallback=None)
+            
+        if opts.user is None:
+            opts.user = config.get(program_name, 'user')
+            
+        if opts.database is None:
+            opts.database = config.get(program_name, 'database')
             
         # log init
         if opts.verbose != 0:        
@@ -168,8 +186,8 @@ def main(argv=None):
         log.info('Started {}'.format(program_version_string))
 
         # db connection #
-        connector = config.get(program_name, 'database')
-        user = config.get(program_name, 'user')
+        connector = opts.database
+        user = opts.user
         db = ChordsPlay.db.Db(connector, user)
 
         if opts.fix != None:
@@ -244,7 +262,7 @@ if __name__ == "__main__":
         import pstats
         profile_filename = 'ChordsPlay.main_profile.txt'
         cProfile.run('main()', profile_filename)
-        statsfile = open("profile_stats.txt", "wb")
+        statsfile = open("profile_stats.txt", "w", encoding="utf-8")
         p = pstats.Stats(profile_filename, stream=statsfile)
         stats = p.strip_dirs().sort_stats('cumulative')
         stats.print_stats()

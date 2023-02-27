@@ -74,12 +74,12 @@ class MCList(ttk.Frame):
             return items
         return self.tree.set(items[pos])
     
-    def set(self, data):   
+    def set(self, data):
         # configure headings
         self.ascending = True
         for column in self.headings:
             self.tree.column(column, width=self.font.measure(column.title()))
-             
+
         # remove old rows
         children = self.tree.get_children('')
         if len(children) > 0:
@@ -88,8 +88,11 @@ class MCList(ttk.Frame):
 
         # add data columns
         widths = {column: 0 for column in self.headings}
+        samples = 0
         for row in data:
             item = self.tree.insert('', 'end', iid=row[0], values=row[1:])
+            samples += 1
+            if samples >= 50: break  # calculate average column width from first few values (or it gets slow)
             # adjust column widths
             for column in self.headings:
                 value = self.tree.set(item, column=column)
@@ -97,10 +100,10 @@ class MCList(ttk.Frame):
 
         if len(data) > 0:
             for column in self.headings:
-                width = widths[column]//len(data)*120//100
+                width = widths[column]//samples*120//100
                 if self.tree.column(column, 'width') < width:
                     self.tree.column(column, width=width)
-        
+
     def sort(self, column, ascending=True):
 
         def atoi(text):

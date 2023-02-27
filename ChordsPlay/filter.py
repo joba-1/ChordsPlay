@@ -33,7 +33,7 @@ class Filter(ChordsPlay.dialog.Dialog):
      
     def onFocus(self):
         if self.validate():
-            self.update()
+            self.update_pattern()
             return True
         return False
         
@@ -93,7 +93,7 @@ class Filter(ChordsPlay.dialog.Dialog):
                             entry.delete(0, tk.END)
                             entry.insert(0, pattern)
                         if self.validate():
-                            self.update()
+                            self.update_pattern()
         except Exception:
             pass
 
@@ -145,7 +145,7 @@ class Filter(ChordsPlay.dialog.Dialog):
                                 entry.delete(0, tk.END)
                                 entry.insert(0, pattern)
                             if self.validate():
-                                self.update()
+                                self.update_pattern()
             except Exception as e:
                 messagebox.showerror("Load Playlist Pattern", 'Load failed:\n{}'.format(str(e)))
         self.initial_focus.focus_set()
@@ -201,7 +201,7 @@ class Filter(ChordsPlay.dialog.Dialog):
                                 entry.delete(0, tk.END)
                                 entry.insert(0, pattern)
                             if self.validate():
-                                self.update()
+                                self.update_pattern()
             except Exception as e:
                 messagebox.showerror(title, 'Import failed:\n{}'.format(str(e)))
         self.initial_focus.focus_set()
@@ -253,7 +253,7 @@ class Filter(ChordsPlay.dialog.Dialog):
                 self.initial_focus = entry
         return rc
     
-    def update(self):
+    def update_pattern(self):
         # update preview list
         patterns = {key: self.entries[key].get() for key in self.entries}
         
@@ -264,7 +264,7 @@ class Filter(ChordsPlay.dialog.Dialog):
     
     def apply(self):
         # put the regexes in result dict
-        self.update()
+        self.update_pattern()
         
         desc = "Playlist patterns"
         vers = 1
