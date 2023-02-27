@@ -2,9 +2,12 @@
 
 ## Install
 
+```
 git clone from-whereever... chordsplay
 sudo pip3 install chordsplay/
 python3 /usr/bin/chordsplay.py /your/music/folder
+```
+sudo not needed, just adapt the path to chordsplay.py accordingly
 
 ## Desktop Icon
 
