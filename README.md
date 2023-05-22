@@ -30,6 +30,12 @@ You can test with python3 chordsplay.py -t test (generates a file test.dat_Chord
 or call python ChordsPlay/chords.py (prints request results).
 
 ## Todo
+* Transpose (e.g. to avoid capo)
+    * general transpose +/- 0-11 halftones or based on capo or both? -> settings variable
+    * keep [ch][/ch] tags in stored song texts
+    * to show a song text
+        1) transpose chords in tags
+        2) remove tags
 * Allow lyrics update override (lock metadata, exclude songs)
 * Update current playlist after scan
 * Configure tags (assign keys to tag-strings)
@@ -50,21 +56,21 @@ or call python ChordsPlay/chords.py (prints request results).
         * Ultimate-guitar, Chordie, ...
         * Allow override (lock metadata, exclude songs)  
         * Save lyrics with chords, list of used chords, capo flag, audio file uri, songname, artist, album
-             * Generate or update songlist for all songs, each path and one for all single files
-             * List of used chords
-             * Capo
-* TODO (V2)
-    * Update current playlist after scan?
-    * Chordie or others
+    * Generate or update songlist for all songs, each path and one for all single files
+    * List of used chords
+    * Capo
+    * TODO (V2)
+        * Update current playlist after scan?
+        * Chordie or others
   
 * Play music and display chords according to songlists and filters
     * Play: start, stop, pause, restart, next, prev, update (and try to go to current song), shuffle (but still respect filters)
         * no: Next, prev: show playlist around current position for some time
         * no: Use different play techniques depending on availability and audio file uri (an external player or a library)
         * Display lyrics with chords optimally sized for given window (dynamic)
-             * Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
-             * Configure tags (assign keys to tag-strings)
-             * Configure filters (combined)
+    * Tag songs while played with predefined tags (key pressed -> tag with string, del: untag previous)
+        * Configure tags (assign keys to tag-strings)
+    * Configure filters (combined)
         * Songlists to use
         * Artists pattern or list
         * Titles pattern or list
