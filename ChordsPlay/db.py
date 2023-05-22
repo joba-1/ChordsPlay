@@ -132,6 +132,7 @@ class Db(object):
                 (3, 'Leicht', 'l'),
                 (4, 'Unfertig', 'u'),
                 (5, 'Capo', 'c')
+                (6, 'Fixiert', 'x')
             ]
             self.conn.executemany("insert into tags (id, name, key) values (?, ?, ?)", tags)
             log.info("tags initialized")
@@ -205,13 +206,17 @@ class Db(object):
     def uncheckedSongs(self):
         stmt = '''
             SELECT 
-                rowid, 
-                title, 
-                artist
+                s.rowid, 
+                s.title, 
+                s.artist
             FROM 
-                songs
+                song_tags st
+            INNER JOIN 
+                tags t ON st.tag_id = t.id AND t.key = 'x'
+            RIGHT OUTER JOIN 
+                songs s ON s.id = st.song_id
             WHERE
-                chord_update is NULL
+                s.chord_update is NULL AND st.song_id is NULL
         '''
         for row in self.conn.execute(stmt):
             yield row
@@ -219,13 +224,17 @@ class Db(object):
     def recheckSongs(self):
         stmt = '''
             SELECT 
-                rowid, 
-                title, 
-                artist
+                s.rowid, 
+                s.title, 
+                s.artist
             FROM 
-                songs
+                song_tags st
+            INNER JOIN 
+                tags t ON st.tag_id = t.id AND t.key = 'x'
+            RIGHT OUTER JOIN 
+                songs s ON s.id = st.song_id
             WHERE
-                date(chord_update) < date('now', '-1 month')
+                date(s.chord_update) < date('now', '-1 month') AND st.song_id is NULL
         '''
         for row in self.conn.execute(stmt):
             yield row
@@ -490,8 +499,9 @@ WHERE s.lyrics_chords IS NOT NULL
         self.conn.commit()
         
     def getUserTags(self, song_id):
+        # Hint: to support a new tag char, just add it to the tags table
         log.debug('getUserTags(song_id={})'.format(song_id)) 
-        # TODO tags act strange (existing song tags not always displayed in tagging dialog, filter not finding all songs) 
+        # TODO tags act strange (existing song tags not always displayed in tagging dialog, filter not finding all songs, still true?) 
         cur = self.conn.cursor()
         cur.execute("""
             SELECT 

@@ -9,7 +9,7 @@ It defines main
 
 @author:     joba1
 
-@copyright:  2016-18 joba1. All rights reserved.
+@copyright:  2016-23 joba1. All rights reserved.
 
 @license:    GPL 2.0
 
@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.14'  # update also in setup.py
+__version__ = '3.15'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2023-05-12'
+__updated__ = '2023-05-22'
 
 DEBUG = 0
 TESTRUN = 0
@@ -123,7 +123,7 @@ def main(argv=None):
 
     program_version_string = '%s %s (%s)' % (program_name, program_version, program_build_date)
     program_longdesc = '''supports guitar players by showing lyrics and chords while playing songs'''
-    program_license = "Copyright 2016-2020 joba1. Licensed under the GPL 2.0"
+    program_license = "Copyright 2016-2023 joba1. Licensed under the GPL 2.0"
 
     # program options are taken from defaults dict, then configParser ini file, then main argv or sys.argv
     # opts contains the merged result where argv overrides ini file which overrides defaults
