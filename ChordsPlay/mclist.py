@@ -91,14 +91,14 @@ class MCList(ttk.Frame):
         samples = 0
         for row in data:
             item = self.tree.insert('', 'end', iid=row[0], values=row[1:])
-            samples += 1
-            if samples >= 50: break  # calculate average column width from first few values (or it gets slow)
-            # adjust column widths
-            for column in self.headings:
-                value = self.tree.set(item, column=column)
-                widths[column] += self.font.measure(value)
+            if samples < 50: # calculate average column width from first few rows only (or it gets slow)
+                samples += 1
+                # adjust column widths
+                for column in self.headings:
+                    value = self.tree.set(item, column=column)
+                    widths[column] += self.font.measure(value)
 
-        if len(data) > 0:
+        if samples > 0:
             for column in self.headings:
                 width = widths[column]//samples*120//100
                 if self.tree.column(column, 'width') < width:
