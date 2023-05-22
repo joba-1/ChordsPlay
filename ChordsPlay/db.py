@@ -131,7 +131,7 @@ class Db(object):
                 (2, 'Schwer', 's'),
                 (3, 'Leicht', 'l'),
                 (4, 'Unfertig', 'u'),
-                (5, 'Capo', 'c')
+                (5, 'Capo', 'c'),
                 (6, 'Fixiert', 'x')
             ]
             self.conn.executemany("insert into tags (id, name, key) values (?, ?, ?)", tags)
