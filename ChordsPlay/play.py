@@ -228,14 +228,32 @@ class Play(object):
                 self.song_id = song_id
         else:
             log.warn("play failed: No valid media {}".format(url))
-            
+
     def pause(self):
         if self.player.get_state() == vlc.State.Paused:
             log.debug('continue')
         else:
             log.debug('pause')
         self.player.pause()
-    
+
+    def dec(self, ms):
+        pos = self.player.get_time()
+        if pos - ms < 0:
+            self.player.set_time(0)
+        else:
+            self.player.set_time(pos - ms)
+
+    def inc(self, ms):
+        length = self.player.get_length()
+        pos = self.player.get_time()
+        if pos + ms > length:
+            self.player.set_time(length)
+        else:
+            self.player.set_time(pos + ms)
+
+    def position(self, pos):
+        self.player.set_position(pos)
+
     def restart(self):
         log.debug('restart')
         if self.song_id != None and self.db != None:

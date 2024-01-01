@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/user/python-3.10.10/venv/base/bin/python3
 # encoding: utf-8
 '''
 ChordsPlay.chordsplay -- ChordsPlay main entry point
@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.15'  # update also in setup.py
+__version__ = '3.16'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2023-05-22'
+__updated__ = '2024-01-01'
 
 DEBUG = 0
 TESTRUN = 0
@@ -221,6 +221,9 @@ def main(argv=None):
 
                 gui.mclist.tree.bind("<Double-Button-1>", onClick)
                 gui.bind("A", lambda x: player.setNextAudioOut())
+                gui.bind("0", lambda x: player.position(0.0))  # 0.0-1.0
+                gui.bind("+", lambda x: player.inc(1000))  # ms
+                gui.bind("-", lambda x: player.dec(1000))  # ms
 
                 gui.onButton('Pause', player.pause)
                 gui.onButton('Next', playlist.next)
