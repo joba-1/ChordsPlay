@@ -23,7 +23,7 @@ import logging
 import traceback
 
 from optparse import OptionParser
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 
 import ChordsPlay.db
 import ChordsPlay.scan
@@ -36,9 +36,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.16'  # update also in setup.py
+__version__ = '3.17'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2024-01-01'
+__updated__ = '2024-09-13'
 
 DEBUG = 0
 TESTRUN = 0
@@ -157,7 +157,7 @@ def main(argv=None):
             "database": os.path.expanduser("~/.{}.db".format(program_name)),
             "verbosity": '0'
             }
-        config = SafeConfigParser(defaults)
+        config = ConfigParser(defaults)
         config.add_section(program_name)
         config.read(os.path.expanduser(opts.cfgfile))
 
