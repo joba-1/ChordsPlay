@@ -30,25 +30,34 @@ class Scan(threading.Thread):
         self.fileName = toFile
 
     def updateLyrics(self, rowid, title, artist, toFile=None):
+        '''
+        get and update lyrics
+        return True on success
+        return False on errors
+        return None if challenge detected
+        '''
         ch = ChordsPlay.chords.Chords()
         try:
-            ch.request(title, artist, toFile)
+            status = ch.request(title, artist, toFile)
         except Exception:
             log.error("fetching lyrics failed for {} by {}".format(title, artist))
             self.db.rollback()
             import traceback
             traceback.print_exc()
-            return
-           
+            return False
+
+        if status is None or status == False:
+            return status
+                   
         if toFile != None:
-            return
+            return True
         
         try:
             self.db.updateLyrics(rowid, ch.lyrics, ch.capo, ch.url)
         except Exception:
             log.error("updating lyrics failed for {} by {}".format(title, artist))
             self.db.rollback()
-            return
+            return False
         
         if ch.lyrics != None:
             try:
@@ -56,9 +65,10 @@ class Scan(threading.Thread):
             except Exception:
                 log.error("updating chords failed for {} by {}".format(title, artist))
                 self.db.rollback()
-                return
+                return False
 
         self.db.commit()
+        return True
         
     def run(self):
         log.info("Starting")
@@ -103,12 +113,14 @@ class Scan(threading.Thread):
             log.debug("unchecked songs")
             for rowid, title, artist in self.db.uncheckedSongs():
                 log.debug("check {} by {}".format(title, artist))
-                self.updateLyrics(rowid, title, artist)
+                if self.updateLyrics(rowid, title, artist) is None:
+                    return
             
             log.debug("recheck songs")
             for rowid, title, artist in self.db.recheckSongs():
                 log.debug("recheck {} by {}".format(title, artist))
-                self.updateLyrics(rowid, title, artist)
+                if self.updateLyrics(rowid, title, artist) is None:
+                    return
                 
         finally:    
             log.info("Finished")

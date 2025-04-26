@@ -10,6 +10,7 @@ import logging
 import json
 import html
 import traceback
+import os
 
 
 if __name__ == "__main__":
@@ -36,6 +37,9 @@ class Chords(object):
     def request(self, title, artist, toFile=None):
         '''
         get lyrics and chords from the web and store them
+        return True on success
+        return False on errors
+        return None if challenged
         '''
         
         title = re.sub('[[({].*?[]})][ ]*', '', title)
@@ -43,15 +47,12 @@ class Chords(object):
         # generic request parameters
         url = "https://www.ultimate-guitar.com/search.php"
         params = {
-            'view_state': 'advanced',
             'type':       300,
-            'type2':      40000,
             'rating[]':   [5,4],
-            'song_name':  title,
-            'band_name':  artist
+            'title':      f"{title} {artist}"
         }
         headers = {
-            'user-agent': 'ChordsPlay/0.2'
+            'user-agent': 'ChordsPlay/0.3'
         }
         
         # request list of lyrics with chords
@@ -70,7 +71,12 @@ class Chords(object):
             js_songpage = json.loads(html.unescape(re.search('data-content="(.*)"', rq_chords.text).group(1)))
         except Exception:
             log.warning("request(): Song {} from {} ranking page not found or has malformed json".format(title, artist))
+            if rq_chords.text.find("challenge-platform") >= 0:
+                log.error(f"abort challenge")
+                return None
+            log.warning(f"page text: '{rq_chords.text}'")
             traceback.print_exc()
+            return False
 
         # try:
         #     js_songpage = json.loads(re.search('window.UGAPP.store.page = (.*);', rq_chords.text).group(1))
@@ -86,10 +92,18 @@ class Chords(object):
                 if song.get('type') == 'Chords':
                     if song['rating'] >= max_rating:
                         if song['rating'] > max_rating or song['votes'] > max_votes:
-                            max_rating = song['rating']
-                            max_votes = song['votes']
-                            best_link = song['tab_url']
-                            log.debug("new best link {}".format(song.get('id')))
+                            lower1 = title.lower()
+                            lower2 = song('song_name').lower()
+                            common = os.path.commonprefix([lower1, lower2])
+                            if common == lower1 or common == lower2:
+                                lower1 = artist.lower()
+                                lower2 = song('artist_name').lower()
+                                common = os.path.commonprefix([lower1, lower2])
+                                if common == lower1 or common == lower2:
+                                    max_rating = song['rating']
+                                    max_votes = song['votes']
+                                    best_link = song['tab_url']
+                                    log.debug("new best link {}".format(song.get('id')))
         except KeyError:
             log.debug("Song page data invalid")
             log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
@@ -99,7 +113,7 @@ class Chords(object):
             traceback.print_exc()
 
         if best_link == None:
-            log.warn('No chords for song "{}" from artist "{}"'.format(title, artist))
+            log.warning('No chords for song "{}" from artist "{}"'.format(title, artist))
             log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
             self.url = rq_chords.url
             return False
