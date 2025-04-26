@@ -11,6 +11,8 @@ import json
 import html
 import traceback
 import os
+from datetime import datetime
+import time
 
 
 if __name__ == "__main__":
@@ -33,6 +35,41 @@ class Chords(object):
         self.url = None
         self.chords = None
         self.capo = None
+        self.request_time = datetime.now()
+        self.request_interval = 2
+
+
+    def wait(self):
+        now = datetime.now()
+        elapsed_time = now - self.request_time
+        waiting_time = self.request_interval - elapsed_time.total_seconds()
+        self.request_time = now
+        if waiting_time > 0:
+            time.sleep(waiting_time)
+
+
+    def unify(self, string):
+        string = string.lower()
+        string = string.replace("&", " and ")
+        if string.startswith("the "):
+            string = string[4:]
+        return ''.join(filter(lambda ch: ch.isalpha(), string.lower()))
+
+
+    def is_match(self, title1, title2, artist1, artist2):
+        str1 = self.unify(title1)
+        str2 = self.unify(title2)
+        str3 = self.unify(artist1)
+        str4 = self.unify(artist2)
+        common1 = os.path.commonprefix([str1, str2])
+        common2 = os.path.commonprefix([str3, str4])
+        if (common1 == str1 or common1 == str2) and (common2 == str3 or common2 == str4):
+            return True
+        common3 = os.path.commonprefix([str3+str1, str2])
+        if common3 == str1+str3 or common3 == str2:
+            return True
+        return False
+
 
     def request(self, title, artist, toFile=None):
         '''
@@ -49,7 +86,7 @@ class Chords(object):
         params = {
             'type':       300,
             'rating[]':   [5,4],
-            'title':      f"{title} {artist}"
+            'title':      title
         }
         headers = {
             'user-agent': 'ChordsPlay/0.3'
@@ -57,8 +94,9 @@ class Chords(object):
         
         # request list of lyrics with chords
         self.url = url
+        self.wait()
         rq_chords = requests.get(url, params=params, headers=headers)
-        log.debug("Url: {}".format(rq_chords.url))
+        log.info("Songs Url: {}".format(rq_chords.url))
         log.debug("Text: {}".format(rq_chords.text))
         if toFile != None:
             f = open(toFile + '_ChordsPlay_List.txt', 'w');
@@ -84,26 +122,19 @@ class Chords(object):
         #     log.warning("Song {} from {} ranking page not found or has malformed json".format(title, artist))
         #     traceback.print_exc()
             
-        max_rating = 0
-        max_votes = 0
+        max_rating = -1
+        max_votes = -1
         best_link = None
         try:
             for song in js_songpage['store']['page']['data']['results']:
                 if song.get('type') == 'Chords':
                     if song['rating'] >= max_rating:
                         if song['rating'] > max_rating or song['votes'] > max_votes:
-                            lower1 = title.lower()
-                            lower2 = song('song_name').lower()
-                            common = os.path.commonprefix([lower1, lower2])
-                            if common == lower1 or common == lower2:
-                                lower1 = artist.lower()
-                                lower2 = song('artist_name').lower()
-                                common = os.path.commonprefix([lower1, lower2])
-                                if common == lower1 or common == lower2:
-                                    max_rating = song['rating']
-                                    max_votes = song['votes']
-                                    best_link = song['tab_url']
-                                    log.debug("new best link {}".format(song.get('id')))
+                            if self.is_match(title, song['song_name'], artist, song['artist_name']):
+                                max_rating = song['rating']
+                                max_votes = song['votes']
+                                best_link = song['tab_url']
+                                log.debug("new best link {}".format(song.get('id')))
         except KeyError:
             log.debug("Song page data invalid")
             log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
@@ -112,16 +143,20 @@ class Chords(object):
             log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
             traceback.print_exc()
 
-        if best_link == None:
+        if best_link is None:
             log.warning('No chords for song "{}" from artist "{}"'.format(title, artist))
-            log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
+            try:
+                log.info('List JSON (results): "{}" for "{}" from "{}"'.format(json.dumps(js_songpage['store']['page']['data']['results'], indent=4), title, artist))
+            except Exception:
+            	log.info('List JSON (html decoded):"{}" for "{}" from "{}"'.format(json.dumps(js_songpage, indent=4), title, artist))
             self.url = rq_chords.url
             return False
         
         # request best lyrics with chords
         self.url = best_link
+        self.wait()
         rq_chord = requests.get(best_link, headers=headers)
-        log.debug("Url: {}".format(rq_chord.url))
+        log.info("Song Url: {}".format(rq_chord.url))
         log.debug("Text: {}".format(rq_chord.text))
         if toFile != None:
             f = open(toFile + '_ChordsPlay_Best.txt', 'w');
