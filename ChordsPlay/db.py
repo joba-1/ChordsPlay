@@ -290,52 +290,57 @@ class Db(object):
         '''
         return all id's of songs with lyrics and no capo
         '''
-        cur = self.conn.cursor()
-        cur.execute("""
-            SELECT s.id, s.title, s.artist, s.album, 
-                cast(coalesce(s.capo, 0) as text), 
-                coalesce(group_concat(distinct c.name), ''),
-                coalesce(group_concat(distinct t.key), ''),
-                count(distinct played) as played,
-                coalesce(max(played), 'never') as last
+        common_ctes = """
+            WITH u AS (SELECT id FROM users WHERE name = ?),
+            chord_agg AS (
+                SELECT sc.song_id, group_concat(c.name) AS names
+                FROM song_chords sc JOIN chords c ON c.id = sc.chord_id
+                GROUP BY sc.song_id
+            ),
+            tag_agg AS (
+                SELECT st.song_id, group_concat(t.key) AS keys
+                FROM song_tags st JOIN tags t ON t.id = st.tag_id
+                WHERE st.user_id = (SELECT id FROM u)
+                GROUP BY st.song_id
+            ),
+            play_agg AS (
+                SELECT song_id, count(*) AS play_count, max(played) AS last_played
+                FROM user_songs WHERE user_id = (SELECT id FROM u)
+                GROUP BY song_id
+            )
+        """
+        ret = list(self.conn.execute(common_ctes + """
+            SELECT s.id, s.title, s.artist, s.album,
+                cast(coalesce(s.capo, 0) AS text),
+                coalesce(ca.names, ''),
+                coalesce(ta.keys, ''),
+                coalesce(pa.play_count, 0),
+                coalesce(pa.last_played, 'never')
             FROM songs s
-            INNER JOIN playlists l ON s.id = l.song_id
-            LEFT OUTER JOIN users u ON u.id = l.user_id
-            LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
-            LEFT OUTER JOIN song_tags st ON st.user_id = u.id and st.song_id = s.id
-            LEFT OUTER JOIN tags t ON t.id = st.tag_id
-            LEFT OUTER JOIN chords c ON sc.chord_id = c.id
-            LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
-            WHERE u.name = ?
-            GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
-            ORDER BY l.user_id, l.position
-        """, (self.user,))
-        ret = list(cur)
+            INNER JOIN playlists l ON l.song_id = s.id AND l.user_id = (SELECT id FROM u)
+            LEFT JOIN chord_agg ca ON ca.song_id = s.id
+            LEFT JOIN tag_agg ta ON ta.song_id = s.id
+            LEFT JOIN play_agg pa ON pa.song_id = s.id
+            ORDER BY l.position
+        """, (self.user,)))
         if len(ret) == 0:
-            cur.execute("""
-                SELECT s.id, s.title, s.artist, s.album, 
-                    cast(coalesce(s.capo, 0) as text), 
-                    coalesce(group_concat(distinct c.name), ''),
-                    coalesce(group_concat(distinct t.key), ''),
-                    count(distinct played) as played,
-                    coalesce(max(played), 'never') as last
+            ret = list(self.conn.execute(common_ctes + """
+                SELECT s.id, s.title, s.artist, s.album,
+                    cast(coalesce(s.capo, 0) AS text),
+                    coalesce(ca.names, ''),
+                    coalesce(ta.keys, ''),
+                    coalesce(pa.play_count, 0),
+                    coalesce(pa.last_played, 'never')
                 FROM songs s
-                INNER JOIN list_songs ls ON s.id = ls.song_id
-                INNER JOIN song_lists l ON ls.song_lists_id = l.id
-                LEFT OUTER JOIN users u ON u.name = ?
-                LEFT OUTER JOIN song_chords sc ON sc.song_id = s.id
-                LEFT OUTER JOIN song_tags st ON st.user_id = u.id and st.song_id = s.id
-                LEFT OUTER JOIN tags t ON t.id = st.tag_id
-                LEFT OUTER JOIN chords c ON sc.chord_id = c.id
-                LEFT OUTER JOIN user_songs us ON us.song_id = s.id AND us.user_id = u.id
+                INNER JOIN list_songs ls ON ls.song_id = s.id
+                LEFT JOIN chord_agg ca ON ca.song_id = s.id
+                LEFT JOIN tag_agg ta ON ta.song_id = s.id
+                LEFT JOIN play_agg pa ON pa.song_id = s.id
                 WHERE s.lyrics_chords IS NOT NULL
-                AND (s.capo IS NULL OR s.capo = 0)
-                GROUP BY s.id, s.title, s.artist, s.album, cast(coalesce(s.capo, 0) as text)
+                  AND (s.capo IS NULL OR s.capo = 0)
                 ORDER BY s.artist, s.album, s.id
-            """, (self.user,))
-            ret = list(cur)
+            """, (self.user,)))
         log.debug('getFirstPlaylist: {} entries found'.format(len(ret)))
-        cur.close()
         return ret
 
     def getPatternPlaylist(self, patterns):
