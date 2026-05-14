@@ -18,7 +18,7 @@ class Scan(threading.Thread):
     Since sqlite3 does not support connection sharing, a separate connection is used
     '''
 
-    def __init__(self, connector, user, toFile=None):
+    def __init__(self, connector, user, toFile=None, ug_user=None, ug_pass=None):
         '''
         Constructor
         '''
@@ -28,6 +28,9 @@ class Scan(threading.Thread):
         self.user = user
         self.db = None
         self.fileName = toFile
+        self.chords = ChordsPlay.chords.Chords()
+        if ug_user and ug_pass:
+            self.chords.login(ug_user, ug_pass)
 
     def updateLyrics(self, rowid, title, artist, toFile=None):
         '''
@@ -36,7 +39,7 @@ class Scan(threading.Thread):
         return False on errors
         return None if challenge detected
         '''
-        ch = ChordsPlay.chords.Chords()
+        ch = self.chords
         try:
             status = ch.request(title, artist, toFile)
         except Exception:

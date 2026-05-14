@@ -9,6 +9,8 @@ python3 /usr/bin/chordsplay.py /your/music/folder
 ```
 sudo not needed, just adapt the path to chordsplay.py accordingly
 
+Dependencies: `mutagen`, `python-vlc`, `curl_cffi`
+
 ## Desktop Icon
 
 ~/.local/share/applications/ChordsPlay.desktop
@@ -101,9 +103,16 @@ or call python ChordsPlay/chords.py (prints request results).
 * currently no playlist editor, always generated
 
 ## Parameters
-* config: config file, optionally containing
+* `-u` / `--user`: database user (default: OS user)
+* `-d` / `--database`: database file
+* `-c` / `--config`: config file (default: `~/.chordsplay.cfg`)
+* `-t` / `--testfile`: dump HTML responses to file (for debugging)
+* `-v` / `--verbose`: increase log verbosity
+* `--ug-user` / `--ug-pass`: Ultimate Guitar login credentials to avoid bot challenges; can also be set as `ug_user` / `ug_pass` in the config file
+* config file, optionally containing
     * db (or use previous or create default)
     * user (or use os user)
+    * ug_user / ug_pass (Ultimate Guitar credentials)
 
 ## Persistence
 sqlite for now: see ChordsPlay/db.py

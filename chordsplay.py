@@ -142,6 +142,8 @@ def main(argv=None):
         parser.add_option("-t", "--testfile", dest="testfile", help="dump html to this file", metavar="FILE")
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
         parser.add_option("-f", "--fix", dest="fix", action="count", help="fix database issues")
+        parser.add_option("--ug-user", dest="ug_user", help="Ultimate Guitar username for login")
+        parser.add_option("--ug-pass", dest="ug_pass", help="Ultimate Guitar password for login")
 
         # set defaults
         parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
@@ -175,6 +177,11 @@ def main(argv=None):
             
         if opts.database is None:
             opts.database = config.get(program_name, 'database')
+
+        if opts.ug_user is None:
+            opts.ug_user = config.get(program_name, 'ug_user', fallback=None)
+        if opts.ug_pass is None:
+            opts.ug_pass = config.get(program_name, 'ug_pass', fallback=None)
             
         # log init
         if opts.verbose != 0:        
@@ -205,7 +212,7 @@ def main(argv=None):
             log.debug("Starting scanner thread")
             if opts.testfile != None:
                 log.debug("Scanner test file {}".format(opts.testfile))
-            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile)
+            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile, ug_user=opts.ug_user, ug_pass=opts.ug_pass)
             scanner.start()
             
             # gui main loop (only if not a test run with one fixed song) #
