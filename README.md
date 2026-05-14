@@ -108,11 +108,25 @@ or call python ChordsPlay/chords.py (prints request results).
 * `-c` / `--config`: config file (default: `~/.chordsplay.cfg`)
 * `-t` / `--testfile`: dump HTML responses to file (for debugging)
 * `-v` / `--verbose`: increase log verbosity
-* `--ug-user` / `--ug-pass`: Ultimate Guitar login credentials to avoid bot challenges; can also be set as `ug_user` / `ug_pass` in the config file
+* `--ug-user` / `--ug-pass`: Ultimate Guitar login credentials to avoid bot challenges; prefer storing these in the config file (see below)
 * config file, optionally containing
     * db (or use previous or create default)
     * user (or use os user)
     * ug_user / ug_pass (Ultimate Guitar credentials)
+
+### Storing Ultimate Guitar credentials safely
+
+Add to `~/.chordsplay.cfg`:
+```ini
+[chordsplay]
+ug_user = yourname
+ug_pass = yourpassword
+```
+Then restrict access so only you can read it:
+```
+chmod 600 ~/.chordsplay.cfg
+```
+ChordsPlay warns on startup if the config file is readable by others.
 
 ## Persistence
 sqlite for now: see ChordsPlay/db.py

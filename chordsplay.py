@@ -181,6 +181,9 @@ def main(argv=None):
         if opts.ug_user is None:
             opts.ug_user = config.get(program_name, 'ug_user', fallback=None)
         if opts.ug_pass is None:
+            cfgfile = os.path.expanduser(opts.cfgfile)
+            if os.path.exists(cfgfile) and oct(os.stat(cfgfile).st_mode & 0o777) != oct(0o600):
+                print("Warning: {} should be chmod 600 to protect your password".format(cfgfile), file=sys.stderr)
             opts.ug_pass = config.get(program_name, 'ug_pass', fallback=None)
             
         # log init
