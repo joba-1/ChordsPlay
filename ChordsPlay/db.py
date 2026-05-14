@@ -34,6 +34,7 @@ class Db(object):
         self.user = user
         log.debug('connect with "{}" as "{}"'.format(connector, user))
         self.conn = sqlite3.connect(connector)
+        self.conn.execute("PRAGMA journal_mode=WAL")
         log.debug('Init db')
         self.conn.create_function("REGEXP", 2, regexp)
         self.conn.executescript("""
