@@ -108,6 +108,7 @@ or call python ChordsPlay/chords.py (prints request results).
 * `-c` / `--config`: config file (default: `~/.chordsplay.cfg`)
 * `-t` / `--testfile`: dump HTML responses to file (for debugging)
 * `-v` / `--verbose`: increase log verbosity
+* `-l` / `--logfile`: write full DEBUG log to a file while keeping the console at INFO; useful for capturing failed chord-search results for later analysis
 * `--ug-user` / `--ug-pass`: Ultimate Guitar login credentials to avoid bot challenges; prefer storing these in the config file (see below)
 * config file, optionally containing
     * db (or use previous or create default)

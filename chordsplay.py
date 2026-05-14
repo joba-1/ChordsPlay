@@ -144,6 +144,7 @@ def main(argv=None):
         parser.add_option("-f", "--fix", dest="fix", action="count", help="fix database issues")
         parser.add_option("--ug-user", dest="ug_user", help="Ultimate Guitar username for login")
         parser.add_option("--ug-pass", dest="ug_pass", help="Ultimate Guitar password for login")
+        parser.add_option("-l", "--logfile", dest="logfile", help="write DEBUG log to this file (console stays at INFO)", metavar="FILE")
 
         # set defaults
         parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
@@ -187,11 +188,17 @@ def main(argv=None):
             opts.ug_pass = config.get(program_name, 'ug_pass', fallback=None)
             
         # log init
-        if opts.verbose != 0:        
+        if opts.verbose != 0:
             logging.basicConfig(level=logging.DEBUG)
         else:
             logging.basicConfig(level=logging.INFO)
-            
+
+        if opts.logfile:
+            file_handler = logging.FileHandler(opts.logfile)
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s:%(name)s:%(message)s'))
+            logging.getLogger().addHandler(file_handler)
+
         log = logging.getLogger(__name__)
         log.info('Started {}'.format(program_version_string))
 
