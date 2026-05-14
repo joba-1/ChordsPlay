@@ -71,6 +71,7 @@ class Scan(threading.Thread):
                 return False
 
         self.db.commit()
+        log.info("saved lyrics for {} by {}".format(title, artist))
         return True
         
     def run(self):
