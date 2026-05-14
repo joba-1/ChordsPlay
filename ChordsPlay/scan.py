@@ -99,18 +99,25 @@ class Scan(threading.Thread):
                 elif os.path.isfile(song_list):
                     log.debug('add single file "{}"'.format(song_list))
                     self.db.addListSong('', song_list)
-                    if self.quit.is_set(): 
+                    self.db.commit()
+                    if self.quit.is_set():
                         return
 
                 elif os.path.isdir(song_list):
+                    count = 0
                     for path, _, files in os.walk(song_list):
                         rel_path = os.path.relpath(path, song_list)
                         for file in files:
                             rel_file = os.path.join(rel_path, file)
                             # log.debug('add file "{}"'.format(rel_file))
                             self.db.addListSong(song_list, rel_file)
-                            if self.quit.is_set(): 
+                            count += 1
+                            if count % 100 == 0:
+                                self.db.commit()
+                            if self.quit.is_set():
+                                self.db.commit()
                                 return
+                    self.db.commit()
                 else:
                     log.info('ignoring song list "{}"'.format(song_list))
 

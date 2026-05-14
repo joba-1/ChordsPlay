@@ -189,16 +189,14 @@ class Db(object):
             return
             
         try:
-            self.conn.execute('INSERT INTO songs (title, artist, album) VALUES (?, ?, ?)', song.tags())
-            self.conn.execute('INSERT INTO list_songs (song_lists_id, filename, song_id) SELECT id, ?, last_insert_rowid() FROM song_lists WHERE name = ?', (song_file, song_list))
-            self.conn.commit()
-            log.info("added song {}".format(','.join(song.tags())))
-        except sqlite3.IntegrityError:
-            # log.debug("duplicate song {}".format(','.join(song.tags())))
-            self.conn.rollback()
+            self.conn.execute('INSERT OR IGNORE INTO songs (title, artist, album) VALUES (?, ?, ?)', song.tags())
+            self.conn.execute(
+                'INSERT OR IGNORE INTO list_songs (song_lists_id, filename, song_id)'
+                ' SELECT sl.id, ?, s.id FROM song_lists sl, songs s'
+                ' WHERE sl.name = ? AND s.title = ? AND s.artist = ?',
+                (song_file, song_list, song.title, song.artist))
         except sqlite3.InterfaceError as e:
             log.error("adding song {} failed:".format(','.join(song.tags())))
-            self.conn.rollback()
             e.data = song.tags()
             raise
 
