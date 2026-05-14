@@ -163,9 +163,9 @@ class Chords(object):
         if best_link is None:
             log.warning('No chords for song "{}" from artist "{}"'.format(title, artist))
             try:
-                log.info('List JSON (results): "{}" for "{}" from "{}"'.format(json.dumps(js_songpage['store']['page']['data']['results'], indent=4), title, artist))
+                log.debug('List JSON (results): "{}" for "{}" from "{}"'.format(json.dumps(js_songpage['store']['page']['data']['results'], indent=4), title, artist))
             except Exception:
-            	log.info('List JSON (html decoded):"{}" for "{}" from "{}"'.format(json.dumps(js_songpage, indent=4), title, artist))
+                log.debug('List JSON (html decoded):"{}" for "{}" from "{}"'.format(json.dumps(js_songpage, indent=4), title, artist))
             self.url = rq_chords.url
             return False
         
