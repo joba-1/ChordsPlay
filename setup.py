@@ -12,7 +12,7 @@ config = {
     # 'download_url': 'https://example.org/hg/chordsplay/archive/{}.tar.gz'.format(version),
     'author_email': 'joba-1@users.noreply.github.com',
     'version': version,
-    'install_requires': ['mutagen', 'python-vlc', 'requests'],
+    'install_requires': ['mutagen', 'python-vlc', 'curl_cffi'],
     'packages': ['ChordsPlay'],
     'scripts': ['chordsplay.py'],
     'license': 'GPL V2 or higher',

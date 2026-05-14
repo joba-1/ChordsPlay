@@ -4,7 +4,7 @@ Created on 21.02.2016
 @author: joba1
 '''
 
-import requests
+from curl_cffi import requests as curl_requests
 import re
 import logging
 import json
@@ -37,6 +37,26 @@ class Chords(object):
         self.capo = None
         self.request_time = datetime.now()
         self.request_interval = 2
+        self.session = curl_requests.Session(impersonate="chrome")
+
+    def login(self, username, password):
+        '''
+        Log in to Ultimate Guitar to avoid bot challenges.
+        Returns True on success, False on failure.
+        '''
+        login_url = "https://www.ultimate-guitar.com/login.php"
+        payload = {"username": username, "password": password}
+        try:
+            r = self.session.post(login_url, data=payload)
+            if r.ok and "logout" in r.text.lower():
+                log.info("Logged in to Ultimate Guitar as {}".format(username))
+                return True
+            log.warning("Login to Ultimate Guitar failed (status {})".format(r.status_code))
+            return False
+        except Exception:
+            log.warning("Login to Ultimate Guitar failed")
+            traceback.print_exc()
+            return False
 
 
     def wait(self):
@@ -88,14 +108,11 @@ class Chords(object):
             'rating[]':   [5,4],
             'title':      title
         }
-        headers = {
-            'user-agent': 'ChordsPlay/0.3'
-        }
-        
+
         # request list of lyrics with chords
         self.url = url
         self.wait()
-        rq_chords = requests.get(url, params=params, headers=headers)
+        rq_chords = self.session.get(url, params=params)
         log.info("Songs Url: {}".format(rq_chords.url))
         log.debug("Text: {}".format(rq_chords.text))
         if toFile != None:
@@ -155,7 +172,7 @@ class Chords(object):
         # request best lyrics with chords
         self.url = best_link
         self.wait()
-        rq_chord = requests.get(best_link, headers=headers)
+        rq_chord = self.session.get(best_link)
         log.info("Song Url: {}".format(rq_chord.url))
         log.debug("Text: {}".format(rq_chord.text))
         if toFile != None:
