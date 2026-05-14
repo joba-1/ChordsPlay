@@ -90,6 +90,8 @@ class Db(object):
             create index if not exists chords_ix1 on chords (
                 name, id
             );
+            create index if not exists playlists_song_ix on playlists (song_id);
+            create index if not exists list_songs_song_ix on list_songs (song_id);
             drop table if exists chord_aliases;
             create table if not exists tags ( 
                 id            integer not null primary key autoincrement,
