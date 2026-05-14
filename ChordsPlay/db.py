@@ -384,8 +384,10 @@ class Db(object):
 
         
         if required != '':
-            havingClause += "AND count(rc.name) = (SELECT count(*) FROM chords WHERE name REGEXP ?)\n"
-            predicateValues.append(required)
+            required_count = self.conn.execute(
+                "SELECT count(*) FROM chords WHERE name REGEXP ?", (required,)
+            ).fetchone()[0]
+            havingClause += "AND count(rc.name) = {}\n".format(required_count)
         if accepted != '':
             havingClause += "AND count(*) = count(ac.name)\n"
         if tags != '':
