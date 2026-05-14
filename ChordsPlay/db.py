@@ -160,11 +160,7 @@ class Db(object):
         '''
         return the current set of song_lists (paths or files) containing songs
         '''
-        cur = self.conn.cursor()
-        cur.execute('SELECT name FROM song_lists')
-        ret = set(cur)
-        cur.close()
-        return ret
+        return set(self.conn.execute('SELECT name FROM song_lists'))
         
     def addSongLists(self, lists):
         '''
@@ -274,17 +270,13 @@ class Db(object):
             raise
     
     def getPlayInfo(self, song_id):
-        cur = self.conn.cursor()
-        cur.execute("""
+        return self.conn.execute("""
             SELECT s.title, s.artist, s.lyrics_chords, l.name, ls.filename
             FROM songs s
             INNER JOIN list_songs ls ON s.id = ls.song_id
             INNER JOIN song_lists l ON ls.song_lists_id = l.id
             WHERE s.id = ?
-        """, (song_id,))
-        ret = cur.fetchone()
-        cur.close()
-        return ret
+        """, (song_id,)).fetchone()
 
     def getFirstPlaylist(self):
         '''
@@ -394,10 +386,9 @@ class Db(object):
             havingClause += "AND coalesce(group_concat(distinct t.key), '') REGEXP ?\n"
             predicateValues.append(tags)
 
-        cur = self.conn.cursor()
         stmt = """
-SELECT s.id, s.title, s.artist, s.album, 
-    cast(coalesce(s.capo, 0) as text), 
+SELECT s.id, s.title, s.artist, s.album,
+    cast(coalesce(s.capo, 0) as text),
     coalesce(group_concat(distinct ac.name), ''),
     coalesce(group_concat(distinct t.key), ''),
     count(distinct played) as played,
@@ -416,91 +407,66 @@ WHERE s.lyrics_chords IS NOT NULL
 {}ORDER BY s.artist, s.album, s.id""".format(requiredClause, acceptedClause, predicateClause, havingClause)
         log.debug('getPatternPlaylist: Statement {}'.format(stmt))
         log.debug('getPatternPlaylist: Parameters {}'.format(str(predicateValues)))
-        cur.execute(stmt, predicateValues)
-        ret = list(cur)
+        ret = list(self.conn.execute(stmt, predicateValues))
         log.debug('getPatternPlaylist: {} entries found'.format(len(ret)))
-        cur.close()
         return ret
     
     def updatePlaylist(self, song_ids):
-        cur = self.conn.cursor()
-        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
-        user_id = cur.fetchone()
-        cur.close()
-        self.conn.execute("DELETE FROM playlists WHERE user_id = ?", user_id)
-        rows = [(user_id[0], pos, song_id) for pos, song_id in enumerate(song_ids)]
+        user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
+        self.conn.execute("DELETE FROM playlists WHERE user_id = ?", (user_id,))
+        rows = [(user_id, pos, song_id) for pos, song_id in enumerate(song_ids)]
         log.debug(str(rows))
         self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)", rows)
         self.conn.commit()
 
     def songPlayed(self, song_id):
         log.debug('songPlayed: {}'.format(song_id))
-        cur = self.conn.cursor()
-        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
-        user_id = cur.fetchone()
-        cur.close()
-        row = (user_id[0], song_id, 'now')
+        user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
+        row = (user_id, song_id, 'now')
         self.conn.execute("INSERT INTO user_songs (user_id, song_id, played) VALUES(?, ?, datetime(?))", row)
         self.conn.commit()
     
     def numPlayed(self, song_id):
-        cur = self.conn.cursor()
-        cur.execute("""
-            SELECT count(*) 
+        return self.conn.execute("""
+            SELECT count(*)
             FROM users u
             INNER JOIN user_songs s ON u.id = s.user_id
             WHERE u.name = ?
-            AND s.song_id = ?""", (self.user, song_id))
-        num = cur.fetchone()
-        cur.close()
-        return num[0]
-    
+            AND s.song_id = ?""", (self.user, song_id)).fetchone()[0]
+
     def lastPlayed(self, song_id):
-        cur = self.conn.cursor()
-        cur.execute("""
-            SELECT max(played) 
+        return self.conn.execute("""
+            SELECT max(played)
             FROM users u
             INNER JOIN user_songs s ON u.id = s.user_id
             WHERE u.name = ?
-            AND s.song_id = ?""", (self.user, song_id))
-        last = cur.fetchone()
-        cur.close()
-        return last[0]
+            AND s.song_id = ?""", (self.user, song_id)).fetchone()[0]
     
     def getUserFilters(self):
-        cur = self.conn.cursor()
-        cur.execute("""
+        rows = list(self.conn.execute("""
             SELECT f.name
             FROM users u
             INNER JOIN user_filters f ON u.id = f.user_id
-            WHERE u.name = ?""", (self.user,))
-        rows = list(cur)
-        cur.close()
+            WHERE u.name = ?""", (self.user,)))
         log.debug('getUserFilters: len = {}'.format(len(rows)))
         return rows
         
     def getUserFilter(self, name):
-        cur = self.conn.cursor()
-        cur.execute("""
+        row = self.conn.execute("""
             SELECT f.json_dict
             FROM users u
             INNER JOIN user_filters f ON u.id = f.user_id
             WHERE u.name = ?
-            AND f.name = ?""", (self.user, name))
-        row = cur.fetchone()
-        cur.close()
+            AND f.name = ?""", (self.user, name)).fetchone()
         log.debug('getUserFilter: {} is {}'.format(name, row[0]))
         return row[0]
         
     def setUserFilter(self, name, jsonString):
         log.debug('setUserFilter: {} as {}'.format(name, jsonString))
-        cur = self.conn.cursor()
-        cur.execute("""
+        row = self.conn.execute("""
             SELECT u.id, f.name FROM users u
             LEFT OUTER JOIN user_filters f ON u.id = f.user_id AND f.name = ?
-            WHERE u.name = ?""", (name, self.user))
-        row = cur.fetchone()
-        cur.close()
+            WHERE u.name = ?""", (name, self.user)).fetchone()
         parms = (jsonString, row[0], name)
         if row[1] == None:
             self.conn.execute("INSERT INTO user_filters (json_dict, user_id, name) VALUES(?, ?, ?)", parms)
@@ -510,50 +476,37 @@ WHERE s.lyrics_chords IS NOT NULL
         
     def getUserTags(self, song_id):
         # Hint: to support a new tag char, just add it to the tags table
-        log.debug('getUserTags(song_id={})'.format(song_id)) 
-        # TODO tags act strange (existing song tags not always displayed in tagging dialog, filter not finding all songs, still true?) 
-        cur = self.conn.cursor()
-        cur.execute("""
-            SELECT 
-                t.id, 
-                coalesce(t.key, ''), 
+        log.debug('getUserTags(song_id={})'.format(song_id))
+        # TODO tags act strange (existing song tags not always displayed in tagging dialog, filter not finding all songs, still true?)
+        return list(self.conn.execute("""
+            SELECT
+                t.id,
+                coalesce(t.key, ''),
                 CASE WHEN s.song_id IS NULL THEN ' ' ELSE 'X' END,
-                t.name 
+                t.name
             FROM tags t
             LEFT OUTER JOIN users u ON u.name = ?
             LEFT OUTER JOIN song_tags s ON s.tag_id = t.id AND s.user_id = u.id AND s.song_id = ?
-            ORDER BY t.key, t.name""", 
-            (self.user, song_id))
-        rows = list(cur)
-        cur.close()
-        return rows
+            ORDER BY t.key, t.name""",
+            (self.user, song_id)))
     
     def setUserTag(self, song_id, tag_id):
         log.debug('setUserTag {} for {}'.format(tag_id, song_id))
-        cur = self.conn.cursor()
-        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
-        user_id = cur.fetchone()
-        cur.close()
-        row = (user_id[0], song_id, tag_id)
+        user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
+        row = (user_id, song_id, tag_id)
         self.conn.execute("INSERT INTO song_tags (user_id, song_id, tag_id) VALUES(?, ?, ?)", row)
         self.conn.commit()
     
     def delUserTag(self, song_id, tag_id):
         log.debug('delUserTag {} for {}'.format(tag_id, song_id))
-        cur = self.conn.cursor()
-        cur.execute("SELECT id FROM users WHERE name = ?", (self.user,))
-        user_id = cur.fetchone()
-        cur.close()
-        row = (user_id[0], song_id, tag_id)
+        user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
+        row = (user_id, song_id, tag_id)
         self.conn.execute("DELETE FROM song_tags WHERE user_id = ? AND song_id = ? AND tag_id = ?", row)
         self.conn.commit()
 
     def fixTabTags(self):
         log.info('fixTabTags')
-        cur = self.conn.cursor()
-        cur.execute("SELECT id, title, artist, lyrics_chords FROM songs WHERE lyrics_chords IS NOT NULL")
-        rows = cur.fetchall()
-        cur.close()
+        rows = self.conn.execute("SELECT id, title, artist, lyrics_chords FROM songs WHERE lyrics_chords IS NOT NULL").fetchall()
         for row in rows:
             log.info("Fix {} {}".format(row[2], row[1]))
             lyrics = row[3].replace('[tab]', '')
