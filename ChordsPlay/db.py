@@ -468,6 +468,9 @@ WHERE s.lyrics_chords IS NOT NULL
             INNER JOIN user_filters f ON u.id = f.user_id
             WHERE u.name = ?
             AND f.name = ?""", (self.user, name)).fetchone()
+        if row is None:
+            log.debug('getUserFilter: {} not found'.format(name))
+            return None
         log.debug('getUserFilter: {} is {}'.format(name, row[0]))
         return row[0]
         
