@@ -413,10 +413,16 @@ WHERE s.lyrics_chords IS NOT NULL
     def updatePlaylist(self, song_ids):
         user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
         self.conn.execute("DELETE FROM playlists WHERE user_id = ?", (user_id,))
-        rows = [(user_id, pos, song_id) for pos, song_id in enumerate(song_ids)]
-        log.debug(str(rows))
-        self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)", rows)
         self.conn.commit()
+        # commit in batches so the write lock is released periodically,
+        # allowing other writers (scan thread) to make progress
+        batch_size = 500
+        for start in range(0, len(song_ids), batch_size):
+            batch = song_ids[start:start + batch_size]
+            rows = [(user_id, start + pos, song_id) for pos, song_id in enumerate(batch)]
+            self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)", rows)
+            self.conn.commit()
+        log.debug('updatePlaylist: {} songs in {} batches'.format(len(song_ids), (len(song_ids) + batch_size - 1) // batch_size))
 
     def songPlayed(self, song_id):
         log.debug('songPlayed: {}'.format(song_id))
