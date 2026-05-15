@@ -227,7 +227,7 @@ class Chords(object):
             '9':   9,  'IX':   9,  'NINE':    9,
             '10': 10,  'X':   10,  'TEN':    10,
             '11': 11,  'XI':  11,  'ELEVEN': 11 }
-        r_capo = r'\bcapo\b.{0,9} [-+]?([0-9]{1,2}|[ivx]{1,4}|fir|seco|thi|four|fif|six|seven|eigh|nine|ten)(st|nd|rd|th)?\b'
+        r_capo = r'(?<![Nn][Oo] )(?<![Ww][Ii][Tt][Hh][Oo][Uu][Tt] )\bcapo\b.{0,9} [-+]?([0-9]{1,2}|[ivx]{1,4}|fir|seco|thi|four|fif|six|seven|eigh|nine|ten)(st|nd|rd|th)?\b'
         rx_capo = re.compile(r_capo, re.IGNORECASE)
         match = rx_capo.search(self.lyrics)
         if match != None:
