@@ -99,7 +99,7 @@ class Chords(object):
         return None if challenged
         '''
         
-        title = re.sub('[[({].*?[]})][ ]*', '', title)
+        title = re.sub(r'[\[({].*?[\])}] *', '', title)
         
         # generic request parameters
         url = "https://www.ultimate-guitar.com/search.php"
@@ -199,7 +199,7 @@ class Chords(object):
             traceback.print_exc()
         
         # extract chords from lyrics. They look like [ch]chordname[/ch]
-        r_chordname = r'[[]ch[]](.*?)[[]\/ch[]]'
+        r_chordname = r'\[ch\](.*?)\[/ch\]'
         rx_chordname = re.compile(r_chordname)
         self.chords = set()
         for match in rx_chordname.finditer(self.lyrics):

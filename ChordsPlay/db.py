@@ -9,6 +9,7 @@ import ChordsPlay.song
 import logging
 import re
 import os
+import time
 
 log = logging.getLogger(__name__)
 
@@ -411,9 +412,11 @@ WHERE s.lyrics_chords IS NOT NULL
         return ret
     
     def updatePlaylist(self, song_ids):
+        t0 = time.monotonic()
         user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
         self.conn.execute("DELETE FROM playlists WHERE user_id = ?", (user_id,))
         self.conn.commit()
+        t_delete = time.monotonic() - t0
         # commit in batches so the write lock is released periodically,
         # allowing other writers (scan thread) to make progress
         batch_size = 500
@@ -422,7 +425,9 @@ WHERE s.lyrics_chords IS NOT NULL
             rows = [(user_id, start + pos, song_id) for pos, song_id in enumerate(batch)]
             self.conn.executemany("INSERT INTO playlists (user_id, position, song_id) VALUES(?, ?, ?)", rows)
             self.conn.commit()
-        log.debug('updatePlaylist: {} songs in {} batches'.format(len(song_ids), (len(song_ids) + batch_size - 1) // batch_size))
+        t_total = time.monotonic() - t0
+        log.info('updatePlaylist: {} songs in {} batches, delete={:.3f}s total={:.3f}s'.format(
+            len(song_ids), (len(song_ids) + batch_size - 1) // batch_size, t_delete, t_total))
 
     def songPlayed(self, song_id):
         log.debug('songPlayed: {}'.format(song_id))

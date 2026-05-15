@@ -6,6 +6,7 @@ Created on 19.02.2016
 
 import threading
 import sqlite3
+import time
 import os
 import ChordsPlay.db
 import ChordsPlay.chords
@@ -13,7 +14,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-MAX_LOCK_FAILURES = 5
+MAX_WRITE_RETRIES = 6  # 1, 2, 4, 8, 16, 32s ≈ 1 minute of retrying
 
 def _is_lock_error(exc):
     return isinstance(exc, sqlite3.OperationalError) and 'locked' in str(exc).lower()
@@ -38,10 +39,41 @@ class Scan(threading.Thread):
         self.chords = ChordsPlay.chords.Chords()
         if ug_user and ug_pass:
             self.chords.login(ug_user, ug_pass)
-        self.lock_failures = 0
+        self.aborted = False
 
-    def _aborted(self):
-        return self.lock_failures >= MAX_LOCK_FAILURES
+    def _save_with_retry(self, rowid, title, artist, lyrics, capo, url, chords):
+        '''Write lyrics+chords to db with exponential backoff on lock errors.
+        Returns True on success, False if non-lock error, sets self.aborted on
+        too many lock retries.'''
+        delay = 1
+        for attempt in range(1, MAX_WRITE_RETRIES + 1):
+            try:
+                self.db.updateLyrics(rowid, lyrics, capo, url)
+                if lyrics is not None:
+                    self.db.updateChords(rowid, chords)
+                self.db.commit()
+                if attempt > 1:
+                    log.info("saved {} by {} after {} attempt(s)".format(title, artist, attempt))
+                return True
+            except Exception as e:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+                if not _is_lock_error(e):
+                    log.error("updating lyrics failed for {} by {}: {}".format(title, artist, e))
+                    return False
+                if attempt >= MAX_WRITE_RETRIES:
+                    log.error("DB locked after {} retries for {} by {}; aborting scan".format(
+                        attempt, title, artist))
+                    self.aborted = True
+                    return False
+                log.warning("DB locked (attempt {}/{}), retrying {} by {} in {}s".format(
+                    attempt, MAX_WRITE_RETRIES, title, artist, delay))
+                if self.quit.wait(delay):
+                    return False
+                delay *= 2
+        return False
 
     def updateLyrics(self, rowid, title, artist, toFile=None):
         '''
@@ -65,46 +97,38 @@ class Scan(threading.Thread):
         if toFile != None:
             return True
 
-        try:
-            self.db.updateLyrics(rowid, ch.lyrics, ch.capo, ch.url)
-            if ch.lyrics != None:
-                self.db.updateChords(rowid, ch.chords)
-            self.db.commit()
-        except Exception as e:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            if _is_lock_error(e):
-                self.lock_failures += 1
-                log.error("DB locked ({}/{}) while saving {} by {}".format(
-                    self.lock_failures, MAX_LOCK_FAILURES, title, artist))
-            else:
-                log.error("updating lyrics failed for {} by {}: {}".format(title, artist, e))
-            return False
+        if not self._save_with_retry(rowid, title, artist, ch.lyrics, ch.capo, ch.url, ch.chords):
+            return None if self.aborted else False
 
         log.info("saved lyrics for {} by {}".format(title, artist))
-        self.lock_failures = 0
         return True
         
     def _safe_db(self, func, *args, **kwargs):
-        '''Call a db method, catching lock errors. Returns True on success.'''
-        try:
-            func(*args, **kwargs)
-            self.lock_failures = 0
-            return True
-        except Exception as e:
+        '''Call a db method, retrying on lock errors with exponential backoff.'''
+        delay = 1
+        for attempt in range(1, MAX_WRITE_RETRIES + 1):
             try:
-                self.db.rollback()
-            except Exception:
-                pass
-            if _is_lock_error(e):
-                self.lock_failures += 1
-                log.error("DB locked ({}/{}) in {}".format(
-                    self.lock_failures, MAX_LOCK_FAILURES, func.__name__))
-            else:
-                log.error("DB error in {}: {}".format(func.__name__, e))
-            return False
+                func(*args, **kwargs)
+                return True
+            except Exception as e:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+                if not _is_lock_error(e):
+                    log.error("DB error in {}: {}".format(func.__name__, e))
+                    return False
+                if attempt >= MAX_WRITE_RETRIES:
+                    log.error("DB locked after {} retries in {}; aborting scan".format(
+                        attempt, func.__name__))
+                    self.aborted = True
+                    return False
+                log.warning("DB locked (attempt {}/{}) in {}, retrying in {}s".format(
+                    attempt, MAX_WRITE_RETRIES, func.__name__, delay))
+                if self.quit.wait(delay):
+                    return False
+                delay *= 2
+        return False
 
     def run(self):
         log.info("Starting")
@@ -124,8 +148,7 @@ class Scan(threading.Thread):
                 return
 
             for song_list, in song_lists:
-                if self._aborted():
-                    log.error("aborting scan: DB locked too many times in a row")
+                if self.aborted:
                     return
                 log.debug('song list "{}"'.format(song_list))
                 if song_list == '':
@@ -160,8 +183,7 @@ class Scan(threading.Thread):
 
             log.debug("unchecked songs")
             for rowid, title, artist in self.db.uncheckedSongs():
-                if self._aborted():
-                    log.error("aborting scan: DB locked too many times in a row")
+                if self.aborted:
                     return
                 log.debug("check {} by {}".format(title, artist))
                 if self.updateLyrics(rowid, title, artist) is None:
@@ -169,13 +191,12 @@ class Scan(threading.Thread):
 
             log.debug("recheck songs")
             for rowid, title, artist in self.db.recheckSongs():
-                if self._aborted():
-                    log.error("aborting scan: DB locked too many times in a row")
+                if self.aborted:
                     return
                 log.debug("recheck {} by {}".format(title, artist))
                 if self.updateLyrics(rowid, title, artist) is None:
                     return
 
         finally:
-            log.info("Finished (lock failures: {})".format(self.lock_failures))
+            log.info("Finished (aborted={})".format(self.aborted))
             self.db.conn.close()
