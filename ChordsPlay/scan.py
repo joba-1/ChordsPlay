@@ -171,8 +171,7 @@ class Scan(threading.Thread):
                             count += 1
                             if count % 100 == 0:
                                 self._safe_db(self.db.commit)
-                            if self._aborted():
-                                log.error("aborting scan: DB locked too many times in a row")
+                            if self.aborted:
                                 return
                             if self.quit.is_set():
                                 self._safe_db(self.db.commit)
