@@ -59,7 +59,7 @@ class Db(object):
                 lyrics_chords text default null,
                 lyrics_url    text default null,
                 capo          int default null check(capo is null or (capo >= 0 and capo <= 11)),
-                chord_update  char(10) default null,
+                chord_update  text default null,
                 unique        (title, artist)
             );
             create index if not exists songs_ix1 on songs (
@@ -242,10 +242,10 @@ class Db(object):
         try:
             if lyrics == None:
                 log.warn("no lyrics at {}".format(url))
-                self.conn.execute("UPDATE songs SET chord_update = date('now') WHERE rowid = ?", (rowid,))
+                self.conn.execute("UPDATE songs SET chord_update = datetime('now') WHERE rowid = ?", (rowid,))
             else:
                 log.info("save lyrics of {}".format(url))
-                self.conn.execute("UPDATE songs SET chord_update = date('now'), lyrics_url = ?, lyrics_chords = ?, capo = ? WHERE rowid = ?", (url, lyrics, capo, rowid))
+                self.conn.execute("UPDATE songs SET chord_update = datetime('now'), lyrics_url = ?, lyrics_chords = ?, capo = ? WHERE rowid = ?", (url, lyrics, capo, rowid))
         except:
             import traceback
             traceback.print_exc()
