@@ -98,7 +98,12 @@ class Chords(object):
         return False on errors
         return None if challenged
         '''
-        
+        # reset extracted state so values from a previous song never leak through
+        self.lyrics = None
+        self.chords = None
+        self.capo = None
+        self.patterns = None
+
         title = re.sub(r'[\[({].*?[\])}] *', '', title)
         
         # generic request parameters

@@ -217,8 +217,9 @@ class Db(object):
             WHERE
                 s.chord_update is NULL AND st.song_id is NULL
         '''
-        for row in self.conn.execute(stmt):
-            yield row
+        # fetch eagerly: a held read cursor on this connection while the scan
+        # thread writes leads to SQLITE_BUSY_SNAPSHOT when another writer commits
+        return list(self.conn.execute(stmt))
 
     def recheckSongs(self):
         stmt = '''
@@ -235,8 +236,7 @@ class Db(object):
             WHERE
                 date(s.chord_update) < date('now', '-1 month') AND st.song_id is NULL
         '''
-        for row in self.conn.execute(stmt):
-            yield row
+        return list(self.conn.execute(stmt))
     
     def updateLyrics(self, rowid, lyrics, capo, url):
         try:
