@@ -238,14 +238,22 @@ class Chords(object):
         if match != None:
             self.capo = capos.get(match.group(1).upper())
     
-        # extract patterns from lyrics (still works? Better use json result)
-        r_pattern=r'\W*\b([A-H][#b]{0,2}(maj|M|min|m|-|aug|\+|dim|sus([24]sus)?|add|dom)?([245679]|1[13])?(/[A-H][b#]{0-2})?)\b\W*([x0-9]{6}|(\W+[x0-9]{1,2}){6})\b'
-        rx_pattern = re.compile(r_pattern)
+        # extract chord fingering patterns from lyrics, e.g. a line like
+        # "D/F# 2 0 0 2 3 2" or "Cmaj7 x32000" -> {'D/F#': ' 2 0 0 2 3 2', ...}
+        # (still works? Better use json result)
+        r_note = r'[A-H][#b]{0,2}'                             # root + up to 2 accidentals (H = German B)
+        r_name = (r'(?P<name>' + r_note
+            + r'(?:maj|min|aug|dim|sus|add|dom|M|m|-|\+|°|o|ø)?'          # primary quality
+            + r'(?:sus[24]?|add|maj|M|/[69]|[#b+-]?(?:1[0-3]|[2-9]))*'    # stacked extensions/alterations (7, m7b5, 7#9, 6/9, maj7#11, 7sus4, ...)
+            + r'(?:/' + r_note + r')?'                                   # optional slash bass note (e.g. /F#)
+            + r')')
+        r_frets = r'(?P<frets>[x0-9]{6}|(?:\W+[x0-9]{1,2}){6})'          # 6 frets, compact (x32010) or separated (2 0 0 2 3 2)
+        rx_pattern = re.compile(r'\W*\b' + r_name + r'\W*' + r_frets + r'\b')
         self.patterns = {}
         for line in self.lyrics.splitlines():
             match = rx_pattern.search(line)
             if match != None:
-                self.patterns[match.group(1)] = match.group(7)
+                self.patterns[match.group('name')] = match.group('frets')
         log.info("patterns: {}".format(str(self.patterns)))
         
         return True

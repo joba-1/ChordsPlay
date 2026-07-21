@@ -7,10 +7,12 @@ Created on 25.02.2016
 import tkinter as tk
 from tkinter import ttk
 from tkinter import font
-from subprocess import call
+from subprocess import call, Popen, DEVNULL
 import ChordsPlay.mclist
 import logging
 import ctypes
+import shutil
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -144,17 +146,49 @@ class Gui(tk.Tk):
             self.panes.sash_place(0, 0, y)
     
     def inhibitBlank(self):
+        '''
+        Keep the screen awake while ChordsPlay runs. Auto-detect the platform:
+          - Linux/BSD with systemd: hold a logind "idle" inhibitor. This is
+            desktop-agnostic and honoured by KDE Plasma and GNOME alike, on
+            both Wayland and X11. Released again in destroy().
+          - plain X11 without systemd: poke the X screensaver via xset (polled).
+          - Windows: Win32 SetThreadExecutionState.
+        '''
+        if sys.platform == "win32":
+            self.inhibitBlankWin()
+            return
+
+        systemd_inhibit = shutil.which("systemd-inhibit")
+        if systemd_inhibit:
+            try:
+                self.inhibitor = Popen(
+                    [systemd_inhibit, "--what=idle:sleep", "--who=ChordsPlay",
+                     "--why=Playing music", "--mode=block", "sleep", "infinity"],
+                    stdout=DEVNULL, stderr=DEVNULL)
+                log.info("Screen blanking inhibited via systemd-inhibit")
+                return
+            except OSError as e:
+                log.warning("systemd-inhibit failed (%s), falling back to xset", e)
+
+        # Fallback for plain X11 without systemd: reset the screensaver timer
         try:
-            call(["xset", "s", "reset"]) # Linux
+            call(["xset", "s", "reset"])
             self.after(10000, self.inhibitBlank)
         except FileNotFoundError:
-            self.inhibitBlankWin(); # Windows
+            log.warning("Failed to disable screensaver: no systemd-inhibit and no xset")
 
     def inhibitBlankWin(self):
         try:
             ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
         except:
-            log.warn("Failed to disable screensaver")
+            log.warning("Failed to disable screensaver")
+
+    def destroy(self):
+        inhibitor = getattr(self, "inhibitor", None)
+        if inhibitor is not None:
+            inhibitor.terminate()
+            self.inhibitor = None
+        super().destroy()
 
     def toggleFullscreen(self, event=None):
         self.fullscreenState = not self.fullscreenState  # Just toggling the boolean

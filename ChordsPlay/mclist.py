@@ -110,7 +110,7 @@ class MCList(ttk.Frame):
             return int(text) if text.isdigit() else text
 
         def natural(pair):
-            return [ atoi(text) for text in re.split('(\d+)', pair[0]) ]
+            return [ atoi(text) for text in re.split(r'(\d+)', pair[0]) ]
         
         # list of column values with column id          
         data = [(self.tree.set(child, column), child) for child in self.tree.get_children('')]
