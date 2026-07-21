@@ -91,6 +91,28 @@ class Chords(object):
         return False
 
 
+    def is_title_match(self, title1, title2):
+        '''
+        True if the (unified) titles match by prefix, ignoring the artist.
+        Used for the cross-artist fallback (covers / live / compilations).
+        '''
+        str1 = self.unify(title1)
+        str2 = self.unify(title2)
+        common = os.path.commonprefix([str1, str2])
+        return common == str1 or common == str2
+
+
+    def is_distinctive_title(self, title):
+        '''
+        True if the title is specific enough (>= 3 words) that a same-title tab
+        by a different artist is very unlikely to be an unrelated song. Gates the
+        cross-artist fallback so generic titles like "Gone" are not matched to a
+        different song of the same name.
+        '''
+        words = [w for w in re.split(r'\s+', title.strip()) if w not in ('', '-')]
+        return len(words) >= 3
+
+
     def request(self, title, artist, toFile=None):
         '''
         get lyrics and chords from the web and store them
@@ -147,16 +169,28 @@ class Chords(object):
         max_rating = -1
         max_votes = -1
         best_link = None
+        # Fallback for covers / live / compilation tracks: remember the most
+        # popular same-title tab from *any* artist, in case our exact artist has
+        # no tab. Only applied to distinctive (multi-word) titles below, so a
+        # generic title does not grab a different song of the same name.
+        fallback_votes = -1
+        fallback_link = None
+        fallback_artist = None
         try:
             for song in js_songpage['store']['page']['data']['results']:
-                if song.get('type') == 'Chords':
-                    if song['rating'] >= max_rating:
-                        if song['rating'] > max_rating or song['votes'] > max_votes:
-                            if self.is_match(title, song['song_name'], artist, song['artist_name']):
-                                max_rating = song['rating']
-                                max_votes = song['votes']
-                                best_link = song['tab_url']
-                                log.debug("new best link {}".format(song.get('id')))
+                if song.get('type') != 'Chords':
+                    continue
+                if self.is_match(title, song['song_name'], artist, song['artist_name']):
+                    if song['rating'] > max_rating or (song['rating'] == max_rating and song['votes'] > max_votes):
+                        max_rating = song['rating']
+                        max_votes = song['votes']
+                        best_link = song['tab_url']
+                        log.debug("new best link {}".format(song.get('id')))
+                elif self.is_title_match(title, song['song_name']):
+                    if song['votes'] > fallback_votes:
+                        fallback_votes = song['votes']
+                        fallback_link = song['tab_url']
+                        fallback_artist = song['artist_name']
         except KeyError:
             log.debug("Song page data invalid")
             log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
@@ -164,6 +198,11 @@ class Chords(object):
             log.warning("Song page parser failed")
             log.debug('List JSON (html decoded):"{}"'.format(json.dumps(js_songpage, indent=4)))
             traceback.print_exc()
+
+        if best_link is None and fallback_link is not None and self.is_distinctive_title(title):
+            log.info('No tab by "{}"; using same-title tab by "{}" ({} votes) for "{}"'.format(
+                artist, fallback_artist, fallback_votes, title))
+            best_link = fallback_link
 
         if best_link is None:
             log.warning('No chords for song "{}" from artist "{}"'.format(title, artist))
