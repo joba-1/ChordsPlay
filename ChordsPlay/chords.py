@@ -39,26 +39,6 @@ class Chords(object):
         self.request_interval = 2
         self.session = curl_requests.Session(impersonate="chrome")
 
-    def login(self, username, password):
-        '''
-        Log in to Ultimate Guitar to avoid bot challenges.
-        Returns True on success, False on failure.
-        '''
-        login_url = "https://www.ultimate-guitar.com/login.php"
-        payload = {"username": username, "password": password}
-        try:
-            r = self.session.post(login_url, data=payload)
-            if r.ok and "logout" in r.text.lower():
-                log.info("Logged in to Ultimate Guitar as {}".format(username))
-                return True
-            log.warning("Login to Ultimate Guitar failed (status {})".format(r.status_code))
-            return False
-        except Exception:
-            log.warning("Login to Ultimate Guitar failed")
-            traceback.print_exc()
-            return False
-
-
     def wait(self):
         now = datetime.now()
         elapsed_time = now - self.request_time

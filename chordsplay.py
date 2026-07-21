@@ -142,8 +142,6 @@ def main(argv=None):
         parser.add_option("-t", "--testfile", dest="testfile", help="dump html to this file", metavar="FILE")
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
         parser.add_option("-f", "--fix", dest="fix", action="count", help="fix database issues")
-        parser.add_option("--ug-user", dest="ug_user", help="Ultimate Guitar username for login")
-        parser.add_option("--ug-pass", dest="ug_pass", help="Ultimate Guitar password for login")
         parser.add_option("-l", "--logfile", dest="logfile", help="write DEBUG log to this file (console stays at INFO)", metavar="FILE")
 
         # set defaults
@@ -179,14 +177,6 @@ def main(argv=None):
         if opts.database is None:
             opts.database = config.get(program_name, 'database')
 
-        if opts.ug_user is None:
-            opts.ug_user = config.get(program_name, 'ug_user', fallback=None)
-        if opts.ug_pass is None:
-            cfgfile = os.path.expanduser(opts.cfgfile)
-            if os.path.exists(cfgfile) and oct(os.stat(cfgfile).st_mode & 0o777) != oct(0o600):
-                print("Warning: {} should be chmod 600 to protect your password".format(cfgfile), file=sys.stderr)
-            opts.ug_pass = config.get(program_name, 'ug_pass', fallback=None)
-            
         # log init
         if opts.verbose != 0:
             logging.basicConfig(level=logging.DEBUG)
@@ -222,7 +212,7 @@ def main(argv=None):
             log.debug("Starting scanner thread")
             if opts.testfile != None:
                 log.debug("Scanner test file {}".format(opts.testfile))
-            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile, ug_user=opts.ug_user, ug_pass=opts.ug_pass)
+            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile)
             scanner.start()
             
             # gui main loop (only if not a test run with one fixed song) #

@@ -26,7 +26,7 @@ class Scan(threading.Thread):
     Since sqlite3 does not support connection sharing, a separate connection is used
     '''
 
-    def __init__(self, connector, user, toFile=None, ug_user=None, ug_pass=None):
+    def __init__(self, connector, user, toFile=None):
         '''
         Constructor
         '''
@@ -37,8 +37,6 @@ class Scan(threading.Thread):
         self.db = None
         self.fileName = toFile
         self.chords = ChordsPlay.chords.Chords()
-        if ug_user and ug_pass:
-            self.chords.login(ug_user, ug_pass)
         self.aborted = False
 
     def _save_with_retry(self, rowid, title, artist, lyrics, capo, url, chords):
