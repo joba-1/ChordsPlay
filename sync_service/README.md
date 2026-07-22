@@ -15,33 +15,47 @@ last-write-wins by `modified`, tags are unioned.
 - `GET  /health` → `{"status":"ok"}`
 - `GET  /songs?since=<YYYY-MM-DD HH:MM:SS>` → `{"songs":[…]}` changed since watermark
 - `POST /songs` `{"songs":[…]}` → upsert (LWW), returns `{"upserted":n}`
-- If `CHORDSPLAY_SYNC_TOKEN` is set, `/songs` needs `Authorization: Bearer <token>`.
+- `/songs` requires `Authorization: Bearer <token>` when `CHORDSPLAY_SYNC_TOKEN` is set.
 
-## Deploy on host4
+## Deploy (current host: host6)
+
+Runs as a dedicated system user, from `/opt`, exposed on a firewalled port
+(LAN + VPN only). No web server needed.
 
 ```bash
-# 1. code + venv
-mkdir -p ~/chordsplay-sync && cp app.py ~/chordsplay-sync/
-python3 -m venv ~/chordsplay-sync/venv
-~/chordsplay-sync/venv/bin/pip install -r requirements.txt
+# 1. dedicated system user (no login, no home of its own)
+sudo useradd --system --no-create-home --home-dir /opt/chordsplay-sync \
+     --shell /usr/sbin/nologin chordsync
 
-# 2. service (edit the token first!)
+# 2. code + venv under /opt (avoids a 0700 home that systemd User= can't traverse)
+sudo mkdir -p /opt/chordsplay-sync
+sudo cp app.py requirements.txt /opt/chordsplay-sync/
+sudo python3 -m venv /opt/chordsplay-sync/venv
+sudo /opt/chordsplay-sync/venv/bin/pip install -r /opt/chordsplay-sync/requirements.txt
+sudo chown -R chordsync:chordsync /opt/chordsplay-sync
+
+# 3. service (edit the token first!)
 sudo cp chordsplay-sync.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now chordsplay-sync
 curl -s localhost:8615/health          # -> {"status":"ok"}
 
-# 3. Apache reverse proxy
-sudo a2enmod proxy proxy_http           # if not already
-# add apache-chordsplay.conf into the serving VirtualHost, then:
-sudo systemctl reload apache2           # (or httpd)
-curl -s https://host4/chordsplay/health  # -> {"status":"ok"}
+# 4. firewall: open 8615 to LAN + VPN only (adjust subnets), token auth on top
+sudo firewall-cmd --permanent --zone=internal --add-port=8615/tcp     # VPN (10.8.0.0/24)
+sudo firewall-cmd --permanent --zone=public \
+     --add-rich-rule='rule family=ipv4 source address=10.0.1.0/24 port port=8615 protocol=tcp accept'
+sudo firewall-cmd --reload
 ```
 
+The service binds `0.0.0.0:8615`; the firewall (not the bind) restricts who can
+reach it. **Alternative:** front it with Apache `mod_proxy`
+(`apache-chordsplay.conf`) and bind `127.0.0.1` instead — useful on a host
+that already exposes Apache to the LAN.
+
 ## Point clients at it
-In each `~/.chordsplay.py.cfg`:
+In each `~/.chordsplay.py.cfg` (chmod 600 — holds the token):
 ```ini
 [chordsplay.py]
-sync_url   = https://host4/chordsplay
+sync_url   = http://host6:8615
 sync_token = <same token as the service>
 ```
 Seed central once from the most complete installation:
@@ -49,4 +63,5 @@ Seed central once from the most complete installation:
 chordsplay.py --sync-seed
 ```
 Thereafter every scan pulls before fetching (so a song fetched anywhere is
-fetched from UG only once) and pushes what it fetched/edited.
+fetched from UG only once) and pushes what it fetched/edited. Sync failures
+never block scanning or playback.
