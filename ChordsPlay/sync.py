@@ -17,11 +17,14 @@ log = logging.getLogger(__name__)
 class Sync(object):
     '''Bidirectional pull/push against the central sync service.'''
 
-    def __init__(self, db, url, token=None, timeout=60):
+    def __init__(self, db, url, token=None, connect_timeout=5, read_timeout=60):
         self.db = db
         self.url = url.rstrip('/')
         self.token = token
-        self.timeout = timeout
+        # split timeout: a short connect timeout means a sleeping/unreachable
+        # host gives up in seconds instead of hanging; the longer read timeout
+        # still allows a big initial pull to complete
+        self.timeout = (connect_timeout, read_timeout)
         self.session = curl_requests.Session()
 
     def _headers(self):

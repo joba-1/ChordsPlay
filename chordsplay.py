@@ -37,7 +37,7 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.32'  # update also in setup.py
+__version__ = '3.33'  # update also in setup.py
 __date__ = '2016-02-18'
 __updated__ = '2026-07-22'
 
@@ -211,8 +211,13 @@ def main(argv=None):
             if not opts.sync_url:
                 log.error("--sync-seed needs --sync-url (or sync_url in the config)")
                 return 2
-            n = ChordsPlay.sync.Sync(db, opts.sync_url, opts.sync_token).seed()
-            log.info("seeded {} songs to {}".format(n, opts.sync_url))
+            try:
+                n = ChordsPlay.sync.Sync(db, opts.sync_url, opts.sync_token).seed()
+                log.info("seeded {} songs to {}".format(n, opts.sync_url))
+            except Exception as e:
+                # sync host unreachable/asleep: fail cleanly (no traceback), just re-run later
+                log.error("seed failed - is {} reachable? ({})".format(opts.sync_url, e))
+                return 2
         elif opts.fix != None:
             # add/remove code to fix stuff as needed
             db.fixTabTags()
