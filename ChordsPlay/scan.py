@@ -10,6 +10,7 @@ import time
 import os
 import ChordsPlay.db
 import ChordsPlay.chords
+import ChordsPlay.sync
 import logging
 
 log = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class Scan(threading.Thread):
     Since sqlite3 does not support connection sharing, a separate connection is used
     '''
 
-    def __init__(self, connector, user, toFile=None):
+    def __init__(self, connector, user, toFile=None, sync_url=None, sync_token=None):
         '''
         Constructor
         '''
@@ -37,7 +38,19 @@ class Scan(threading.Thread):
         self.db = None
         self.fileName = toFile
         self.chords = ChordsPlay.chords.Chords()
+        self.sync = None
+        self.sync_url = sync_url
+        self.sync_token = sync_token
         self.aborted = False
+
+    def _sync(self, method):
+        '''Call a Sync method guarded - sync must never abort a scan.'''
+        if self.sync is None:
+            return
+        try:
+            getattr(self.sync, method)()
+        except Exception:
+            log.warning("sync %s failed (continuing)", method, exc_info=True)
 
     def _save_with_retry(self, rowid, title, artist, lyrics, capo, url, chords):
         '''Write lyrics+chords to db with exponential backoff on lock errors.
@@ -136,6 +149,14 @@ class Scan(threading.Thread):
             if self.quit.is_set():
                 return
 
+            # Pull central chord data first: songs already fetched on another
+            # installation arrive with chord_update set and drop out of
+            # uncheckedSongs() below, so they are never re-fetched from UG.
+            if self.sync_url:
+                self.sync = ChordsPlay.sync.Sync(self.db, self.sync_url, self.sync_token)
+                log.info("central sync enabled: {}".format(self.sync_url))
+                self._sync('pull')
+
             if self.fileName != None:
                 log.debug("Test song")
                 self.updateLyrics(None, "Pride And Joy", "Stevie Ray Vaughan", toFile=self.fileName)
@@ -178,6 +199,7 @@ class Scan(threading.Thread):
                 else:
                     log.info('ignoring song list "{}"'.format(song_list))
 
+            checked = 0
             log.debug("unchecked songs")
             for rowid, title, artist in self.db.uncheckedSongs():
                 if self.aborted:
@@ -185,6 +207,9 @@ class Scan(threading.Thread):
                 log.debug("check {} by {}".format(title, artist))
                 if self.updateLyrics(rowid, title, artist) is None:
                     return
+                checked += 1
+                if self.sync and checked % 50 == 0:
+                    self._sync('push')   # publish progress so others dedup
 
             log.debug("recheck songs")
             for rowid, title, artist in self.db.recheckSongs():
@@ -193,7 +218,11 @@ class Scan(threading.Thread):
                 log.debug("recheck {} by {}".format(title, artist))
                 if self.updateLyrics(rowid, title, artist) is None:
                     return
+                checked += 1
+                if self.sync and checked % 50 == 0:
+                    self._sync('push')
 
         finally:
+            self._sync('push')   # push anything fetched this run to central
             log.info("Finished (aborted={})".format(self.aborted))
             self.db.conn.close()

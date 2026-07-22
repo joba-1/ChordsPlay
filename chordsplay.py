@@ -27,6 +27,7 @@ from configparser import ConfigParser
 
 import ChordsPlay.db
 import ChordsPlay.scan
+import ChordsPlay.sync
 import ChordsPlay.gui
 import ChordsPlay.play
 import ChordsPlay.playlist
@@ -36,9 +37,9 @@ import ChordsPlay.selector
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.31'  # update also in setup.py
+__version__ = '3.32'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2026-07-21'
+__updated__ = '2026-07-22'
 
 DEBUG = 0
 TESTRUN = 0
@@ -143,6 +144,9 @@ def main(argv=None):
         parser.add_option("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %default]")
         parser.add_option("-f", "--fix", dest="fix", action="count", help="fix database issues")
         parser.add_option("-l", "--logfile", dest="logfile", help="write DEBUG log to this file (console stays at INFO)", metavar="FILE")
+        parser.add_option("--sync-url", dest="sync_url", help="central chord-sync service base URL", metavar="URL")
+        parser.add_option("--sync-token", dest="sync_token", help="bearer token for the sync service")
+        parser.add_option("--sync-seed", dest="sync_seed", action="store_true", help="push all local chord data to central once, then exit")
 
         # set defaults
         parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
@@ -177,6 +181,11 @@ def main(argv=None):
         if opts.database is None:
             opts.database = config.get(program_name, 'database')
 
+        if opts.sync_url is None:
+            opts.sync_url = config.get(program_name, 'sync_url', fallback=None)
+        if opts.sync_token is None:
+            opts.sync_token = config.get(program_name, 'sync_token', fallback=None)
+
         # log init
         if opts.verbose != 0:
             logging.basicConfig(level=logging.DEBUG)
@@ -197,7 +206,14 @@ def main(argv=None):
         user = opts.user
         db = ChordsPlay.db.Db(connector, user)
 
-        if opts.fix != None:
+        if opts.sync_seed:
+            # one-time: publish all local chord data to central, then exit
+            if not opts.sync_url:
+                log.error("--sync-seed needs --sync-url (or sync_url in the config)")
+                return 2
+            n = ChordsPlay.sync.Sync(db, opts.sync_url, opts.sync_token).seed()
+            log.info("seeded {} songs to {}".format(n, opts.sync_url))
+        elif opts.fix != None:
             # add/remove code to fix stuff as needed
             db.fixTabTags()
         else:
@@ -212,7 +228,8 @@ def main(argv=None):
             log.debug("Starting scanner thread")
             if opts.testfile != None:
                 log.debug("Scanner test file {}".format(opts.testfile))
-            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile)
+            scanner = ChordsPlay.scan.Scan(connector, user, toFile=opts.testfile,
+                                           sync_url=opts.sync_url, sync_token=opts.sync_token)
             scanner.start()
             
             # gui main loop (only if not a test run with one fixed song) #

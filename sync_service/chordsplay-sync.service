@@ -1,0 +1,16 @@
+[Unit]
+Description=ChordsPlay central chord sync service
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/home/user/chordsplay-sync
+Environment=CHORDSPLAY_CENTRAL_DB=/home/user/chordsplay-central.db
+Environment=CHORDSPLAY_SYNC_TOKEN=CHANGE-ME
+# bind to loopback only; Apache mod_proxy exposes it at /chordsplay/
+ExecStart=/home/user/chordsplay-sync/venv/bin/gunicorn -w 2 -b 127.0.0.1:8615 app:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
