@@ -14,6 +14,11 @@ config = {
     'version': version,
     'install_requires': ['mutagen', 'python-vlc', 'curl_cffi'],
     'packages': ['ChordsPlay'],
+    # Fenstersymbol muss mitinstalliert werden, sonst startet die GUI ohne
+    # Icon: gui.py laedt es relativ zum Paketverzeichnis.
+    'package_data': {'ChordsPlay': ['data/chordsplay*.png',
+                                    'data/chordsplay.svg']},
+    'include_package_data': True,
     'scripts': ['chordsplay.py'],
     'license': 'GPL V2 or higher',
     'name': 'chordsplay'

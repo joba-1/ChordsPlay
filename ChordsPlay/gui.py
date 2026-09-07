@@ -4,6 +4,7 @@ Created on 25.02.2016
 @author: joba1
 '''
 
+import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import font
@@ -27,10 +28,14 @@ class Gui(tk.Tk):
     '''
 
     def __init__(self, *args, title=None):
-        tk.Tk.__init__(self, *args)
+        # className setzt die WM_CLASS des Fensters. Ohne sie kann die
+        # Taskleiste das Fenster keinem .desktop zuordnen und zeigt statt des
+        # Symbols einen Platzhalter - Tk verwendet sonst den Skriptnamen.
+        tk.Tk.__init__(self, *args, className="ChordsPlay")
         '''
         Constructor for main window
         '''
+        self._set_window_icon()
         
         pad = 10
         width = 1
@@ -296,3 +301,27 @@ class Gui(tk.Tk):
             log.debug("resize: switch to frame {}".format(len(bestFrame.winfo_children())))
             self.currFrame = bestFrame
             bestFrame.lift()
+    def _set_window_icon(self):
+        """Fenstersymbol setzen, in mehreren Groessen.
+
+        Tk waehlt aus den uebergebenen Bildern selbst die passende Groesse;
+        eine einzelne kleine Grafik wuerde in der Taskleiste hochskaliert.
+        Schlaegt es fehl, laeuft das Programm ohne Symbol weiter - ein
+        fehlendes Icon ist kein Grund, die Anwendung nicht zu starten.
+        """
+        try:
+            here = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "data")
+            imgs = [tk.PhotoImage(file=os.path.join(here,
+                                                    "chordsplay-%d.png" % s))
+                    for s in (16, 32, 48, 64, 128)
+                    if os.path.exists(os.path.join(here,
+                                                   "chordsplay-%d.png" % s))]
+            if imgs:
+                self._icon_refs = imgs      # Referenz halten, sonst GC
+                self.iconphoto(True, *imgs)
+        except Exception:
+            logging.debug("Fenstersymbol konnte nicht gesetzt werden",
+                          exc_info=True)
+
+
