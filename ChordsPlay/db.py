@@ -183,6 +183,13 @@ class Db(object):
     
     def commit(self):
         self.conn.commit()
+
+    def close(self):
+        '''Commit what is pending and close the connection (on program exit).'''
+        try:
+            self.conn.commit()
+        finally:
+            self.conn.close()
         
     def rollback(self):
         self.conn.rollback()

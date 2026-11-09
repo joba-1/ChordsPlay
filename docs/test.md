@@ -8,6 +8,8 @@ venv/bin/python -m unittest discover -s tests
 
 `tests/test_amp.py` covers the Mustang preset feature (docs/spec-amp.md) without
 hardware, display or network. The agent is a fake HTTP server.
+`tests/test_exit.py` checks that the scanner stops between songs when asked (it
+used to go through every remaining song first) and that the DB is committed and closed.
 
 | Area | What is checked |
 |---|---|
@@ -38,8 +40,38 @@ Expected:
 
 Last run 2026-11-09 (firmware 1.1.11, BlueZ 5.87): all as expected; G 0.13 s.
 
+## Manual exit test (on minor releases, and after changing start-up or exit code)
+
+`tests/manual_exit_test.py` runs the real program on a copy of the database for each
+way out:
+* `q`
+* the window's close button
+* the close button while a dialog is open
+* SIGHUP, SIGTERM and SIGINT
+* a real terminal that is closed (pseudo-terminal)
+
+The scanner is held in a hanging fetch from Ultimate Guitar, which is the hardest case.
+Nothing plays aloud, nothing is fetched or synced, and stored presets are removed
+from the copy. Needs Xvfb.
+
+```bash
+venv/bin/python tests/manual_exit_test.py
+```
+
+Expected for every case:
+* the sound stops within 1 s;
+* the process is gone within 5 s (about 3 s when the scanner hangs);
+* no `systemd-inhibit`/`tail --pid` is left;
+* the amp agent unit is inactive;
+* the DB copy passes `quick_check`.
+
+Last run 2026-11-09: sound stopped after 0.0–0.2 s, process gone after 3.1–3.3 s.
+
+## Done by hand
+
+* 2026-11-09: a preset chosen with the **amp's own buttons** while the agent is connected
+  moves the ◀ marker in the `g` dialog, so `G` also learns presets set on the amp.
+
 ## Still to test by hand
 
-* Choose a preset with the **amp's own buttons** while the agent is connected:
-  does the `g` dialog's ◀ (and `G`) follow? `G` depends on it.
 * Can Fender Tone connect while the agent holds the link?

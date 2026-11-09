@@ -229,6 +229,17 @@ class Play(object):
         else:
             log.warn("play failed: No valid media {}".format(url))
 
+    def close(self):
+        '''Stop playing and release VLC (on program exit). The end-of-song handler
+        is detached first, so a song ending now cannot restart playback.'''
+        try:
+            self.event_manager.event_detach(vlc.EventType.MediaPlayerEndReached)
+        except Exception:
+            pass
+        self.player.stop()
+        self.player.release()
+        self.instance.release()
+
     def pause(self):
         if self.player.get_state() == vlc.State.Paused:
             log.debug('continue')

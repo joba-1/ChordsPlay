@@ -32,7 +32,10 @@ class Scan(threading.Thread):
         '''
         Constructor
         '''
-        threading.Thread.__init__(self, name='scan')
+        # daemon: a fetch can hang in a network request (up to the request timeout);
+        # on exit the program waits a few seconds for a clean stop, then leaves
+        # without it (SQLite transactions are atomic, nothing is half written)
+        threading.Thread.__init__(self, name='scan', daemon=True)
         self.quit = threading.Event()
         self.connector = connector
         self.user = user
@@ -207,7 +210,7 @@ class Scan(threading.Thread):
             checked = 0
             log.debug("unchecked songs")
             for rowid, title, artist in self.db.uncheckedSongs():
-                if self.aborted:
+                if self.aborted or self.quit.is_set():
                     return
                 log.debug("check {} by {}".format(title, artist))
                 if self.updateLyrics(rowid, title, artist) is None:
@@ -218,7 +221,7 @@ class Scan(threading.Thread):
 
             log.debug("recheck songs")
             for rowid, title, artist in self.db.recheckSongs():
-                if self.aborted:
+                if self.aborted or self.quit.is_set():
                     return
                 log.debug("recheck {} by {}".format(title, artist))
                 if self.updateLyrics(rowid, title, artist) is None:

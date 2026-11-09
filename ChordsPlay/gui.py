@@ -129,7 +129,7 @@ class Gui(tk.Tk):
         self.bind("<Button-3>", lambda x: self.buttons["Next"].invoke())
         self.bind("<BackSpace>", lambda x: self.buttons["Prev"].invoke())
         self.bind("<Button-2>", lambda x: self.buttons["Prev"].invoke())
-        self.bind("q", lambda x: self.quit())
+        self.bind("q", lambda x: self.close())
         self.bind("f", lambda x: self.buttons["Filter"].invoke())
         self.bind("n", lambda x: self.buttons["Next"].invoke())
         self.bind("p", lambda x: self.buttons["Prev"].invoke())
@@ -140,7 +140,9 @@ class Gui(tk.Tk):
         self.bind("a", lambda x: self.buttons["Audio"].invoke())
         self.bind("l", self.toggleList)
         
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        # closing the window ends the main loop like "q"; main() then stops playback,
+        # the scanner and the amp agent and destroys the window (see shutdown())
+        self.protocol("WM_DELETE_WINDOW", self.close)
 
         self.inhibitBlank()
 
@@ -168,9 +170,14 @@ class Gui(tk.Tk):
         systemd_inhibit = shutil.which("systemd-inhibit")
         if systemd_inhibit:
             try:
+                # The inhibitor lasts as long as its command. "tail --pid" ends as soon
+                # as this process is gone, even after a crash or kill -9, so the lock can
+                # never outlive ChordsPlay (with "sleep infinity" it could, and blocked
+                # suspend for good). destroy() still ends it at once on a normal exit.
                 self.inhibitor = Popen(
                     [systemd_inhibit, "--what=idle:sleep", "--who=ChordsPlay",
-                     "--why=Playing music", "--mode=block", "sleep", "infinity"],
+                     "--why=Playing music", "--mode=block",
+                     "tail", "--pid={}".format(os.getpid()), "-f", "/dev/null"],
                     stdout=DEVNULL, stderr=DEVNULL)
                 log.info("Screen blanking inhibited via systemd-inhibit")
                 return
@@ -190,10 +197,25 @@ class Gui(tk.Tk):
         except:
             log.warning("Failed to disable screensaver")
 
+    def close(self):
+        '''End the main loop (q, window close, signals). Open dialogs are closed first:
+        they wait in a loop of their own, which would otherwise keep running.'''
+        for child in self.winfo_children():
+            if isinstance(child, tk.Toplevel):
+                try:
+                    child.destroy()
+                except tk.TclError:
+                    pass
+        self.quit()
+
     def destroy(self):
         inhibitor = getattr(self, "inhibitor", None)
         if inhibitor is not None:
             inhibitor.terminate()
+            try:
+                inhibitor.wait(timeout=2)
+            except Exception:
+                pass
             self.inhibitor = None
         super().destroy()
 

@@ -109,5 +109,6 @@ One-time BlueZ setup (`Experimental = true`, LE pairing): maneline's `docs/MUSTA
 
 ## Open points
 
-* Does the amp report a preset chosen with its **own buttons** while connected? `G` depends on it. Test on hardware.
+* ~~Does the amp report a preset chosen with its own buttons while connected?~~ Yes (tested 2026-11-09):
+  the ◀ marker follows, so `G` also learns presets set on the amp.
 * Can Fender Tone connect while the agent holds the link, or only while the agent sleeps?

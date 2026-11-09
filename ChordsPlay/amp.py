@@ -131,7 +131,9 @@ class AmpClient(object):
             self.quit = True
             self.cond.notify()
         if self.thread.is_alive():
-            self.thread.join(timeout=2)
+            # the worker may hang in an HTTP request (a switch can wait up to 45 s for
+            # the agent); it is a daemon thread, so don't hold up the exit for it
+            self.thread.join(timeout=0.5)
         if self.control:
             self.control.shutdown()
 

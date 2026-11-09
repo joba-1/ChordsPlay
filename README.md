@@ -60,7 +60,7 @@ Most of the UI is keyboard-driven.
 | `l` | Toggle the playlist panel |
 | `F11` | Toggle fullscreen |
 | `Escape` | Leave fullscreen |
-| `q` | Quit |
+| `q` | Quit (same as closing the window) |
 
 ---
 
@@ -197,6 +197,21 @@ amp_unit = chordsplay-amp-agent.service
 ```
 
 The file holds the sync token, so keep it private: `chmod 600 ~/.chordsplay.py.cfg`.
+
+### Quitting
+
+`q`, the window's close button, closing the terminal ChordsPlay was started from,
+`kill` and Ctrl-C all end it the same way:
+* the music stops at once;
+* the window closes;
+* the amp agent is stopped if ChordsPlay started it;
+* the scanner and the database are closed.
+
+If the scanner is stuck in a slow request to Ultimate Guitar, ChordsPlay waits at
+most 3 s for it; that song is simply fetched again next time.
+
+While ChordsPlay runs it keeps the screen and the computer awake (a logind
+inhibitor). The inhibitor ends with ChordsPlay, even after a crash.
 
 ---
 

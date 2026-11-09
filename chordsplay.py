@@ -22,6 +22,7 @@ import os
 import logging
 import traceback
 import time
+import signal
 
 from optparse import OptionParser
 from configparser import ConfigParser
@@ -47,6 +48,14 @@ __updated__ = '2026-11-09'
 DEBUG = 0
 TESTRUN = 0
 PROFILE = 0
+
+# set in main(); None until created, so shutdown() can run at any stage
+db = None
+gui = None
+player = None
+exit_signal = None          # signal that asked us to exit, if any
+SCAN_JOIN_S = 3             # wait at most this long (in all) for the scanner to stop
+HEARTBEAT_MS = 250
 
 # Mustang presets (docs/spec-amp.md); amp stays None unless amp_url is configured
 amp = None
@@ -205,6 +214,64 @@ def startAmp(config, section):
                                   default_slot=default_slot)
     log.info("amp agent %s%s", url, " (unit {})".format(unit) if unit else "")
 
+def requestExit(signum, frame):
+    '''SIGHUP (terminal closed), SIGTERM (kill, logout), SIGINT (Ctrl-C): exit cleanly.'''
+    global exit_signal
+    exit_signal = signum
+    if signum == signal.SIGHUP:
+        # the terminal is gone: send further output (log lines, Python's final flush)
+        # to /dev/null instead of failing on every write (exit status 120)
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        os.dup2(devnull, sys.stderr.fileno())
+        os.close(devnull)
+    log.info("%s received, exiting", signal.Signals(signum).name)
+    if gui is not None:
+        try:
+            gui.close()
+        except Exception:
+            pass
+
+def heartbeat():
+    '''Python runs signal handlers only while executing Python code; Tk's main loop is C.
+    This timer gives requestExit() a chance to run within HEARTBEAT_MS.'''
+    gui.after(HEARTBEAT_MS, heartbeat)
+
+def shutdown(scanner):
+    '''Every way out ends here: q, closing the window, a signal or an error.
+    The scanner is told first, so its stop overlaps the rest; then what you hear
+    and see goes, then the background work. Each step runs even if an earlier
+    one failed.'''
+    log.info("shutting down")
+    t0 = time.monotonic()
+    steps = []
+    if scanner is not None:
+        steps.append(("tell scanner to stop", scanner.quit.set))
+    if player is not None:
+        steps.append(("stop playback", player.close))
+    if gui is not None:
+        steps.append(("close window", gui.destroy))
+    if amp is not None:
+        steps.append(("stop amp client and agent", amp.stop))
+    if scanner is not None:
+        def waitScanner():
+            # a scan step (file, DB write) ends quickly; a fetch from Ultimate Guitar
+            # can hang in the network, then exit without it (it is a daemon thread,
+            # and the fetch is simply repeated next time)
+            scanner.join(max(0.1, SCAN_JOIN_S - (time.monotonic() - t0)))
+            if scanner.is_alive():
+                log.warning("scanner still busy (network request?), exiting without it")
+        steps.append(("wait for scanner", waitScanner))
+    if db is not None:
+        steps.append(("close database", db.close))
+    for name, step in steps:
+        try:
+            step()
+            log.debug("shutdown: %s done after %.2f s", name, time.monotonic() - t0)
+        except Exception:
+            log.warning("shutdown: %s failed", name, exc_info=True)
+    log.info("shut down in %.1f s", time.monotonic() - t0)
+
 def onClick(event):
     tree = event.widget
     item = tree.identify('item', event.x, event.y)
@@ -298,6 +365,8 @@ def main(argv=None):
 
         log = logging.getLogger(__name__)
         log.info('Started {}'.format(program_version_string))
+        for signum in (signal.SIGHUP, signal.SIGTERM, signal.SIGINT):
+            signal.signal(signum, requestExit)
 
         # db connection #
         connector = opts.database
@@ -336,7 +405,10 @@ def main(argv=None):
             scanner.start()
             
             # gui main loop (only if not a test run with one fixed song) #
-            if opts.testfile == None:
+            if opts.testfile != None:
+                scanner.join()
+                return
+            try:
                 log.debug("Starting main loop")
                 
                 gui = ChordsPlay.gui.Gui(title=program_name)
@@ -365,16 +437,12 @@ def main(argv=None):
                 startAmp(config, program_name)
                 if amp is not None:
                     gui.after(AMP_TICK_MS, ampTick)
+                gui.after(HEARTBEAT_MS, heartbeat)
 
-                gui.mainloop()
-
-                # quit #
-                if amp is not None:
-                    amp.stop()
-                log.debug("Stopping scanner thread")
-                scanner.quit.set()
-
-            scanner.join()
+                if exit_signal is None:     # a signal may have come during startup
+                    gui.mainloop()
+            finally:
+                shutdown(scanner)
         
     except Exception:
         traceback.print_exc()
