@@ -21,6 +21,7 @@ import sys
 import os
 import logging
 import traceback
+import time
 
 from optparse import OptionParser
 from configparser import ConfigParser
@@ -33,24 +34,36 @@ import ChordsPlay.play
 import ChordsPlay.playlist
 import ChordsPlay.filter
 import ChordsPlay.selector
+import ChordsPlay.amp
+import ChordsPlay.ampdialog
 
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.33'  # update also in setup.py
+__version__ = '3.34'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2026-07-22'
+__updated__ = '2026-11-09'
 
 DEBUG = 0
 TESTRUN = 0
 PROFILE = 0
+
+# Mustang presets (docs/spec-amp.md); amp stays None unless amp_url is configured
+amp = None
+cues = None
+song_text = ''
+title_text = None
+amp_flash = None            # (text, until) shown in the title for a few seconds
+AMP_TICK_MS = 200
 
 def play(pos, song_id):
     log.debug("play id {} @ {}".format(song_id, pos))
     title, artist, text, path, songfile = db.getPlayInfo(song_id)
     player.play(os.path.join(path, songfile), song_id)
     gui.setText(text)
-    gui.setTitle("{}: {} - {}".format(pos, title, artist))
+    global song_text
+    song_text = "{}: {} - {}".format(pos, title, artist)
+    updateTitle()
     gui.mclist.tree.selection_clear()
     item_id = gui.mclist.get()[pos]
     log.debug("select item id {} @ {}".format(item_id, pos))
@@ -106,6 +119,91 @@ def tagDialog(song_id):
             status = "unset"
             db.delUserTag(song_id, tags[dlg.result][0])
         log.info("tag song '{}': {} '{}'".format(title, status, tags[dlg.result][3]))
+
+def updateTitle():
+    text = song_text
+    if amp is not None:
+        if amp_flash and time.monotonic() < amp_flash[1]:
+            status = amp_flash[0]
+        elif cues.warning:
+            status = 'amp: ' + cues.warning
+        else:
+            status = ChordsPlay.amp.describe(amp.snapshot())
+        text = '{}   [{}]'.format(text, status) if text else '[{}]'.format(status)
+    global title_text
+    if text != title_text:
+        title_text = text
+        gui.setTitle(text)
+
+def playPosition():
+    pos = player.player.get_time()
+    return pos if pos and pos > 0 else 0
+
+def ampTick():
+    '''Every AMP_TICK_MS: apply the playing song's cue, refresh the amp status.'''
+    try:
+        if player.song_id is not None:
+            cues.tick(player.song_id, playPosition())
+        updateTitle()
+    except Exception:
+        log.warning("amp tick failed", exc_info=True)
+    gui.after(AMP_TICK_MS, ampTick)
+
+def ampMissing():
+    messagebox.showinfo("Guitar tone", 'Set amp_url in the config file to switch Mustang presets '
+                        '(see docs/spec-amp.md)')
+
+def ampDialog():
+    if amp is None:
+        ampMissing()
+        return
+    ChordsPlay.ampdialog.AmpDialog(gui, db, amp, cues, player.song_id, playPosition,
+                                   seek=lambda ms: player.player.set_time(int(ms)),
+                                   length=lambda: max(0, player.player.get_length()))
+    cues.reload()
+
+def learnPreset():
+    '''Key G: store the amp's current slot as a cue for the playing song.'''
+    global amp_flash
+    if amp is None:
+        ampMissing()
+        return
+    if player.song_id is None:
+        messagebox.showinfo("Guitar tone", 'Please start a song first')
+        return
+    state = amp.snapshot()['state']
+    slot = state.get('preset')
+    if not state.get('connected') or not slot:
+        messagebox.showinfo("Guitar tone", 'The amp is not connected, so its current preset is '
+                            'not known. Press g to choose a preset instead.')
+        return
+    pos = playPosition()
+    start = 0 if pos < 3000 else pos - pos % 500
+    db.setSongPreset(player.song_id, start, slot, state.get('name'), replace_within_ms=2000)
+    cues.reload()
+    amp_flash = ('stored: {} {} from {}'.format(slot, state.get('name') or '',
+                                                ChordsPlay.amp.fmt_ms(start)), time.monotonic() + 5)
+    log.info("song %s: slot %d from %s (learned)", player.song_id, slot, ChordsPlay.amp.fmt_ms(start))
+
+def startAmp(config, section):
+    '''Create the amp client and cue logic if amp_url is configured.'''
+    global amp, cues
+    url = config.get(section, 'amp_url', fallback=None)
+    if not url:
+        return
+    unit = config.get(section, 'amp_unit', fallback=None)
+    control = None
+    if unit:
+        control = ChordsPlay.amp.AgentControl(
+            unit, config.get(section, 'amp_sink', fallback='Mustang Micro Plus'))
+    default_slot = config.getint(section, 'amp_default_slot', fallback=None)
+    if default_slot is not None and not ChordsPlay.amp.valid_slot(default_slot):
+        log.warning("amp_default_slot %s ignored, must be 1..100", default_slot)
+        default_slot = None
+    amp = ChordsPlay.amp.AmpClient(url, control=control).start()
+    cues = ChordsPlay.amp.AmpCues(db, amp, lead_ms=config.getint(section, 'amp_lead_ms', fallback=300),
+                                  default_slot=default_slot)
+    log.info("amp agent %s%s", url, " (unit {})".format(unit) if unit else "")
 
 def onClick(event):
     tree = event.widget
@@ -261,10 +359,18 @@ def main(argv=None):
                 gui.onButton('Filter', lambda: playlistDialog(playlist))
                 gui.onButton('Tags', lambda: tagDialog(player.song_id))
                 gui.onButton('Audio', lambda: audioDialog(player))
+                gui.onButton('Tone', ampDialog)
+                gui.bind("G", lambda x: learnPreset())
+
+                startAmp(config, program_name)
+                if amp is not None:
+                    gui.after(AMP_TICK_MS, ampTick)
 
                 gui.mainloop()
 
                 # quit #
+                if amp is not None:
+                    amp.stop()
                 log.debug("Stopping scanner thread")
                 scanner.quit.set()
 

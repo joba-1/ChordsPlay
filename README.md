@@ -55,6 +55,8 @@ Most of the UI is keyboard-driven.
 | `t` | Tags (label the current song) |
 | `a` | Audio output device |
 | `A` | Cycle to next audio output |
+| `g` | Guitar tone: Mustang Micro Plus presets for this song ([see below](#guitar-tone-mustang-micro-plus)) |
+| `G` | Store the amp's current preset for the song, from the current position |
 | `l` | Toggle the playlist panel |
 | `F11` | Toggle fullscreen |
 | `Escape` | Leave fullscreen |
@@ -117,30 +119,84 @@ You can add or remove tags from the tag dialog itself.
 
 ---
 
+## Guitar tone (Mustang Micro Plus)
+
+ChordsPlay can switch a Fender Mustang Micro Plus to the preset you stored for
+a song. A song can have **several presets at different times**, for example a
+quiet acoustic intro and a loud chorus. Design: [docs/spec-amp.md](docs/spec-amp.md).
+
+**Store a tone:** set it on the amp (buttons or the Fender Tone app), then
+press `G`. Under 3 s into the song it becomes the song's start preset;
+later, it applies from the current position on. A stored preset within 2 s is
+replaced.
+
+**The `g` dialog** (or the *Tone* button) lists the song's cues, a position
+slider and the amp's 100 presets (current one marked ◀, *Used* = how many songs
+and artists use it). Pick a preset, then:
+
+| Key | Button | Action |
+|---|---|---|
+| `s` | Try now | Switch the amp now, to hear the preset. **Nothing is saved.** |
+| `b` | Save from start | Save it as the song's start preset |
+| `h` | Save from m:ss | Save it from the current position on (shown on the button) |
+| `a` | Save for artist | Save it for every song of this artist without its own start preset |
+
+*Try now* changes only the amp, and only until the next cue. *Save from …* stores
+a cue, so the amp switches there every time the song plays.
+
+**Setting several switches in one go:** drag the *Position* slider or press
+`+`/`-` (1 s), which moves the song itself. Then pick a preset and press `h`, and
+repeat. Double-click a cue to play from 2 s before it and hear the switch.
+
+For a selected cue: `t` changes its time (`m:ss`), `Del` deletes it, and `r`
+accepts a new preset name. If a slot's name changed since you stored it, the
+preset there was probably replaced, so ChordsPlay doesn't switch and shows a
+warning in the window title until you accept the new name. The title also
+shows the amp's state, e.g. `[amp 7 Hey Jimi]`.
+
+Which preset plays: the song's cues; before the first one, the artist's preset,
+else `amp_default_slot`; with none of these the amp is left alone.
+
+**Setup** (Linux, once):
+
+1. BlueZ 5.84+ with `Experimental = true` and the amp paired over Bluetooth LE
+   as well as for audio: maneline's `docs/MUSTANG_MICRO_PLUS_LINUX.md`.
+2. `contrib/install-amp-agent.sh` installs the amp agent (maneline's
+   `mmp_web.py`) as the systemd user unit `chordsplay-amp-agent.service`.
+3. Add `amp_url` and `amp_unit` to the configuration file (below).
+
+ChordsPlay never talks Bluetooth itself: the agent owns the amp's connection.
+ChordsPlay starts the agent while the amp is connected as an audio output and
+stops it when the amp is gone or ChordsPlay quits. The first switch after the
+amp appears takes a few seconds while the agent connects; during a song,
+switching takes well under a second.
+
+---
+
 ## Configuration file
 
-`~/.chordsplay.cfg` (auto-detected) can hold defaults so you don't have
-to pass them every time:
+`~/.chordsplay.py.cfg` (named after the program, `-c` to use another) holds
+defaults so you don't have to pass them every time:
 
 ```ini
-[chordsplay]
-database = /path/to/your/songs.db
-user     = yourname
-ug_user  = your_ultimate_guitar_username
-ug_pass  = your_ultimate_guitar_password
+[chordsplay.py]
+database  = /path/to/your/songs.db
+user      = yourname
 verbosity = 0
+
+# central chord sync (sync_service/README.md)
+sync_url   = http://host6:8615
+sync_token = <token>
+
+# Mustang Micro Plus guitar tone (see "Guitar tone" above)
+amp_url  = http://localhost:8081
+amp_unit = chordsplay-amp-agent.service
+# amp_sink = Mustang Micro Plus      text in the amp's audio output name
+# amp_default_slot = 1               preset for songs without one
+# amp_lead_ms = 300                  switch this much before a cue
 ```
 
-If `ug_pass` is present, **lock the file down**:
-
-```bash
-chmod 600 ~/.chordsplay.cfg
-```
-
-ChordsPlay warns at startup if the file is readable by others.
-
-Logging in to Ultimate Guitar is optional, but helps when the site
-returns a bot-challenge page.
+The file holds the sync token, so keep it private: `chmod 600 ~/.chordsplay.py.cfg`.
 
 ---
 
@@ -148,14 +204,15 @@ returns a bot-challenge page.
 
 | Option | Purpose |
 |---|---|
-| `-c FILE` / `--config` | Use a different config file (default: `~/.chordsplay.cfg`) |
+| `-c FILE` / `--config` | Use a different config file (default: `~/.chordsplay.py.cfg`) |
 | `-d FILE` / `--database` | Use a different database file |
 | `-u NAME` / `--user` | Database user (default: your OS username) |
 | `-l FILE` / `--logfile` | Write a full DEBUG log to a file (console stays at INFO) |
 | `-v` / `--verbose` | Verbose console output |
 | `-t FILE` / `--testfile` | Run one test song and dump HTML to file (for debugging chord scraper) |
 | `-f` / `--fix` | Run one-off database fix-ups and exit |
-| `--ug-user` / `--ug-pass` | Ultimate Guitar credentials (prefer config file) |
+| `--sync-url URL` / `--sync-token T` | Central chord-sync service (prefer the config file) |
+| `--sync-seed` | Push all local chord data to the sync service once, then exit |
 
 ---
 
@@ -212,7 +269,10 @@ StartupNotify=true
 * Source layout: main entry point `chordsplay.py`, package modules in
   `ChordsPlay/` (`db.py`, `scan.py`, `chords.py`, `play.py`, `gui.py`,
   `filter.py`, `dialog.py`, `selector.py`, `mclist.py`, `song.py`,
-  `playlist.py`).
+  `playlist.py`, `sync.py`, `amp.py`, `ampdialog.py`).
+* Tests: `venv/bin/python -m unittest discover -s tests` (no amp, display or
+  network needed). The hardware test with the real amp is described in
+  [docs/test.md](docs/test.md).
 * Database: SQLite in WAL mode at `~/.chordsplay.py.db`. Schema is
   created/upgraded on connect.
 * Background scan thread re-checks each song's lyrics roughly once a

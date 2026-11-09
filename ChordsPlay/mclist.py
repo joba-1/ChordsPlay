@@ -5,6 +5,7 @@ Created on 09.04.2016
 '''
 
 import tkinter as tk
+import tkinter.font  # tk.font below; don't rely on another module importing it
 from tkinter import ttk
 import random
 import re

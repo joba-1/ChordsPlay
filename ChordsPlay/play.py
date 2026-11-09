@@ -106,7 +106,7 @@ class Play(object):
         self.getPulseInfo()
         devices = []
         for sink in self.sinks:
-            for port in sink['Ports']:
+            for port in sink.get('Ports', []):   # null/virtual sinks have none
                 devices.append({
                     'device': sink['Nr'] + ':' + port['Name'], 
                     'description': port['Description']})

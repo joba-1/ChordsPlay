@@ -16,6 +16,7 @@ import logging
 log = logging.getLogger(__name__)
 
 MAX_WRITE_RETRIES = 6  # 1, 2, 4, 8, 16, 32s ≈ 1 minute of retrying
+COMMIT_INTERVAL = 0.2  # s; longest the walk keeps the write lock (see run())
 
 def _is_lock_error(exc):
     return isinstance(exc, sqlite3.OperationalError) and 'locked' in str(exc).lower()
@@ -181,15 +182,19 @@ class Scan(threading.Thread):
                         return
 
                 elif os.path.isdir(song_list):
-                    count = 0
+                    last_commit = time.monotonic()
                     for path, _, files in os.walk(song_list):
                         rel_path = os.path.relpath(path, song_list)
                         for file in files:
                             rel_file = os.path.join(rel_path, file)
                             self._safe_db(self.db.addListSong, song_list, rel_file)
-                            count += 1
-                            if count % 100 == 0:
+                            # The open transaction holds SQLite's write lock while the
+                            # next files' tags are read (slow over NFS). Commit often, so
+                            # writes from the GUI (tags, guitar-tone cues) wait at most
+                            # COMMIT_INTERVAL instead of seconds.
+                            if time.monotonic() - last_commit >= COMMIT_INTERVAL:
                                 self._safe_db(self.db.commit)
+                                last_commit = time.monotonic()
                             if self.aborted:
                                 return
                             if self.quit.is_set():

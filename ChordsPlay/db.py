@@ -112,6 +112,18 @@ class Db(object):
                 primary key   (user_id, position)
             );
             create index if not exists playlists_song_ix on playlists (song_id);
+            create table if not exists song_presets (
+                song_id       int not null references songs(id) on delete cascade,
+                start_ms      int not null default 0 check(start_ms >= 0),
+                slot          int not null check(slot between 1 and 100),
+                slot_name     text,
+                primary key   (song_id, start_ms)
+            );
+            create table if not exists artist_presets (
+                artist        text not null primary key,
+                slot          int not null check(slot between 1 and 100),
+                slot_name     text
+            );
             create table if not exists user_filters (
                 user_id       int not null references users(id) on delete cascade,
                 name          text not null,
@@ -537,6 +549,78 @@ WHERE s.lyrics_chords IS NOT NULL
         self.conn.execute("DELETE FROM song_tags WHERE user_id = ? AND song_id = ? AND tag_id = ?", row)
         self.conn.execute("UPDATE songs SET modified = datetime('now'), dirty = 1 WHERE id = ?", (song_id,))
         self.conn.commit()
+
+    # --- Mustang presets (docs/spec-amp.md) ---------------------------------
+    # A cue (start_ms, slot, slot_name): from start_ms on, the song uses this amp
+    # slot. slot_name is the preset name when the cue was stored, to notice a slot
+    # that was re-edited on the amp. Local only: not part of the central sync yet.
+
+    def getSongPresets(self, song_id):
+        return list(self.conn.execute(
+            "SELECT start_ms, slot, slot_name FROM song_presets WHERE song_id = ? ORDER BY start_ms",
+            (song_id,)))
+
+    def setSongPreset(self, song_id, start_ms, slot, slot_name=None, replace_within_ms=0):
+        '''Store a cue; cues closer than replace_within_ms to start_ms are replaced.'''
+        start_ms = int(start_ms)
+        self.conn.execute(
+            "DELETE FROM song_presets WHERE song_id = ? AND start_ms BETWEEN ? AND ?",
+            (song_id, start_ms - replace_within_ms, start_ms + replace_within_ms))
+        self.conn.execute(
+            "INSERT OR REPLACE INTO song_presets (song_id, start_ms, slot, slot_name) VALUES (?, ?, ?, ?)",
+            (song_id, start_ms, slot, slot_name))
+        self.conn.commit()
+
+    def moveSongPreset(self, song_id, old_start_ms, new_start_ms):
+        '''Change a cue's time; an existing cue at the new time is replaced.'''
+        row = self.conn.execute(
+            "SELECT slot, slot_name FROM song_presets WHERE song_id = ? AND start_ms = ?",
+            (song_id, old_start_ms)).fetchone()
+        if row is None:
+            return False
+        self.conn.execute("DELETE FROM song_presets WHERE song_id = ? AND start_ms IN (?, ?)",
+                          (song_id, old_start_ms, new_start_ms))
+        self.conn.execute(
+            "INSERT INTO song_presets (song_id, start_ms, slot, slot_name) VALUES (?, ?, ?, ?)",
+            (song_id, int(new_start_ms), row[0], row[1]))
+        self.conn.commit()
+        return True
+
+    def delSongPreset(self, song_id, start_ms):
+        self.conn.execute("DELETE FROM song_presets WHERE song_id = ? AND start_ms = ?",
+                          (song_id, start_ms))
+        self.conn.commit()
+
+    def getArtistPreset(self, artist):
+        '''(slot, slot_name) for the artist, or None.'''
+        return self.conn.execute(
+            "SELECT slot, slot_name FROM artist_presets WHERE artist = ?", (artist,)).fetchone()
+
+    def setArtistPreset(self, artist, slot, slot_name=None):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO artist_presets (artist, slot, slot_name) VALUES (?, ?, ?)",
+            (artist, slot, slot_name))
+        self.conn.commit()
+
+    def delArtistPreset(self, artist):
+        self.conn.execute("DELETE FROM artist_presets WHERE artist = ?", (artist,))
+        self.conn.commit()
+
+    def renamePresetSlot(self, slot, slot_name):
+        '''Accept the amp's new name for slot in every cue that uses it.'''
+        self.conn.execute("UPDATE song_presets SET slot_name = ? WHERE slot = ?", (slot_name, slot))
+        self.conn.execute("UPDATE artist_presets SET slot_name = ? WHERE slot = ?", (slot_name, slot))
+        self.conn.commit()
+
+    def presetUsage(self):
+        '''{slot: number of song cues and artists using it}'''
+        usage = {}
+        for slot, count in self.conn.execute("""
+                SELECT slot, count(*) FROM (
+                    SELECT slot FROM song_presets UNION ALL SELECT slot FROM artist_presets)
+                GROUP BY slot"""):
+            usage[slot] = count
+        return usage
 
     # --- central-sync support -------------------------------------------
     # Shared data (songs/chords/song_chords/song_tags) is synced by the natural

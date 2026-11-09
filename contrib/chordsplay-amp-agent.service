@@ -1,0 +1,16 @@
+# Mustang Micro Plus amp agent for ChordsPlay: maneline's mmp_web.py owns the
+# single Bluetooth LE connection to the amp (see docs/spec-amp.md).
+# Installed by contrib/install-amp-agent.sh. Deliberately has no [Install]
+# section: ChordsPlay starts it while the amp's audio sink exists (amp_unit).
+[Unit]
+Description=Mustang Micro Plus amp agent for ChordsPlay (maneline mmp_web.py)
+After=bluetooth.target
+
+[Service]
+Type=simple
+# --idle-disconnect: save the amp's battery when idle; stays connected while
+#   Bluetooth audio streams to the amp, so switching during a song is instant.
+# --log /dev/null: the protocol log records every heartbeat (4/s, ~1 MB/hour).
+ExecStart=%h/.local/share/chordsplay/maneline-venv/bin/python %h/.local/share/chordsplay/maneline/scripts/mmp_web.py --port 8081 --idle-disconnect 300 --log /dev/null
+Restart=on-failure
+RestartSec=5

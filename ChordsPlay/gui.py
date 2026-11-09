@@ -76,7 +76,8 @@ class Gui(tk.Tk):
             ("Shuffle", None),
             ("Filter", None),
             ("Tags", None),
-            ("Audio", None)
+            ("Audio", None),
+            ("Tone", None)
         ]
         self.buttons = {}       
         buttonFrame = ttk.Frame(playlist)
@@ -135,6 +136,7 @@ class Gui(tk.Tk):
         self.bind("s", lambda x: self.buttons["Shuffle"].invoke())
         self.bind("m", lambda x: self.buttons["Pause"].invoke())
         self.bind("t", lambda x: self.buttons["Tags"].invoke())
+        self.bind("g", lambda x: self.buttons["Tone"].invoke())
         self.bind("a", lambda x: self.buttons["Audio"].invoke())
         self.bind("l", self.toggleList)
         
