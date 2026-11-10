@@ -457,6 +457,17 @@ class Pdfs(Api):
         self.assertNotIn('Band - Alpha - Solo.pdf', self.pdfs())
         self.assertEqual(len(self.client.get('/api/song/{}'.format(self.alpha)).get_json()['pdfs']), 1)
 
+    def test_pdf_next_to_the_song(self):
+        # a.mp3 is Alpha (make_db): a.pdf and "a - Solo.pdf" beside it belong to Alpha
+        for name in ('a.pdf', 'a - Solo.pdf', 'b - x.pdf'):
+            with open(os.path.join(self.tmp.name, name), 'wb') as f:
+                f.write(b'%PDF-1.4')
+        found = self.pdfs()
+        self.assertEqual((found['a.pdf']['song']['id'], found['a.pdf']['part']), (self.alpha, None))
+        self.assertEqual((found['a - Solo.pdf']['song']['id'], found['a - Solo.pdf']['part']), (self.alpha, 'Solo'))
+        self.assertEqual((found['b - x.pdf']['song']['id'], found['b - x.pdf']['part']), (self.beta, 'x'))
+        self.assertEqual(len([n for n in found if n == 'Band - Alpha.pdf']), 1)    # found once, though in two folders
+
     def test_song_search(self):
         r = self.client.get('/api/songs/search', query_string={'q': 'band'}).get_json()
         self.assertEqual([x['title'] for x in r['songs']], ['Alpha', 'Beta'])     # Gamma has no chords

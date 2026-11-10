@@ -1,12 +1,16 @@
 '''
-PDF tabs for the web app: find PDF files in a few folders, link each to a song.
+PDF tabs for the web app: find PDF files, link each to a song.
 
-A file named "Artist - Title.pdf" or "Artist - Title - Part.pdf" ("Queen - Hammer To
-Fall - Solo 1.pdf") is linked to the song by its name; case, punctuation and a
-leading "The" don't matter, and a title may continue after the song's title
-("House Of The Rising Sun Fingerpicking": part "Fingerpicking"). What doesn't
-match waits for the user to pick the song in the page (an assignment by hand
-is never changed by a later scan).
+The place for a tab is next to its song, like a hand-saved song text: the song file's
+name with .pdf ("13 Cruz.mp3" -> "13 Cruz.pdf"), or with a part after " - "
+("13 Cruz - Solo.pdf"). The library's folders are always scanned for these.
+
+Elsewhere (CHORDSPLAY_PDF_DIRS) a file named "Artist - Title.pdf" or "Artist - Title -
+Part.pdf" ("Queen - Hammer To Fall - Solo 1.pdf") is linked by its name; case,
+punctuation and a leading "The" don't matter, and a title may continue after the
+song's title ("House Of The Rising Sun Fingerpicking": part "Fingerpicking"). What
+doesn't match waits for the user to pick the song in the page (an assignment by
+hand is never changed by a later scan).
 
 Tables (in the web DB):
   pdf_files   one row per file found: id, path, size, mtime
@@ -78,32 +82,63 @@ def match(path, songs):
     return (best[1], best[2]) if best else None
 
 
+def beside(path, song_files):
+    '''(song_id, part) for a PDF next to a song file of the same name, or None.
+    song_files: {(folder, name without extension, case-folded): song_id}.'''
+    folder, stem = os.path.dirname(path), os.path.splitext(os.path.basename(path))[0]
+    pieces = re.split(r'(\s+-\s+)', stem)
+    # the longest song name first: "A - B - Solo" is song "A - B", part "Solo"
+    for n in range(len(pieces), 0, -2):
+        sid = song_files.get((folder, ''.join(pieces[:n]).casefold()))
+        if sid is not None:
+            return sid, ''.join(pieces[n + 1:]).strip() or None
+    return None
+
+
+def song_files(conn):
+    files = {}
+    for sid, folder, name in conn.execute("SELECT ls.song_id, l.name, ls.filename FROM list_songs ls "
+                                         "JOIN song_lists l ON l.id = ls.song_lists_id WHERE ls.song_id IS NOT NULL"):
+        path = os.path.join(folder, name)
+        files[(os.path.dirname(path), os.path.splitext(os.path.basename(path))[0].casefold())] = sid
+    return files
+
+
+def library_folders(conn):
+    return [name for (name,) in conn.execute("SELECT name FROM song_lists") if name and os.path.isdir(name)]
+
+
 def find_files(folders):
+    seen = set()
     for folder in folders:
         for root, dirs, files in os.walk(folder):
             dirs[:] = [d for d in dirs if not d.startswith('.')]     # .@__thumb and the like
             for name in files:
-                if name.lower().endswith('.pdf') and not name.startswith('.'):
-                    yield os.path.join(root, name)
+                path = os.path.join(root, name)
+                if name.lower().endswith('.pdf') and not name.startswith('.') and path not in seen:
+                    seen.add(path)
+                    yield path
 
 
 def scan(conn, folders):
-    '''Bring pdf_files and the automatic links up to date. Returns (found, linked now).'''
+    '''Bring pdf_files and the automatic links up to date: the library's folders and
+    `folders`. Returns (found, linked now).'''
     now = time.time()
     songs = conn.execute("SELECT id, title, artist FROM songs").fetchall()
+    files = song_files(conn)
     found = linked = 0
-    for path in find_files(folders):
+    for path in find_files(library_folders(conn) + list(folders)):
         found += 1
         st = os.stat(path)
         conn.execute("INSERT INTO pdf_files (path, size, mtime, seen) VALUES (?, ?, ?, ?) "
                      "ON CONFLICT(path) DO UPDATE SET size = excluded.size, mtime = excluded.mtime, seen = excluded.seen",
                      (path, st.st_size, st.st_mtime, now))
         pdf_id = conn.execute("SELECT id FROM pdf_files WHERE path = ?", (path,)).fetchone()[0]
-        row = conn.execute("SELECT song_id, manual FROM song_pdfs WHERE pdf_id = ?", (pdf_id,)).fetchone()
+        row = conn.execute("SELECT song_id, manual, part FROM song_pdfs WHERE pdf_id = ?", (pdf_id,)).fetchone()
         if row and row[1]:
             continue                # assigned by hand
-        hit = match(path, songs)
-        if hit and (row is None or row[0] != hit[0]):
+        hit = beside(path, files) or match(path, songs)
+        if hit and (row is None or (row[0], row[2]) != hit):
             conn.execute("INSERT OR REPLACE INTO song_pdfs (pdf_id, song_id, part, manual) VALUES (?, ?, ?, 0)",
                          (pdf_id, hit[0], hit[1]))
             linked += 1
