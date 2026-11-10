@@ -1,4 +1,4 @@
-#!/home/user/python-3.10.10/venv/base/bin/python3
+#!/usr/bin/env python3
 # encoding: utf-8
 '''
 ChordsPlay.chordsplay -- ChordsPlay main entry point

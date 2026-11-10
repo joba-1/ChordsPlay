@@ -47,7 +47,7 @@ class Filter(ChordsPlay.dialog.Dialog):
         self.errors = {}
         
         onFocusCmd = self.register(self.onFocus)
-        
+
         for row in range(len(labels)):
             ttk.Label(master, text=labels[row]).grid(row=row*2, column=0, sticky=tk.W)
             self.entries[labels[row]] = ttk.Entry(master, validate='focusin', validatecommand=(onFocusCmd))
