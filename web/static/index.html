@@ -19,6 +19,7 @@
     <button id="b-filter" title="Filter the songs (f)">Filter</button>
     <button id="b-tags" title="Tag the song (t)">Tags</button>
     <button id="b-audio" title="Audio output (a)">Audio</button>
+    <button id="b-display" title="Show the song on a TV or tablet (d)">Display</button>
     <button id="b-full" title="Full screen (F11)">⛶</button>
     <button id="b-help" title="Keys (?)">?</button>
   </div>
@@ -81,6 +82,26 @@
   </form>
 </dialog>
 
+<dialog id="d-display">
+  <form method="dialog">
+    <h2>Show the song on another screen</h2>
+    <p class="hint">Open this link on the TV, a tablet or a second screen. It shows the song this page plays and
+      follows it; it needs no login and can change nothing. Valid until <span id="display-expires"></span>.</p>
+    <div class="display-link">
+      <img id="display-qr" alt="QR code of the link">
+      <div>
+        <p><a id="display-url" target="_blank" rel="noopener"><code></code></a></p>
+        <p class="hint">Code (for typing on a TV remote, after /chordsplay/d/):</p>
+        <p class="code" id="display-code"></p>
+      </div>
+    </div>
+    <div class="dlg-buttons">
+      <button type="button" id="display-end">End all display links</button>
+      <span class="grow"></span><button value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="d-help">
   <form method="dialog">
     <h2>Keys</h2>
@@ -94,6 +115,7 @@
       <tr><td>f</td><td>filter: choose the songs</td></tr>
       <tr><td>t</td><td>tags of the song</td></tr>
       <tr><td>l</td><td>show / hide the playlist</td></tr>
+      <tr><td>d</td><td>show the song on a TV or tablet (display link)</td></tr>
       <tr><td>a / A</td><td>choose / switch the audio output (Chrome)</td></tr>
       <tr><td>F11</td><td>full screen</td></tr>
       <tr><td>Double-click</td><td>play a song from the list; click a heading to sort</td></tr>
@@ -105,6 +127,7 @@
 </dialog>
 
 <div id="toast" role="status"></div>
+<script src="static/fit.js"></script>
 <script src="static/app.js"></script>
 </body>
 </html>

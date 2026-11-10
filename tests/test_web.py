@@ -5,9 +5,11 @@ Run from the repo root:  <venv with web/requirements.txt>/bin/python -m unittest
 Skipped when Flask is not installed (the Tk app's venv does not need it).
 '''
 
+import json
 import os
 import sqlite3
 import tempfile
+import threading
 import unittest
 
 try:
@@ -57,6 +59,7 @@ class Api(unittest.TestCase):
         self.app.DB_PATH = self.path
         self.app.DEFAULT_USER = 'jo'
         self.app._local.__dict__.clear()
+        self.app.hub = self.app.Hub()
         self.client = web.app.app.test_client()
 
     def tearDown(self):
@@ -124,6 +127,59 @@ class Api(unittest.TestCase):
         self.assertEqual(self.client.get('/api/state', headers={'X-ChordsPlay-Proxy': '1'}).status_code, 401)
         r = self.client.get('/api/state', headers={'X-ChordsPlay-Proxy': '1', 'X-Remote-User': 'jo'})
         self.assertEqual(r.status_code, 200)
+
+
+@unittest.skipIf(flask is None, 'flask not installed')
+class Display(Api):
+    '''A display follows the controller of the user whose code it has.'''
+
+    def first_event(self, response):
+        chunks = iter(response.response)
+        self.assertEqual(next(chunks), b'retry: 3000\n\n')
+        data = next(chunks)
+        response.close()
+        return json.loads(data[len(b'data: '):])
+
+    def test_code_state_and_events(self):
+        sid = self.client.get('/api/state').get_json()['playlist'][1]['id']
+        code = self.client.post('/api/display', headers={'X-ChordsPlay-Proxy': '1', 'X-Remote-User': 'jo'}).get_json()['code']
+        self.assertEqual(len(code), 10)
+        # nothing played yet
+        self.assertIsNone(self.client.get('/d/{}/state'.format(code)).get_json()['song'])
+        self.client.put('/api/now', json={'id': sid, 'pos': 1, 't': 12.5, 'playing': True})
+        r = self.client.get('/d/{}/state'.format(code), headers={'X-ChordsPlay-Proxy': '1'}).get_json()
+        self.assertEqual(r['song']['title'], 'Beta')
+        self.assertNotIn('played', r['song'])          # text only
+        self.assertTrue(r['state']['playing'])
+        self.assertEqual(r['state']['t'], 12.5)
+        event = self.first_event(self.client.get('/d/{}/events'.format(code)))
+        self.assertEqual(event['id'], sid)
+        self.assertEqual(self.client.get('/d/{}/'.format(code)).status_code, 200)
+
+    def test_unknown_and_ended_codes(self):
+        self.assertEqual(self.client.get('/d/nonsense/state').status_code, 404)
+        code = self.client.post('/api/display').get_json()['code']
+        self.assertEqual(self.client.get('/d/{}/state'.format(code)).status_code, 200)
+        self.client.delete('/api/display')
+        self.assertEqual(self.client.get('/d/{}/state'.format(code)).status_code, 404)
+
+    def test_display_cannot_reach_controller_api(self):
+        # the display bypasses the login only below /d/
+        self.assertEqual(self.client.get('/api/state', headers={'X-ChordsPlay-Proxy': '1'}).status_code, 401)
+        self.assertEqual(self.client.get('/d/static/app.js').status_code, 404)
+
+    def test_qr(self):
+        r = self.client.get('/api/qr.svg', query_string={'text': 'https://example.org/d/abc/'})
+        self.assertEqual(r.mimetype, 'image/svg+xml')
+        self.assertIn(b'<svg', r.data)
+
+    def test_hub_wakes_waiters(self):
+        hub = self.app.Hub()
+        hub.publish('jo', {'id': 1})
+        rev = hub.get('jo')['rev']
+        threading.Timer(0.05, hub.publish, ('jo', {'id': 2})).start()
+        self.assertEqual(hub.wait('jo', rev, 2)['id'], 2)
+        self.assertEqual(hub.wait('jo', hub.get('jo')['rev'], 0.05, hub.ended_count('jo'))['id'], 2)  # timeout
 
 
 class Migrate(unittest.TestCase):

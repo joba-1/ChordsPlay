@@ -8,10 +8,6 @@ const player = $('#player');
 const sheet = $('#sheet');
 const tbody = $('#list tbody');
 
-const LINE_HEIGHT = 1.15;   // must match #sheet pre in style.css
-const MAX_COLUMNS = 4;
-const COLUMN_GAP = 3;       // characters between columns
-
 let playlist = [];          // rows from the server: {id, title, artist, ...}
 let pos = -1;               // index in playlist of the current song
 let song = null;            // the current song from /api/song
@@ -42,102 +38,17 @@ function toast(text, ms = 2500) {
   toast.timer = setTimeout(() => t.classList.remove('show'), ms);
 }
 
-// --- fitting the text ---------------------------------------------------------
-
-// width of one character of the sheet font, per pixel of font size
-let charRatio = null;
-function measureChar() {
-  const probe = document.createElement('pre');
-  probe.style.cssText = 'position:absolute;visibility:hidden;font-size:100px;margin:0';
-  probe.textContent = 'M'.repeat(50);
-  sheet.appendChild(probe);
-  const w = probe.getBoundingClientRect().width;
-  probe.remove();
-  return w / 50 / 100;
-}
-
-// Split lines into n columns of about equal length; a column preferably
-// starts after an empty line (a new verse) if one is near the even split.
-function splitColumns(lines, n) {
-  if (n === 1) return [lines];
-  const target = Math.ceil(lines.length / n);
-  const slack = Math.max(2, Math.round(target * 0.2));
-  const cols = [];
-  let start = 0;
-  for (let c = 1; c < n && start < lines.length; c++) {
-    let cut = Math.min(lines.length, start + target);
-    for (let d = 0; d <= slack; d++) {
-      if (cut - d > start && lines[cut - d - 1] !== undefined && lines[cut - d - 1].trim() === '') { cut -= d; break; }
-      if (cut + d < lines.length && lines[cut + d - 1].trim() === '') { cut += d; break; }
-    }
-    cols.push(lines.slice(start, cut));
-    start = cut;
-    while (start < lines.length && lines[start].trim() === '') start++;  // no blank line on top
-  }
-  if (start < lines.length) cols.push(lines.slice(start));
-  return cols.map(trimBlank).filter((col) => col.length);
-}
-
-function trimBlank(lines) {
-  let a = 0, b = lines.length;
-  while (a < b && lines[a].trim() === '') a++;
-  while (b > a && lines[b - 1].trim() === '') b--;
-  return lines.slice(a, b);
-}
-
-// Largest font size (px) for the lines in the box, over 1..MAX_COLUMNS columns.
-function bestLayout(lines, width, height) {
-  let best = null;
-  for (let n = 1; n <= MAX_COLUMNS; n++) {
-    const cols = splitColumns(lines, n);
-    if (n > 1 && cols.length < n) break;
-    const chars = cols.reduce((sum, col) => sum + Math.max(1, ...col.map((l) => l.length)), 0)
-      + COLUMN_GAP * (cols.length - 1);
-    const rows = Math.max(...cols.map((col) => col.length));
-    const size = Math.min(width / (chars * charRatio), height / (rows * LINE_HEIGHT));
-    if (!best || size > best.size) best = { size, cols };
-  }
-  return best;
-}
+// --- the song text (fit.js) -----------------------------------------------------
 
 function render() {
-  sheet.textContent = '';
-  if (!song) {
-    sheet.innerHTML = '<div class="empty">Choose a song: double-click it in the list, or press <b>n</b>.</div>';
-    return;
-  }
-  if (!song.text.trim()) {
-    sheet.innerHTML = '<div class="empty">No chords for this song yet.</div>';
-    return;
-  }
-  if (charRatio === null) charRatio = measureChar();
-  const style = getComputedStyle(sheet);
-  const width = sheet.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 2;
-  const height = sheet.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - 2;
-  if (width <= 0 || height <= 0) return;
-  // the original text, or with long comment lines wrapped (server heuristic): whichever fits bigger
-  let best = null;
-  for (const text of new Set([song.text, song.wrapped])) {
-    const layout = bestLayout(trimBlank(text.split('\n')), width, height);
-    if (!best || layout.size > best.size * 1.02) best = layout;
-  }
-  const size = Math.max(4, Math.floor(best.size * 10) / 10);
-  sheet.style.gap = (COLUMN_GAP * charRatio * size) + 'px';
-  for (const col of best.cols) {
-    const pre = document.createElement('pre');
-    pre.style.fontSize = size + 'px';
-    pre.textContent = col.join('\n');
-    sheet.appendChild(pre);
-  }
+  ChordsFit.render(sheet, song, 'Choose a song: double-click it in the list, or press <b>n</b>.');
 }
 
 new ResizeObserver(() => render()).observe(sheet);
 
 // --- playlist -----------------------------------------------------------------
 
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-}
+const esc = ChordsFit.esc;
 
 function renderList() {
   tbody.innerHTML = playlist.map((r, i) =>
@@ -206,7 +117,7 @@ async function loadSong(i) {
   song = await api('song/' + row.id);
   showTitle();
   render();
-  api('now', { method: 'PUT', body: { id: row.id, pos: i } }).catch(() => {});
+  pushNow();
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, album: song.album || '' });
   }
@@ -254,8 +165,18 @@ player.addEventListener('ended', async () => {
   }
 });
 
-player.addEventListener('play', () => { $('#b-pause').textContent = '⏸'; keepAwake(); });
-player.addEventListener('pause', () => { $('#b-pause').textContent = '▶'; });
+player.addEventListener('play', () => { $('#b-pause').textContent = '⏸'; keepAwake(); pushNow(); });
+player.addEventListener('pause', () => { $('#b-pause').textContent = '▶'; pushNow(); });
+player.addEventListener('seeked', pushNow);
+
+// tell the server what plays and where: it remembers the song for every device,
+// and displays (key d) follow it
+function pushNow() {
+  if (!song) return;
+  api('now', { method: 'PUT', body: { id: song.id, pos, t: player.currentTime || 0, playing: !player.paused } })
+    .catch(() => {});
+}
+setInterval(() => { if (!player.paused) pushNow(); }, 15000);   // displays correct their clock
 player.addEventListener('timeupdate', showTime);
 player.addEventListener('error', () => { if (player.src) toast('Audio error: the file cannot be played'); });
 
@@ -480,6 +401,30 @@ async function nextOutput() {
   toast('Audio: ' + (out.label || out.deviceId));
 }
 
+// --- display link (a TV or tablet shows the song, following this page) --------
+
+async function openDisplay() {
+  let r;
+  try {
+    r = await api('display', { method: 'POST' });
+  } catch (e) { toast('No display link: ' + e.message); return; }
+  const url = new URL('d/' + r.code + '/', location.href).href;
+  $('#display-url').textContent = url;
+  $('#display-url').href = url;
+  $('#display-code').textContent = r.code;
+  $('#display-expires').textContent = new Date(r.expires * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  $('#display-qr').src = 'api/qr.svg?text=' + encodeURIComponent(url);
+  $('#d-display').showModal();
+}
+
+$('#display-end').addEventListener('click', async () => {
+  try {
+    await api('display', { method: 'DELETE' });
+    toast('All display links ended');
+    $('#d-display').close();
+  } catch (e) { toast('Failed: ' + e.message); }
+});
+
 // --- keys and buttons -----------------------------------------------------------
 
 function toggleList() {
@@ -501,7 +446,7 @@ const keys = {
   '0': () => { player.currentTime = 0; },
   '+': () => seek(1), '-': () => seek(-1),
   ArrowRight: () => seek(5), ArrowLeft: () => seek(-5),
-  F11: toggleFull, '?': () => $('#d-help').showModal(),
+  F11: toggleFull, '?': () => $('#d-help').showModal(), d: openDisplay,
   g: () => toast('Guitar tone comes to the web app with the amp bridge (phase B)'),
   G: () => toast('Guitar tone comes to the web app with the amp bridge (phase B)'),
 };
@@ -519,7 +464,7 @@ document.addEventListener('keydown', (e) => {
 const buttons = {
   '#b-list': toggleList, '#b-prev': prev, '#b-pause': togglePause, '#b-next': next,
   '#b-shuffle': shuffle, '#b-filter': openFilter, '#b-tags': openTags, '#b-audio': openAudio,
-  '#b-full': toggleFull, '#b-help': () => $('#d-help').showModal(),
+  '#b-full': toggleFull, '#b-help': () => $('#d-help').showModal(), '#b-display': openDisplay,
 };
 for (const [sel, fn] of Object.entries(buttons)) {
   $(sel).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
