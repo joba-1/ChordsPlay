@@ -24,6 +24,8 @@ Most keys work as in the desktop app:
 | l | show or hide the playlist |
 | a / A | choose / switch the audio output (Chrome only) |
 | d | show the song on a TV or tablet (display link, see below) |
+| g | guitar tone: the amp's presets for this song (see below) |
+| G | learn: the amp's current preset from here on (in the first 3 s: from the start) |
 | F11 | full screen |
 | ? | key overview |
 
@@ -43,8 +45,8 @@ text larger. Chord lines, the lines under them and tab lines are never changed, 
 lines no longer than 90 % of the song's lines stay whole. Heuristic:
 `ChordsPlay/textfit.py`.
 
-**Not yet in the web app:** guitar tone (`g`/`G`; comes with the amp bridge, phase B),
-filter import/export to files.
+**Not yet in the web app:** editing tones (the knobs; use the desktop app, tones are
+shared through `web.migrate merge`), filter import/export to files.
 
 ## A TV or tablet as display
 
@@ -62,6 +64,29 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
   is what the displays show.
 * The display needs no login (a TV, a friend's TV): the code in the link is the key.
   Everything else under `/chordsplay/` still needs the Authelia login.
+
+## Guitar tone (Mustang Micro Plus)
+
+As in the desktop app, a song can switch the amp's preset at set times (cues): a quiet
+intro, a loud chorus. Cues, artist presets and tones are in the central database, so
+every device plays them.
+
+* `g` (or *Tone*, or the amp status at the top right): the song's cues, the amp's 100
+  presets (◀ = the current one) and the saved tones. *Try now* switches the amp without
+  storing anything; *Save from start*, *Save from m:ss* (where the song is) and *Save for
+  artist* store it. ▶ plays a cue from 2 s before, ✕ deletes it.
+* `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
+* The switching itself is done by the **amp bridge** on the computer the amp is paired
+  with. It needs no open port: like a display it follows your session from outside.
+  Set it up once on that computer (next to the amp agent of the desktop app):
+  1. `g` → *Bridge link…*: copy the line into `~/.config/chordsplay/bridge.env`.
+  2. `contrib/install-amp-bridge.sh` (from a checkout of this repo).
+  It starts the amp agent while the amp is connected as an audio device, like the
+  desktop app does. A new bridge link ends the previous one.
+* The top right shows what the bridge reports: `amp 19 80S Rock`, `amp ▶ <tone>`,
+  `amp asleep`, or `amp bridge offline` (nothing heard for 30 s).
+* The bridge switches only while a song plays. While the desktop app runs as well,
+  both can switch the amp; use one at a time.
 
 ## How it works
 
@@ -84,7 +109,14 @@ browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/
 * Following: the controller reports song, position and play/pause (`PUT api/now`, at
   every change and every 15 s while playing). The server keeps the latest state per user
   in memory (and the song in `web_state`) and pushes it as server-sent events to
-  `api/events` and `d/<code>/events`. Display codes are in the table `display_codes`
+  `api/events` and `d/<code>/events`.
+* Amp bridge (`web/bridge.py`, standard library plus `ChordsPlay/amp.py`): follows
+  `d/bridge/<token>/events` (song and position; `plan` when cues were edited; `cmd` for
+  *Try now*), fetches the song's cues (`d/bridge/<token>/song/<id>`), picks the cue with
+  the desktop app's own logic (`AmpCues`, 0.3 s early) and switches through the agent
+  (`AmpClient`). It reports the amp's state every 10 s or on a change
+  (`PUT d/bridge/<token>/amp`), which the controller pages get as `amp` events. The
+  token is stored only as a hash (table `bridge_tokens`, one per user). Display codes are in the table `display_codes`
   (10 characters from a 31-letter alphabet, ~49 bits; an unknown code costs a 1 s wait).
 * Audio comes from the NFS mount, not from media-find as the plan suggested: the scanner
   needs the files anyway (tags), and no media-find service account is needed. The unit
@@ -96,11 +128,12 @@ browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/
 |---|---|
 | Install / update | `contrib/install-web.sh` (copies the checkout to `~/.local/share/chordsplay-web/app`, venv, restarts the user unit `chordsplay-web.service`) |
 | First database | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db --central /opt/chordsplay-sync/chordsplay-central.db` |
-| Add another host's history | copy its `~/.chordsplay.py.db` over (Tk app closed), then `../venv/bin/python -m web.migrate merge <file>`; plays, tags and saved filters are added, nothing twice |
+| Add another host's history | copy its `~/.chordsplay.py.db` over (Tk app closed), then `../venv/bin/python -m web.migrate merge <file>`; plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins) |
 | Logs | `journalctl --user -u chordsplay-web` |
 | Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`, `CHORDSPLAY_SYNC_URL` + `CHORDSPLAY_SYNC_TOKEN` (push new chords to the old sync service, so the Tk apps get them) |
 | Apache | `/etc/apache2/public.d/locations/chordsplay.conf` (= `contrib/apache-chordsplay-web.conf`, with `flushpackets=on` for the event streams) and `<Location "/chordsplay/">` in `/etc/apache2/homeauth.conf` |
-| Displays without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs only the pairing code; the app serves nothing else there. |
+| Displays and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs a display code (read only) or the bridge token (follow the session, report the amp's state); the app serves nothing else there. |
+| Amp bridge (amp computer) | `contrib/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `contrib/match-preset-levels.sh` |
 
 ## Tests
 
@@ -112,8 +145,9 @@ python3 -m venv /tmp/wv && /tmp/wv/bin/pip install -r web/requirements.txt
 `tests/test_textfit.py` covers the comment wrapping, `tests/test_web.py` the API (filter,
 order, saved filters, song text, audio ranges, played, tags, current song, proxy login),
 the displays (code, state, event stream, unknown and ended codes, no way from `/d/` to the
-controller API, QR code, hub wake-up) and the migration (plays and tags merged once, newer
-central chords win).
+controller API, QR code, hub wake-up), the amp (cues, artist preset, learn, bridge token,
+the bridge playing cues, edits, *Try now* with slot and tone, nothing while paused) and the
+migration (plays, tags, cues, tones and levels merged once, newer central chords win).
 
 Manual check in a browser (headless Chromium with Playwright did this for 0.1): play,
 pause, next/previous, filter with live count and regex errors, tags by key, played count

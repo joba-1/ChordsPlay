@@ -32,6 +32,12 @@ AGENT=$HOME/.local/share/chordsplay/maneline
 PYTHON=$AGENT-venv/bin/python
 OUT=${1:-$HOME/.local/share/chordsplay/levels}
 
+if systemctl --user is-active --quiet chordsplay-amp-bridge.service; then
+    # it would start the agent again as soon as the amp's audio sink is there
+    echo "The web app's amp bridge is running: systemctl --user stop chordsplay-amp-bridge first" \
+         "(start it again afterwards)." >&2
+    exit 1
+fi
 if systemctl --user is-active --quiet chordsplay-amp-agent.service; then
     echo "ChordsPlay's amp agent is running: close ChordsPlay first." >&2
     exit 1

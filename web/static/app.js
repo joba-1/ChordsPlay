@@ -425,6 +425,183 @@ $('#display-end').addEventListener('click', async () => {
   } catch (e) { toast('Failed: ' + e.message); }
 });
 
+// --- guitar tone (key g / G): cues per song, played by the amp bridge ------------
+
+let amp = null;             // what the amp bridge reported last: {state, error, busy, warning, ...}
+let ampSeen = 0;            // when (ms): a bridge reports at least every 10 s
+let ampTones = [];
+let cueList = null;         // the song's cues: {cues, artist, artist_preset}
+const BRIDGE_GONE_MS = 30000;
+
+function fmtMs(ms) {
+  return fmt(ms / 1000) + (ms % 1000 >= 500 ? '.5' : '');
+}
+
+function ampOnline() { return amp && Date.now() - ampSeen < BRIDGE_GONE_MS; }
+
+// like the window title of the desktop app (ChordsPlay/amp.py describe())
+function ampText() {
+  if (!amp) return '';
+  if (!ampOnline()) return 'amp bridge offline';
+  const st = amp.state || {};
+  if (amp.busy) return `amp → ${amp.busy}…`;
+  if (amp.error && !Object.keys(st).length) return 'amp: ' + amp.error;
+  let text;
+  if (st.connected && st.audition) text = `amp ▶ ${st.audition.name || 'tone'}`;
+  else if (st.connected) text = st.preset ? `amp ${st.preset} ${st.name || ''}` : 'amp connected';
+  else if (st.asleep) text = 'amp asleep';
+  else text = 'amp ' + (st.phase || 'disconnected');
+  if (amp.warning || amp.error) text += ' – ' + (amp.warning || amp.error);
+  return text.trim();
+}
+
+function showAmp() {
+  $('#amp').textContent = ampText();
+  $('#amp').classList.toggle('warn', !!(amp && (amp.warning || !ampOnline())));
+  if ($('#d-amp').open) renderAmp();
+}
+setInterval(showAmp, 5000);     // notices a bridge that went away
+
+function followAmp() {
+  const events = new EventSource('api/events');
+  events.addEventListener('amp', (e) => {
+    try { amp = JSON.parse(e.data); } catch (err) { return; }
+    ampSeen = Date.now();
+    showAmp();
+  });
+}
+
+function presetNames() { return (amp?.state?.presets || []).map((p) => p.name || ''); }
+
+function chosen() {
+  const slot = Number($('#amp-presets').value), tone = Number($('#amp-tones').value);
+  if (slot) return { slot };
+  if (tone) return { tone_id: tone };
+  toast('Choose a preset or a tone first');
+  return null;
+}
+
+function renderAmp() {
+  const names = presetNames();
+  const st = amp?.state || {};
+  $('#amp-status').textContent = amp ? ampText() + (ampOnline() ? '' :
+    ' – switching needs the amp bridge on the computer the amp is paired with (Bridge link…)') :
+    'No amp bridge has reported yet: set one up with "Bridge link…". Cues can be edited without it.';
+  const cues = cueList?.cues || [];
+  $('#amp-cues').innerHTML = cues.length ? cues.map((c) => {
+    const what = c.tone_id ? `tone ${esc(c.tone || '(deleted)')}` : `${c.slot} ${esc(c.name || '')}`;
+    const now = !c.tone_id && names[c.slot - 1] && c.name && names[c.slot - 1].trim() !== c.name.trim()
+      ? ` <span class="err">slot is now "${esc(names[c.slot - 1])}": save it again</span>` : '';
+    return `<tr><td class="t">${fmtMs(c.start)}</td><td>${what}${now}</td>` +
+      `<td><button type="button" data-play="${c.start}" title="Play from 2 s before">▶</button>` +
+      `<button type="button" data-del="${c.start}" title="Delete this cue">✕</button></td></tr>`;
+  }).join('') : '<tr><td class="hint">No cues for this song yet.</td></tr>';
+  const base = cueList?.artist_preset;
+  $('#amp-artist').innerHTML = base
+    ? `Artist preset (${esc(cueList.artist)}): ${base.slot} ${esc(base.name || '')} ` +
+      '<button type="button" id="amp-artist-del" title="Delete the artist preset">✕</button>'
+    : `No artist preset for ${esc(cueList?.artist || '')}.`;
+  const presets = $('#amp-presets');
+  const keep = presets.value;
+  presets.innerHTML = Array.from({ length: 100 }, (_, i) =>
+    `<option value="${i + 1}">${i + 1} ${esc(names[i] || '')}${st.preset === i + 1 && !st.audition ? ' ◀' : ''}</option>`).join('');
+  presets.value = keep;
+  const tones = $('#amp-tones');
+  const keepTone = tones.value;
+  tones.innerHTML = ampTones.map((t) =>
+    `<option value="${t.id}">${esc(t.name)} (${t.base_slot} ${esc(t.base_name || '')}, ` +
+    `${t.level_db >= 0 ? '+' : ''}${t.level_db} dB)</option>`).join('');
+  tones.value = keepTone;
+  $('#amp-here').textContent = `Save from ${fmtMs(Math.floor((player.currentTime || 0) * 2) * 500)}`;
+}
+
+async function openAmp() {
+  if (!song) { toast('Start a song first'); return; }
+  try {
+    const [state, cues] = await Promise.all([api('amp'), api(`song/${song.id}/cues`)]);
+    if (state.amp) { amp = state.amp; ampSeen = state.amp.online ? Date.now() : 0; }
+    ampTones = state.tones;
+    cueList = cues;
+  } catch (e) { toast('Loading failed: ' + e.message); return; }
+  $('#amp-title').textContent = `Guitar tone: ${song.title} – ${song.artist}`;
+  $('#amp-presets').value = '';
+  $('#amp-tones').value = '';
+  $('#amp-bridge-box').hidden = true;
+  renderAmp();
+  $('#d-amp').showModal();
+}
+
+async function saveCue(start) {
+  const what = chosen();
+  if (!what) return;
+  try {
+    cueList = await api(`song/${song.id}/cues/${start}`, { method: 'PUT', body: what });
+    renderAmp();
+    toast(`Stored from ${fmtMs(start)}`);
+  } catch (e) { toast('Saving failed: ' + e.message); }
+}
+
+// one of the two lists: choosing in one clears the other
+$('#amp-presets').addEventListener('change', () => { $('#amp-tones').value = ''; });
+$('#amp-tones').addEventListener('change', () => { $('#amp-presets').value = ''; });
+$('#amp-presets').addEventListener('dblclick', () => $('#amp-try').click());
+$('#amp-tones').addEventListener('dblclick', () => $('#amp-try').click());
+
+$('#amp-try').addEventListener('click', async () => {
+  const what = chosen();
+  if (!what) return;
+  try {
+    const r = await api('amp/try', { method: 'POST', body: what });
+    if (!r.bridge) toast('No amp bridge is running: nothing switched');
+  } catch (e) { toast('Failed: ' + e.message); }
+});
+$('#amp-start').addEventListener('click', () => saveCue(0));
+$('#amp-here').addEventListener('click', () => saveCue(Math.floor((player.currentTime || 0) * 2) * 500));
+$('#amp-artist-save').addEventListener('click', async () => {
+  const slot = Number($('#amp-presets').value);
+  if (!slot) { toast('Choose a preset (tones are per song)'); return; }
+  try {
+    await api('artist-preset', { method: 'PUT', body: { artist: song.artist, slot } });
+    cueList = await api(`song/${song.id}/cues`);
+    renderAmp();
+    toast(`Preset ${slot} for every song of ${song.artist}`);
+  } catch (e) { toast('Saving failed: ' + e.message); }
+});
+
+$('#d-amp').addEventListener('click', async (e) => {
+  const play = e.target.dataset.play, del = e.target.dataset.del;
+  try {
+    if (play !== undefined) {
+      player.currentTime = Math.max(0, Number(play) / 1000 - 2);
+      player.play().catch(() => {});
+    } else if (del !== undefined) {
+      cueList = await api(`song/${song.id}/cues/${del}`, { method: 'DELETE' });
+      renderAmp();
+    } else if (e.target.id === 'amp-artist-del') {
+      await api('artist-preset', { method: 'DELETE', body: { artist: cueList.artist } });
+      cueList = await api(`song/${song.id}/cues`);
+      renderAmp();
+    }
+  } catch (err) { toast('Failed: ' + err.message); }
+});
+
+$('#amp-bridge').addEventListener('click', async () => {
+  if (!confirm('Make a new bridge link? A bridge with the previous link stops working.')) return;
+  try {
+    const r = await api('bridge', { method: 'POST' });
+    $('#amp-bridge-line').textContent = 'CHORDSPLAY_BRIDGE_URL=' + new URL(r.path, location.href).href;
+    $('#amp-bridge-box').hidden = false;
+  } catch (e) { toast('Failed: ' + e.message); }
+});
+
+async function learnTone() {
+  if (!song) { toast('Start a song first'); return; }
+  try {
+    const r = await api('amp/learn', { method: 'POST', body: { id: song.id, t: player.currentTime || 0 } });
+    toast(`Stored: ${r.slot} ${r.name || ''} from ${fmtMs(r.start)}`);
+  } catch (e) { toast(e.message, 6000); }
+}
+
 // --- keys and buttons -----------------------------------------------------------
 
 function toggleList() {
@@ -447,8 +624,7 @@ const keys = {
   '+': () => seek(1), '-': () => seek(-1),
   ArrowRight: () => seek(5), ArrowLeft: () => seek(-5),
   F11: toggleFull, '?': () => $('#d-help').showModal(), d: openDisplay,
-  g: () => toast('Guitar tone comes to the web app with the amp bridge (phase B)'),
-  G: () => toast('Guitar tone comes to the web app with the amp bridge (phase B)'),
+  g: openAmp, G: learnTone,
 };
 
 document.addEventListener('keydown', (e) => {
@@ -465,6 +641,7 @@ const buttons = {
   '#b-list': toggleList, '#b-prev': prev, '#b-pause': togglePause, '#b-next': next,
   '#b-shuffle': shuffle, '#b-filter': openFilter, '#b-tags': openTags, '#b-audio': openAudio,
   '#b-full': toggleFull, '#b-help': () => $('#d-help').showModal(), '#b-display': openDisplay,
+  '#b-tone': openAmp, '#amp': openAmp,
 };
 for (const [sel, fn] of Object.entries(buttons)) {
   $(sel).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
@@ -483,6 +660,7 @@ async function start() {
     return;
   }
   $('#version').textContent = `ChordsPlay web ${state.version} · user ${state.user}`;
+  followAmp();
   filterValues = state.filter;
   playlist = state.playlist;
   renderList();

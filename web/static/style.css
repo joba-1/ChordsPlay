@@ -154,3 +154,17 @@ body.display.idle, body.display.idle * { cursor: none; }
 .display-link { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .display-link code { font: 15px var(--sheet-font); word-break: break-all; }
 .display-link .code { font: 600 22px var(--sheet-font); letter-spacing: 1px; }
+
+/* amp (guitar tone) */
+.amp { flex: none; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 30vw; cursor: pointer; }
+.amp.warn { color: #c0392b; }
+.cues { border-collapse: collapse; margin: 4px 0; min-width: 60%; }
+.cues td { padding: 2px 8px 2px 0; }
+.cues td.t { font-variant-numeric: tabular-nums; }
+.cues button { padding: 0 6px; }
+.amp-pick { display: flex; gap: 12px; flex-wrap: wrap; }
+.amp-pick label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; font-size: 13px; color: var(--muted); }
+.amp-pick select { width: 100%; }
+.dlg-buttons.wrap { flex-wrap: wrap; }
+code.copy { user-select: all; word-break: break-all; }

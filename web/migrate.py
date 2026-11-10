@@ -8,9 +8,10 @@ init copies a Tk app database that knows the library on this host (song
 lists with paths valid here), then folds in the old sync service's database
 (chords fetched on other hosts; newer wins, tags are joined).
 
-merge adds play history, tags and saved filters from any other ChordsPlay
-database (e.g. the notebook's ~/.chordsplay.py.db), matched by (title, artist)
-and user name. Run it as often as you like: nothing is counted twice.
+merge adds play history, tags, saved filters and the amp's cues, artist
+presets, tones and level corrections from any other ChordsPlay database (e.g.
+the notebook's ~/.chordsplay.py.db), matched by (title, artist) and user name.
+Run it as often as you like: nothing is counted twice.
 
 Source databases are only read. The target is CHORDSPLAY_WEB_DB (see app.py)
 or --db.
@@ -117,8 +118,52 @@ def merge(db, other):
         cur = conn.execute("INSERT OR IGNORE INTO user_filters (user_id, name, json_dict) VALUES (?, ?, ?)",
                            (uid(r['user']), r['name'], r['json_dict']))
         stats['filters'] += cur.rowcount
+    stats.update(merge_amp(con, conn, song_id))
     conn.commit()
     con.close()
+    return stats
+
+
+def tables(con):
+    return {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+
+def merge_amp(con, conn, song_id):
+    '''Amp cues, artist presets, tones and level corrections (3.34/3.35). What the
+    target has already wins: a cue at the same time, an artist, a tone of that name.'''
+    stats = {'cues': 0, 'artist presets': 0, 'tones': 0, 'levels': 0}
+    have = tables(con)
+    tone_ids = {}       # source tone id -> target tone id
+    if 'tones' in have:
+        for r in con.execute("SELECT * FROM tones"):
+            cur = conn.execute("INSERT OR IGNORE INTO tones (name, base_slot, base_name, level_db, params) "
+                               "VALUES (?, ?, ?, ?, ?)",
+                               (r['name'], r['base_slot'], r['base_name'], r['level_db'], r['params']))
+            stats['tones'] += cur.rowcount
+            tone_ids[r['id']] = conn.execute("SELECT id FROM tones WHERE name = ?", (r['name'],)).fetchone()[0]
+    if 'song_presets' in have:
+        tone_column = 'tone_id' in {r[1] for r in con.execute("PRAGMA table_info(song_presets)")}
+        for r in con.execute("SELECT s.title, s.artist, p.start_ms, p.slot, p.slot_name{} "
+                             "FROM song_presets p JOIN songs s ON s.id = p.song_id".format(
+                                 ', p.tone_id' if tone_column else '')):
+            sid = song_id(r['title'], r['artist'])
+            if sid is None:
+                continue
+            cur = conn.execute("INSERT OR IGNORE INTO song_presets (song_id, start_ms, slot, slot_name, tone_id) "
+                               "VALUES (?, ?, ?, ?, ?)", (sid, r['start_ms'], r['slot'], r['slot_name'],
+                                                          tone_ids.get(r['tone_id']) if tone_column else None))
+            stats['cues'] += cur.rowcount
+    if 'artist_presets' in have:
+        for r in con.execute("SELECT * FROM artist_presets"):
+            cur = conn.execute("INSERT OR IGNORE INTO artist_presets (artist, slot, slot_name) VALUES (?, ?, ?)",
+                               (r['artist'], r['slot'], r['slot_name']))
+            stats['artist presets'] += cur.rowcount
+    if 'preset_levels' in have:
+        for r in con.execute("SELECT * FROM preset_levels"):
+            cur = conn.execute("INSERT OR IGNORE INTO preset_levels (slot, name, correction_db, method, measured_at) "
+                               "VALUES (?, ?, ?, ?, ?)",
+                               (r['slot'], r['name'], r['correction_db'], r['method'], r['measured_at']))
+            stats['levels'] += cur.rowcount
     return stats
 
 

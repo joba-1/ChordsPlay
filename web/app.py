@@ -4,7 +4,9 @@ as the player. Design: Trac page ChordsPlay, docs/spec-web.md.
 
 The server keeps the songs, chords, tags, filters and play history, serves the
 audio files and the page. The browser plays the audio (it is the device paired
-with the Mustang) and reports finished songs back.
+with the Mustang) and reports finished songs back. Displays (TV, tablet) and the
+amp bridge (web/bridge.py, switches the Mustang's presets) follow the browser
+over server-sent events.
 
 Reuses the Tk app's modules unchanged: ChordsPlay.db for all queries,
 ChordsPlay.scan for the library walk and the Ultimate Guitar fetch.
@@ -18,6 +20,7 @@ Config via env:
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
 '''
 
+import hashlib
 import json
 import logging
 import mimetypes
@@ -34,7 +37,7 @@ import ChordsPlay.db
 import ChordsPlay.scan
 from ChordsPlay.textfit import wrap_comments
 
-__version__ = '0.2'
+__version__ = '0.3'
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +104,11 @@ def get_db(user=None):
             CREATE TABLE IF NOT EXISTS display_codes (
                 code    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
-                expires real not null);""")
+                expires real not null);
+            CREATE TABLE IF NOT EXISTS bridge_tokens (
+                hash    text not null primary key,
+                user_id int not null references users(id) on delete cascade,
+                created real not null);""")
         db.conn.commit()
     return db
 
@@ -308,31 +315,38 @@ def now():
 # --- following the controller (displays) ---------------------------------------
 
 class Hub(object):
-    '''The latest controller state per user; waiters wake up on every change.'''
+    '''The latest state per user and channel; waiters wake up on every change.
+    Channels: 'now' (the controller), 'amp' (what the amp bridge reports), 'plan'
+    (cues edited: the bridge reloads), 'cmd' (a command for the bridge).'''
 
     def __init__(self):
         self.cond = threading.Condition()
-        self.states = {}
+        self.states = {}    # (user, channel) -> state
         self.rev = 0
         self.ended = {}     # user -> count of "end all display links"
 
-    def publish(self, user, state):
+    def publish(self, user, state, channel='now'):
         with self.cond:
             self.rev += 1
-            self.states[user] = dict(state, rev=self.rev)
+            self.states[(user, channel)] = dict(state, rev=self.rev)
             self.cond.notify_all()
 
-    def get(self, user):
+    def get(self, user, channel='now'):
         with self.cond:
-            return self.states.get(user)
+            return self.states.get((user, channel))
 
-    def wait(self, user, rev, timeout, ended=None):
-        '''The state once its rev differs from rev (or display links were ended),
-        or the unchanged one after timeout.'''
+    def _changed(self, user, revs):
+        return {channel: state for channel, state in
+                ((channel, self.states.get((user, channel))) for channel in revs)
+                if state is not None and state['rev'] != revs[channel]}
+
+    def wait(self, user, revs, timeout, ended=None):
+        '''{channel: state} of the channels whose rev differs from revs ({channel: rev}),
+        once there is one (or display links were ended); {} after timeout.'''
         with self.cond:
-            self.cond.wait_for(lambda: (self.states.get(user) or {}).get('rev') != rev
+            self.cond.wait_for(lambda: self._changed(user, revs)
                                or (ended is not None and self.ended.get(user, 0) != ended), timeout)
-            return self.states.get(user)
+            return self._changed(user, revs)
 
     def end_displays(self, user):
         with self.cond:
@@ -362,34 +376,41 @@ def current_state(db):
     return state
 
 
-def event_stream(user, state, expires=None):
-    '''Server-sent events: the state now and after every change. A display's
+def event_stream(user, first, expires=None):
+    '''Server-sent events: the states now ({channel: state}) and after every change.
+    'now' goes as a plain message, the other channels as named events. A display's
     stream (expires set) ends with its code; the browser's reconnect then fails.'''
     ended = hub.ended_count(user)
+    revs = {channel: (state or {}).get('rev') for channel, state in first.items()}
+    send = {channel: state for channel, state in first.items() if state is not None or channel == 'now'}
     yield 'retry: 3000\n\n'
     while True:
-        yield 'data: {}\n\n'.format(json.dumps(dict(state or {}, server_time=time.time())))
-        rev = (state or {}).get('rev')
+        for channel, state in send.items():
+            yield '{}data: {}\n\n'.format('' if channel == 'now' else 'event: {}\n'.format(channel),
+                                          json.dumps(dict(state or {}, server_time=time.time())))
         while True:
-            new = hub.wait(user, rev, KEEPALIVE_S, ended)
+            send = hub.wait(user, revs, KEEPALIVE_S, ended)
             if expires is not None and (time.time() > expires or hub.ended_count(user) != ended):
                 return
-            if new is not None and new.get('rev') != rev:
-                state = new
+            if send:
+                revs.update((channel, state['rev']) for channel, state in send.items())
                 break
             yield ': keepalive\n\n'
 
 
-def sse(db, expires=None):
+def sse(db, channels=('now',), expires=None):
     # the first state is read here, in the request's thread: the generator runs
     # later, and must not touch the database (its thread may differ)
-    return Response(event_stream(db.user, current_state(db), expires), mimetype='text/event-stream',
+    first = {channel: current_state(db) if channel == 'now' else hub.get(db.user, channel)
+             for channel in channels}
+    return Response(event_stream(db.user, first, expires), mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @app.route('/api/events')
 def events():
-    return sse(get_db())
+    '''The controller page: other controllers' state and the amp's.'''
+    return sse(get_db(), ('now', 'amp'))
 
 
 @app.route('/api/display', methods=['POST', 'DELETE'])
@@ -469,7 +490,7 @@ def display_state(code):
 @app.route('/d/<code>/events')
 def display_events(code):
     user, expires = display_user(code)
-    return sse(get_db(user), expires)
+    return sse(get_db(user), expires=expires)
 
 
 @app.route('/api/song/<int:song_id>/tags', methods=['GET', 'POST'])
@@ -487,6 +508,218 @@ def tags(song_id):
             db.delUserTag(song_id, tag_id)
     return jsonify(tags=[dict(id=tid, key=key, on=on == 'X', name=name)
                          for tid, key, on, name in db.getUserTags(song_id)])
+
+
+# --- amp: cues per song, played by the amp bridge (web/bridge.py) ----------------
+#
+# The bridge runs next to the amp agent (maneline's mmp_web.py) on the machine the
+# amp is paired with. It follows the user's 'now' state over an outbound event
+# stream, like a display, switches the amp through the agent and reports the amp's
+# state back. Its URL holds a token made on the logged-in page (POST api/bridge);
+# below /d/ it needs no login, and the token allows nothing but this.
+
+LIVE_SLOT = 100         # tones are auditioned on this slot (as in the Tk app)
+LEARN_START_MS = 3000   # key G earlier than this stores the song's start preset
+LEARN_REPLACE_MS = 2000
+BRIDGE_SEEN_S = 30      # a bridge reports at least this often
+
+
+def amp_state(user):
+    '''What the bridge reported last, and whether it is still there.'''
+    amp = hub.get(user, 'amp')
+    if amp is None:
+        return None
+    return dict(amp, online=time.time() - amp.get('at', 0) < BRIDGE_SEEN_S)
+
+
+def amp_names(user):
+    '''The amp's 100 preset names as far as the bridge reported them.'''
+    state = (hub.get(user, 'amp') or {}).get('state') or {}
+    return [p.get('name') or '' for p in state.get('presets') or []]
+
+
+def plan_changed(user, song_id=None):
+    '''Cues were edited: the bridge reloads (song_id None: whatever plays).'''
+    hub.publish(user, {'song': song_id, 'at': time.time()}, 'plan')
+
+
+def song_cues(db, song_id):
+    tones = {tone['id']: tone for tone in db.getTones()}
+    info = db.getPlayInfo(song_id)
+    artist = info[1] if info else None
+    base = db.getArtistPreset(artist) if artist is not None else None
+    return {'cues': [{'start': start, 'slot': slot, 'name': name, 'tone_id': tone_id,
+                      'tone': tones[tone_id]['name'] if tone_id in tones else None}
+                     for start, slot, name, tone_id in db.getSongPresets(song_id)],
+            'artist': artist, 'artist_preset': {'slot': base[0], 'name': base[1]} if base else None}
+
+
+@app.route('/api/amp')
+def amp():
+    '''The amp's state (from the bridge) and the saved tones.'''
+    db = get_db()
+    return jsonify(amp=amp_state(db.user), tones=db.getTones(), live_slot=LIVE_SLOT)
+
+
+@app.route('/api/song/<int:song_id>/cues')
+def cues(song_id):
+    db = get_db()
+    if db.getPlayInfo(song_id) is None:
+        abort(404)
+    return jsonify(song_cues(db, song_id))
+
+
+@app.route('/api/song/<int:song_id>/cues/<int:start>', methods=['PUT', 'DELETE'])
+def cue(song_id, start):
+    '''PUT {slot} or {tone_id}: from start (ms) on the song uses this preset or tone.'''
+    db = get_db()
+    if db.getPlayInfo(song_id) is None:
+        abort(404)
+    if request.method == 'DELETE':
+        db.delSongPreset(song_id, start)
+    else:
+        data = request.get_json(silent=True) or {}
+        replace = int(data.get('replace_within_ms') or 0)
+        if data.get('tone_id') is not None:
+            if db.getTone(data['tone_id']) is None:
+                abort(400)
+            db.setSongTone(song_id, start, data['tone_id'], LIVE_SLOT, replace)
+        elif type(data.get('slot')) is int and 1 <= data['slot'] <= 100:
+            names = amp_names(db.user)
+            name = names[data['slot'] - 1] if len(names) >= data['slot'] else data.get('name')
+            db.setSongPreset(song_id, start, data['slot'], name or None, replace)
+        else:
+            abort(400)
+    plan_changed(db.user, song_id)
+    return jsonify(song_cues(db, song_id))
+
+
+@app.route('/api/artist-preset', methods=['PUT', 'DELETE'])
+def artist_preset():
+    '''The preset of every song of an artist without a cue at its start.'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    artist = data.get('artist')
+    if not isinstance(artist, str):
+        abort(400)
+    if request.method == 'DELETE':
+        db.delArtistPreset(artist)
+    else:
+        if type(data.get('slot')) is not int or not 1 <= data['slot'] <= 100:
+            abort(400)
+        names = amp_names(db.user)
+        db.setArtistPreset(artist, data['slot'],
+                           names[data['slot'] - 1] if len(names) >= data['slot'] else data.get('name'))
+    plan_changed(db.user)
+    return jsonify(ok=True)
+
+
+@app.route('/api/amp/learn', methods=['POST'])
+def learn():
+    '''Key G: the amp's current preset as a cue of the song at t (seconds).'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    song_id = data.get('id')
+    if not isinstance(song_id, int) or db.getPlayInfo(song_id) is None:
+        abort(400)
+    amp = amp_state(db.user)
+    state = (amp or {}).get('state') or {}
+    if not amp or not amp['online']:
+        return jsonify(error='No amp bridge is running, so the amp\'s preset is not known. '
+                             'Press g to choose a preset instead.'), 409
+    if state.get('connected') and state.get('audition'):
+        return jsonify(error='A tone is playing, not a preset: press g and choose the tone.'), 409
+    if not state.get('connected') or not state.get('preset'):
+        return jsonify(error='The amp is not connected, so its current preset is not known. '
+                             'Press g to choose a preset instead.'), 409
+    pos = int(float(data.get('t') or 0) * 1000)
+    start = 0 if pos < LEARN_START_MS else pos - pos % 500
+    db.setSongPreset(song_id, start, state['preset'], state.get('name'), replace_within_ms=LEARN_REPLACE_MS)
+    plan_changed(db.user, song_id)
+    return jsonify(start=start, slot=state['preset'], name=state.get('name'))
+
+
+@app.route('/api/amp/try', methods=['POST'])
+def try_preset():
+    '''Switch the amp now, without storing anything: {slot} or {tone_id}.'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    if data.get('tone_id') is not None:
+        tone = db.getTone(data['tone_id'])
+        if tone is None:
+            abort(400)
+        command = {'tone': tone, 'level': db.getPresetLevel(tone['base_slot'])}
+    elif type(data.get('slot')) is int and 1 <= data['slot'] <= 100:
+        command = {'slot': data['slot']}
+    else:
+        abort(400)
+    hub.publish(db.user, dict(command, at=time.time()), 'cmd')
+    amp = amp_state(db.user)
+    return jsonify(ok=True, bridge=bool(amp and amp['online']))
+
+
+def token_hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@app.route('/api/bridge', methods=['POST'])
+def new_bridge_token():
+    '''A new token for this user's amp bridge; an older one stops working.'''
+    db = get_db()
+    uid = user_id(db)
+    token = secrets.token_urlsafe(24)
+    db.conn.execute("DELETE FROM bridge_tokens WHERE user_id = ?", (uid,))
+    db.conn.execute("INSERT INTO bridge_tokens (hash, user_id, created) VALUES (?, ?, ?)",
+                    (token_hash(token), uid, time.time()))
+    db.conn.commit()
+    return jsonify(token=token, path='d/bridge/{}/'.format(token))
+
+
+def bridge_user(token):
+    db = get_db(DEFAULT_USER)
+    row = db.conn.execute("SELECT u.name FROM bridge_tokens b JOIN users u ON u.id = b.user_id "
+                          "WHERE b.hash = ?", (token_hash(token),)).fetchone()
+    if row is None:
+        time.sleep(1)   # slows down guessing
+        abort(404)
+    return row[0]
+
+
+@app.route('/d/bridge/<token>/events')
+def bridge_events(token):
+    return sse(get_db(bridge_user(token)), ('now', 'plan', 'cmd'))
+
+
+@app.route('/d/bridge/<token>/song/<int:song_id>')
+def bridge_song(token, song_id):
+    '''What the bridge needs to play a song's cues: like the Tk app's database calls.'''
+    db = get_db(bridge_user(token))
+    info = db.getPlayInfo(song_id)
+    if info is None:
+        abort(404)
+    presets = db.getSongPresets(song_id)
+    tones = {tone_id: db.getTone(tone_id) for _, _, _, tone_id in presets if tone_id is not None}
+    levels = {tone['base_slot']: db.getPresetLevel(tone['base_slot']) for tone in tones.values() if tone}
+    return jsonify(id=song_id, title=info[0], artist=info[1], cues=presets,
+                   artist_preset=db.getArtistPreset(info[1]),
+                   tones={str(k): v for k, v in tones.items() if v},
+                   levels={str(k): v for k, v in levels.items() if v})
+
+
+@app.route('/d/bridge/<token>/amp', methods=['PUT'])
+def bridge_amp(token):
+    '''The amp's state as the bridge sees it; shown on the controller page.'''
+    user = bridge_user(token)
+    if request.content_length and request.content_length > 64 * 1024:
+        abort(413)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        abort(400)
+    report = {key: data.get(key) for key in ('state', 'error', 'busy', 'pending', 'warning', 'tone')}
+    # every report, also an unchanged one (at most every REPORT_S in the bridge): the
+    # pages see from it that the bridge is still there
+    hub.publish(user, dict(report, at=time.time()), 'amp')
+    return jsonify(ok=True)
 
 
 # --- library scan -------------------------------------------------------------

@@ -19,11 +19,13 @@
     <button id="b-filter" title="Filter the songs (f)">Filter</button>
     <button id="b-tags" title="Tag the song (t)">Tags</button>
     <button id="b-audio" title="Audio output (a)">Audio</button>
+    <button id="b-tone" title="Guitar tone: the amp's preset for this song (g; G learns the amp's current one)">Tone</button>
     <button id="b-display" title="Show the song on a TV or tablet (d)">Display</button>
     <button id="b-full" title="Full screen (F11)">⛶</button>
     <button id="b-help" title="Keys (?)">?</button>
   </div>
   <div id="title" class="title"></div>
+  <div id="amp" class="amp" title="The amp, as the amp bridge reports it (g)"></div>
   <div id="time" class="time"></div>
 </header>
 <main id="main">
@@ -102,6 +104,33 @@
   </form>
 </dialog>
 
+<dialog id="d-amp">
+  <form method="dialog">
+    <h2 id="amp-title">Guitar tone</h2>
+    <p id="amp-status" class="hint"></p>
+    <table id="amp-cues" class="cues"></table>
+    <p id="amp-artist" class="hint"></p>
+    <div class="amp-pick">
+      <label>Presets<select id="amp-presets" size="12"></select></label>
+      <label>Tones<select id="amp-tones" size="12"></select></label>
+    </div>
+    <div class="dlg-buttons wrap">
+      <button type="button" id="amp-try" title="Switch the amp now; nothing is stored">Try now</button>
+      <button type="button" id="amp-start">Save from start</button>
+      <button type="button" id="amp-here">Save from here</button>
+      <button type="button" id="amp-artist-save" title="For every song of this artist without its own start preset">Save for artist</button>
+      <span class="grow"></span>
+      <button type="button" id="amp-bridge" title="Link for the amp bridge on the computer the amp is paired with">Bridge link…</button>
+      <button value="close">Close</button>
+    </div>
+    <div id="amp-bridge-box" hidden>
+      <p class="hint">Put this line into <code>~/.config/chordsplay/bridge.env</code> on the computer the amp is
+        paired with, then run <code>contrib/install-amp-bridge.sh</code> there. It replaces the previous link.</p>
+      <p><code id="amp-bridge-line" class="copy"></code></p>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="d-help">
   <form method="dialog">
     <h2>Keys</h2>
@@ -116,6 +145,8 @@
       <tr><td>t</td><td>tags of the song</td></tr>
       <tr><td>l</td><td>show / hide the playlist</td></tr>
       <tr><td>d</td><td>show the song on a TV or tablet (display link)</td></tr>
+      <tr><td>g</td><td>guitar tone: the amp's presets for this song</td></tr>
+      <tr><td>G</td><td>learn: the amp's current preset from here on (from the start in the first 3 s)</td></tr>
       <tr><td>a / A</td><td>choose / switch the audio output (Chrome)</td></tr>
       <tr><td>F11</td><td>full screen</td></tr>
       <tr><td>Double-click</td><td>play a song from the list; click a heading to sort</td></tr>

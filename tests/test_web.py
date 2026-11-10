@@ -178,8 +178,210 @@ class Display(Api):
         hub.publish('jo', {'id': 1})
         rev = hub.get('jo')['rev']
         threading.Timer(0.05, hub.publish, ('jo', {'id': 2})).start()
-        self.assertEqual(hub.wait('jo', rev, 2)['id'], 2)
-        self.assertEqual(hub.wait('jo', hub.get('jo')['rev'], 0.05, hub.ended_count('jo'))['id'], 2)  # timeout
+        self.assertEqual(hub.wait('jo', {'now': rev}, 2)['now']['id'], 2)
+        self.assertEqual(hub.wait('jo', {'now': hub.get('jo')['rev']}, 0.05, hub.ended_count('jo')), {})  # timeout
+        # another channel wakes only its own waiters
+        threading.Timer(0.05, hub.publish, ('jo', {'preset': 3}, 'amp')).start()
+        changed = hub.wait('jo', {'now': hub.get('jo')['rev'], 'amp': None}, 2)
+        self.assertEqual(list(changed), ['amp'])
+
+    def test_display_gets_no_amp_events(self):
+        code = self.client.post('/api/display').get_json()['code']
+        self.app.hub.publish('jo', {'state': {'preset': 3}, 'at': 0}, 'amp')
+        response = self.client.get('/d/{}/events'.format(code))
+        chunks = iter(response.response)
+        next(chunks)
+        self.assertNotIn(b'event: amp', next(chunks))
+        response.close()
+
+
+class FakeAgentClient(object):
+    '''ChordsPlay.amp.AmpClient without an agent: records what it is asked to do.'''
+
+    def __init__(self, names=None, preset=1):
+        self.requests = []
+        self.state = {'connected': True, 'preset': preset, 'name': 'Driven Deluxe',
+                      'presets': [{'preset': i + 1, 'name': n} for i, n in enumerate(names or [])]}
+        self.base = {'audioGraph': {'nodes': [{'nodeId': 'amp', 'dspUnitParameters': {'volume': -5.0}}]}}
+
+    def request(self, slot):
+        self.requests.append(('slot', slot))
+
+    def audition(self, doc):
+        self.requests.append(('tone', doc['info']['displayName'], doc['audioGraph']['nodes'][0]
+                              ['dspUnitParameters']['volume']))
+
+    def preset(self, slot):
+        return self.base
+
+    def names(self):
+        return [p['name'] for p in self.state['presets']]
+
+    def snapshot(self):
+        return {'state': dict(self.state), 'error': None, 'pending': None, 'busy': None, 'tone': None}
+
+
+@unittest.skipIf(flask is None, 'flask not installed')
+class Amp(Api):
+    '''Cues per song in the central DB, and the amp bridge that plays them.'''
+
+    LOGIN = {'X-ChordsPlay-Proxy': '1', 'X-Remote-User': 'jo'}
+
+    def song_ids(self):
+        return [r['id'] for r in self.client.get('/api/state').get_json()['playlist']]
+
+    def bridge(self):
+        '''A bridge token, and an opener that sends the bridge's requests to the test client.'''
+        path = self.client.post('/api/bridge').get_json()['path']
+        client = self.client
+
+        class Reply(object):
+            def __init__(self, response):
+                self.response = response
+                if response.status_code >= 400:
+                    import urllib.error
+                    raise urllib.error.HTTPError(response.request.url, response.status_code, 'x', {}, None)
+
+            def read(self):
+                return self.response.data
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.response.close()
+
+        def opener(request, timeout=None):
+            if isinstance(request, str):
+                return Reply(client.get(request.replace('http://localhost', '')))
+            return Reply(client.open(request.full_url.replace('http://localhost', ''), method=request.get_method(),
+                                     data=request.data, headers=dict(request.header_items())))
+        return '/' + path, opener
+
+    def test_cues_put_delete_and_artist(self):
+        alpha = self.song_ids()[0]
+        r = self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'name': 'Twin Trem'}).get_json()
+        self.assertEqual(r['cues'], [{'start': 0, 'slot': 7, 'name': 'Twin Trem', 'tone_id': None, 'tone': None}])
+        self.assertEqual(self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 101}).status_code, 400)
+        self.client.put('/api/artist-preset', json={'artist': 'Band', 'slot': 19})
+        r = self.client.get('/api/song/{}/cues'.format(alpha)).get_json()
+        self.assertEqual(r['artist_preset']['slot'], 19)
+        r = self.client.delete('/api/song/{}/cues/0'.format(alpha)).get_json()
+        self.assertEqual(r['cues'], [])
+        # every edit tells the bridge to reload
+        self.assertIsNotNone(self.app.hub.get('jo', 'plan'))
+
+    def test_learn_needs_a_bridge_and_a_connected_amp(self):
+        alpha = self.song_ids()[0]
+        r = self.client.post('/api/amp/learn', json={'id': alpha, 't': 65.7})
+        self.assertEqual(r.status_code, 409)
+        bridge, _ = self.bridge()
+        self.client.put(bridge + 'amp', json={'state': {'connected': True, 'preset': 12, 'name': 'Hey Jimi'}})
+        r = self.client.post('/api/amp/learn', json={'id': alpha, 't': 65.7}).get_json()
+        self.assertEqual((r['start'], r['slot']), (65500, 12))     # rounded down to 0.5 s
+        r = self.client.post('/api/amp/learn', json={'id': alpha, 't': 2.0}).get_json()
+        self.assertEqual(r['start'], 0)                             # early: the start preset
+        cues = self.client.get('/api/song/{}/cues'.format(alpha)).get_json()['cues']
+        self.assertEqual([(c['start'], c['slot'], c['name']) for c in cues], [(0, 12, 'Hey Jimi'), (65500, 12, 'Hey Jimi')])
+        self.client.put(bridge + 'amp', json={'state': {'connected': True, 'preset': 100, 'audition': {'name': 'x'}}})
+        self.assertEqual(self.client.post('/api/amp/learn', json={'id': alpha, 't': 9}).status_code, 409)
+
+    def test_bridge_token(self):
+        bridge, _ = self.bridge()
+        self.assertEqual(self.client.get(bridge.replace('/d/bridge/', '/d/bridge/x') + 'song/1').status_code, 404)
+        # a new token ends the old one
+        newer, _ = self.bridge()
+        self.assertEqual(self.client.get(bridge + 'song/{}'.format(self.song_ids()[0])).status_code, 404)
+        self.assertEqual(self.client.get(newer + 'song/{}'.format(self.song_ids()[0])).status_code, 200)
+        # below /d/ without a login, but the token is needed
+        self.assertEqual(self.client.put(newer + 'amp', json={'state': {}}, headers={'X-ChordsPlay-Proxy': '1'}).status_code, 200)
+        self.assertEqual(self.client.post('/api/bridge', headers={'X-ChordsPlay-Proxy': '1'}).status_code, 401)
+
+    def test_bridge_plays_the_cues(self):
+        from web import bridge as bridgemod
+        alpha, beta = self.song_ids()
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
+        self.client.put('/api/song/{}/cues/30000'.format(alpha), json={'slot': 19})
+        self.client.put('/api/artist-preset', json={'artist': 'Band', 'slot': 41})
+        path, opener = self.bridge()
+        agent = FakeAgentClient(names=['n{}'.format(i) for i in range(1, 101)])
+        b = bridgemod.Bridge('http://localhost' + path, agent, lead_ms=300, opener=opener)
+        # the controller plays Alpha at 29.8 s: within the lead of the cue at 30 s
+        b.session.update('now', {'id': alpha, 't': 29.8, 'playing': True, 'at': 100.0, 'server_time': 100.0})
+        b.step()
+        self.assertEqual(agent.requests, [('slot', 19)])
+        # Beta has no cue: the artist preset
+        b.session.update('now', {'id': beta, 't': 1, 'playing': True, 'at': 1, 'server_time': 1})
+        b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 41))
+        # the bridge reported the amp's state
+        self.assertEqual(self.client.get('/api/amp').get_json()['amp']['state']['preset'], 1)
+        self.assertTrue(self.client.get('/api/amp').get_json()['amp']['online'])
+        # an edited cue is played after the plan event
+        self.client.put('/api/song/{}/cues/0'.format(beta), json={'slot': 5})
+        b.session.update('plan', self.app.hub.get('jo', 'plan'))
+        b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 5))
+        # try now: a slot, and a tone at its level
+        self.client.post('/api/amp/try', json={'slot': 33})
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd'))
+        b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 33))
+        db = self.app.get_db('jo')
+        tone = db.saveTone('Soft', 7, 'n7', -3.0, {})
+        self.client.post('/api/amp/try', json={'tone_id': tone})
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd'))
+        b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'Soft', -8.0))
+        # an old command (e.g. from before the bridge connected) is ignored
+        b.session.update('cmd', {'slot': 2, 'at': 0})
+        b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'Soft', -8.0))
+
+    def test_try_wins_over_a_cue_edit_in_the_same_tick(self):
+        from web import bridge as bridgemod
+        alpha = self.song_ids()[0]
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
+        path, opener = self.bridge()
+        agent = FakeAgentClient()
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        b.session.update('now', {'id': alpha, 't': 5, 'playing': True, 'at': 1, 'server_time': 1})
+        b.step()
+        # key G stores a cue (the bridge reloads and re-applies), then "try now" right after
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 8})
+        self.client.post('/api/amp/try', json={'slot': 33})
+        b.session.update('plan', self.app.hub.get('jo', 'plan'))
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd'))
+        b.step()
+        self.assertEqual(agent.requests, [('slot', 7), ('slot', 8), ('slot', 33)])
+
+    def test_paused_controller_switches_nothing(self):
+        from web import bridge as bridgemod
+        alpha = self.song_ids()[0]
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
+        path, opener = self.bridge()
+        agent = FakeAgentClient()
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        b.session.update('now', {'id': alpha, 't': 0, 'playing': False, 'at': 1, 'server_time': 1})
+        b.step()
+        self.assertEqual(agent.requests, [])
+
+    def test_event_stream_parsing(self):
+        from web import bridge as bridgemod
+        seen = []
+        bridgemod.read_events([b'retry: 3000\n', b'\n', b'data: {"id": 1}\n', b'\n', b': keepalive\n', b'\n',
+                               b'event: plan\n', b'data: {"rev": 4}\n', b'\n'], lambda c, d: seen.append((c, d)))
+        self.assertEqual(seen, [('now', {'id': 1}), ('plan', {'rev': 4})])
+
+    def test_position_runs_on_while_playing(self):
+        from web import bridge as bridgemod
+        session = bridgemod.Session()
+        session.update('now', {'id': 3, 't': 10.0, 'playing': True, 'at': 50.0, 'server_time': 51.5})
+        song_id, ms, playing = session.position()
+        self.assertEqual(song_id, 3)
+        self.assertGreaterEqual(ms, 11500)      # 1.5 s on its way from the controller
+        session.update('now', {'id': 3, 't': 10.0, 'playing': False, 'at': 50.0, 'server_time': 60})
+        self.assertEqual(session.position()[1], 10000)
 
 
 class Migrate(unittest.TestCase):
@@ -192,7 +394,12 @@ class Migrate(unittest.TestCase):
             target = os.path.join(tmp, 'web', 'web.db')
             make_db(local, plays=[('Alpha', '2026-01-01 10:00:00')]).close()
             db = make_db(other, plays=[('Alpha', '2026-01-01 10:00:00'), ('Beta', '2026-02-02 10:00:00')])
-            db.setUserTag(db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0], 1)
+            beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
+            db.setUserTag(beta, 1)
+            db.setSongPreset(beta, 0, 7, 'Twin Trem')
+            db.setSongTone(beta, 30000, db.saveTone('Solo', 2, 'Stadium Lead', 3.0, {}), 100)
+            db.setArtistPreset('Band', 19, '80S Rock')
+            db.importPresetLevels({'method': 'played', 'presets': [{'slot': 2, 'correction_db': -1.5}]})
             db.close()
             migrate.init(target, local, user='jo')
             db = ChordsPlay.db.Db(target, 'jo')
@@ -202,6 +409,13 @@ class Migrate(unittest.TestCase):
             self.assertEqual(first['tags'], 1)
             self.assertEqual(again['plays'], 0)
             self.assertEqual(db.conn.execute("SELECT count(*) FROM user_songs").fetchone()[0], 2)
+            self.assertEqual((first['cues'], first['tones'], first['artist presets'], first['levels']), (2, 1, 1, 1))
+            self.assertEqual((again['cues'], again['tones']), (0, 0))
+            beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
+            cues = db.getSongPresets(beta)
+            self.assertEqual(cues[0], (0, 7, 'Twin Trem', None))
+            self.assertEqual(db.getTone(cues[1][3])['name'], 'Solo')    # the tone id is the target's
+            self.assertEqual(db.getPresetLevel(2)[0], -1.5)
             db.close()
             with self.assertRaises(SystemExit):
                 migrate.init(target, local)
