@@ -18,8 +18,8 @@ Config via env:
   CHORDSPLAY_SCAN_HOURS  rescan the library and fetch new chords every N hours (0: never; default 24)
   CHORDSPLAY_SYNC_URL, CHORDSPLAY_SYNC_TOKEN   optional: keep the old sync service up to date
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
-  CHORDSPLAY_PDF_DIRS    folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf
-                         and the share's Musik/Gitarrenübungen); see web/pdfs.py
+  CHORDSPLAY_PDF_DIRS    more folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf);
+                         the library's folders are always scanned (tabs next to their songs); see web/pdfs.py
 '''
 
 import hashlib
@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 DB_PATH = os.environ.get('CHORDSPLAY_WEB_DB',
                          os.path.expanduser('~/.local/share/chordsplay-web/chordsplay.db'))
 PDF_DIRS = [os.path.expanduser(d) for d in os.environ.get(
-    'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf:/srv/music/Musik/Gitarrenübungen').split(':') if d]
+    'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf').split(':') if d]
 DEFAULT_USER = os.environ.get('CHORDSPLAY_USER', os.environ.get('USER', 'anonymous'))
 USER_MAP = dict(pair.split('=', 1) for pair in
                 os.environ.get('CHORDSPLAY_USER_MAP', '').split(',') if '=' in pair)

@@ -80,8 +80,8 @@ as large as one alone.
 * **Where a tab belongs: next to its song**, like a hand-saved song text, with the song
   file's name and `.pdf`: `13 Cruz.mp3` → `13 Cruz.pdf`. A part goes after ` - `:
   `13 Cruz - Solo.pdf`. The library folders are always scanned for these.
-* Other folders on host6 (`CHORDSPLAY_PDF_DIRS`, default `~/.local/share/chordsplay-web/pdf`
-  and the share's `Musik/Gitarrenübungen`): there a file named `Artist - Title.pdf` or
+* Other folders on host6 (`CHORDSPLAY_PDF_DIRS`, default `~/.local/share/chordsplay-web/pdf`):
+  there a file named `Artist - Title.pdf` or
   `Artist - Title - Part.pdf` (`Queen - Hammer To Fall - Solo 1.pdf`) links itself to its
   song; case, punctuation and a leading "The" don't matter. `V` (or *PDF*) lists all PDFs: choose the song for one that didn't link
   itself, or mark it as no song's tab. A choice by hand is never changed by a later
