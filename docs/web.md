@@ -24,6 +24,8 @@ Most keys work as in the desktop app:
 | l | show or hide the playlist |
 | a / A | choose / switch the audio output (Chrome only) |
 | d | show the song on a TV or tablet (display link, see below) |
+| v / V | the song's text or one of its PDF tabs (cycles) / all PDFs and their songs |
+| Page Down / Up | turn the PDF's pages |
 | g | guitar tone: the amp's presets for this song (see below) |
 | G | learn: the amp's current preset from here on (in the first 3 s: from the start) |
 | F11 | full screen |
@@ -64,6 +66,24 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
   is what the displays show.
 * The display needs no login (a TV, a friend's TV): the code in the link is the key.
   Everything else under `/chordsplay/` still needs the Authelia login.
+
+## PDF tabs
+
+A song can show a PDF (a tab printed from Ultimate Guitar, your own sheet) instead of
+its text, as large as the screen allows: the white margins and a browser's print
+header and footer are cropped, and two pages stand side by side when they are nearly
+as large as one alone.
+
+* `v` cycles through the song's text and its PDFs; the choice is kept per song.
+  *Page Down* / *Page Up* turn the pages; the title shows which pages you see.
+* A display (key `d`) shows the same PDF and pages as the controller.
+* The PDFs come from folders on host6 (`CHORDSPLAY_PDF_DIRS`, default
+  `~/.local/share/chordsplay-web/pdf` and the share's `Musik/Gitarrenübungen`). A file
+  named `Artist - Title.pdf` or `Artist - Title - Part.pdf` (`Queen - Hammer To Fall -
+  Solo 1.pdf`) links itself to its song; case, punctuation and a leading "The" don't
+  matter. `V` (or *PDF*) lists all PDFs: choose the song for one that didn't link
+  itself, or mark it as no song's tab. A choice by hand is never changed by a later
+  scan. The folders are scanned at start, every 24 hours and when `V` opens.
 
 ## Guitar tone (Mustang Micro Plus)
 

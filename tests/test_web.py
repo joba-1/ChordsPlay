@@ -384,6 +384,84 @@ class Amp(Api):
         self.assertEqual(session.position()[1], 10000)
 
 
+@unittest.skipIf(flask is None, 'flask not installed')
+class Pdfs(Api):
+    '''PDF tabs: found in folders, linked to songs by name or by hand, shown instead of the text.'''
+
+    def setUp(self):
+        super().setUp()
+        self.pdfdir = os.path.join(self.tmp.name, 'pdf')
+        os.makedirs(os.path.join(self.pdfdir, '.@__thumb'))
+        for name in ('Band - Alpha.pdf', 'Band - Alpha - Solo.pdf', 'Band - Beta Fingerpicking.pdf',
+                     'HellsBells1.pdf', '.@__thumb/Band - Alpha.pdf'):
+            with open(os.path.join(self.pdfdir, name), 'wb') as f:
+                f.write(b'%PDF-1.4 ' + name.encode())
+        self.app.PDF_DIRS = [self.pdfdir]
+        self.alpha, self.beta = [r['id'] for r in self.client.get('/api/state').get_json()['playlist']]
+
+    def pdfs(self):
+        return {p['name']: p for p in self.client.get('/api/pdfs').get_json()['pdfs']}
+
+    def test_names_link_songs(self):
+        found = self.pdfs()
+        self.assertEqual(sorted(found), ['Band - Alpha - Solo.pdf', 'Band - Alpha.pdf', 'Band - Beta Fingerpicking.pdf',
+                                         'HellsBells1.pdf'])        # hidden folders are skipped
+        self.assertEqual(found['Band - Alpha.pdf']['song']['id'], self.alpha)
+        self.assertEqual(found['Band - Alpha - Solo.pdf']['part'], 'Solo')
+        self.assertEqual((found['Band - Beta Fingerpicking.pdf']['song']['id'], found['Band - Beta Fingerpicking.pdf']['part']),
+                         (self.beta, 'Fingerpicking'))
+        self.assertIsNone(found['HellsBells1.pdf']['song'])
+        song = self.client.get('/api/song/{}'.format(self.alpha)).get_json()
+        self.assertEqual([p['part'] for p in song['pdfs']], [None, 'Solo'])
+        self.assertIsNone(song['view'])
+
+    def test_assign_by_hand_survives_a_scan(self):
+        bells = self.pdfs()['HellsBells1.pdf']['id']
+        self.assertEqual(self.client.put('/api/pdfs/{}'.format(bells), json={'song_id': self.beta, 'part': 'Riff'}).status_code, 200)
+        self.assertEqual(self.pdfs()['HellsBells1.pdf']['song']['id'], self.beta)
+        # "no song" also sticks, even for a name that matches
+        alpha_pdf = self.pdfs()['Band - Alpha.pdf']['id']
+        self.client.put('/api/pdfs/{}'.format(alpha_pdf), json={'song_id': None})
+        self.assertIsNone(self.pdfs()['Band - Alpha.pdf']['song'])
+        self.assertEqual(self.client.put('/api/pdfs/{}'.format(alpha_pdf), json={'song_id': 99999}).status_code, 400)
+
+    def test_view_file_and_display(self):
+        found = self.pdfs()
+        main, solo = found['Band - Alpha.pdf']['id'], found['Band - Alpha - Solo.pdf']['id']
+        self.assertEqual(self.client.put('/api/song/{}/view'.format(self.alpha), json={'pdf': main}).get_json()['view'], main)
+        self.assertEqual(self.client.get('/api/song/{}'.format(self.alpha)).get_json()['view'], main)
+        self.assertEqual(self.client.put('/api/song/{}/view'.format(self.beta), json={'pdf': main}).status_code, 400)
+        r = self.client.get('/api/pdf/{}'.format(main))
+        self.assertEqual((r.mimetype, r.data), ('application/pdf', b'%PDF-1.4 Band - Alpha.pdf'))
+        r.close()
+        # a display gets the PDFs of the song the controller is on, and the page
+        code = self.client.post('/api/display').get_json()['code']
+        self.client.put('/api/now', json={'id': self.alpha, 'pdf': solo, 'page': 3})
+        state = self.client.get('/d/{}/state'.format(code)).get_json()
+        self.assertEqual((state['state']['pdf'], state['state']['page']), (solo, 3))
+        self.assertEqual(len(state['song']['pdfs']), 2)
+        r = self.client.get('/d/{}/pdf/{}'.format(code, solo))
+        self.assertEqual(r.status_code, 200)
+        r.close()
+        beta_pdf = found['Band - Beta Fingerpicking.pdf']['id']
+        self.assertEqual(self.client.get('/d/{}/pdf/{}'.format(code, beta_pdf)).status_code, 404)
+        self.assertEqual(self.client.get('/d/static/vendor/pdfjs/pdf.min.js').status_code, 200)
+        self.assertEqual(self.client.get('/d/static/vendor/pdfjs/../app.js').status_code, 404)
+        # back to the text
+        self.client.put('/api/song/{}/view'.format(self.alpha), json={'pdf': None})
+        self.assertIsNone(self.client.get('/api/song/{}'.format(self.alpha)).get_json()['view'])
+
+    def test_removed_file_is_forgotten(self):
+        self.pdfs()
+        os.remove(os.path.join(self.pdfdir, 'Band - Alpha - Solo.pdf'))
+        self.assertNotIn('Band - Alpha - Solo.pdf', self.pdfs())
+        self.assertEqual(len(self.client.get('/api/song/{}'.format(self.alpha)).get_json()['pdfs']), 1)
+
+    def test_song_search(self):
+        r = self.client.get('/api/songs/search', query_string={'q': 'band'}).get_json()
+        self.assertEqual([x['title'] for x in r['songs']], ['Alpha', 'Beta'])     # Gamma has no chords
+
+
 class Migrate(unittest.TestCase):
 
     def test_init_and_merge_plays_once(self):

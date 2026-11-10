@@ -168,3 +168,13 @@ body.display.idle, body.display.idle * { cursor: none; }
 .amp-pick select { width: 100%; }
 .dlg-buttons.wrap { flex-wrap: wrap; }
 code.copy { user-select: all; word-break: break-all; }
+
+/* PDF tabs (pdfview.js): pages on white, also in dark mode */
+.pdf-pages { display: flex; justify-content: center; align-items: flex-start; }
+.pdf-pages canvas { background: #fff; box-shadow: 0 0 0 1px var(--line); }
+.pdf-list { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pdf-list td, .pdf-list th { padding: 3px 6px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.pdf-list .none { color: var(--muted); }
+.pdf-assign { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 0; }
+.pdf-assign input { min-width: 12em; }
+.views { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }

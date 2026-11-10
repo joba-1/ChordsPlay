@@ -18,6 +18,8 @@ Config via env:
   CHORDSPLAY_SCAN_HOURS  rescan the library and fetch new chords every N hours (0: never; default 24)
   CHORDSPLAY_SYNC_URL, CHORDSPLAY_SYNC_TOKEN   optional: keep the old sync service up to date
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
+  CHORDSPLAY_PDF_DIRS    folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf
+                         and the share's Musik/Gitarrenübungen); see web/pdfs.py
 '''
 
 import hashlib
@@ -36,13 +38,16 @@ from flask import Flask, Response, abort, jsonify, redirect, request, send_file,
 import ChordsPlay.db
 import ChordsPlay.scan
 from ChordsPlay.textfit import wrap_comments
+from web import pdfs as pdfmod
 
-__version__ = '0.3'
+__version__ = '0.4'
 
 log = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get('CHORDSPLAY_WEB_DB',
                          os.path.expanduser('~/.local/share/chordsplay-web/chordsplay.db'))
+PDF_DIRS = [os.path.expanduser(d) for d in os.environ.get(
+    'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf:/srv/music/Musik/Gitarrenübungen').split(':') if d]
 DEFAULT_USER = os.environ.get('CHORDSPLAY_USER', os.environ.get('USER', 'anonymous'))
 USER_MAP = dict(pair.split('=', 1) for pair in
                 os.environ.get('CHORDSPLAY_USER_MAP', '').split(',') if '=' in pair)
@@ -108,7 +113,7 @@ def get_db(user=None):
             CREATE TABLE IF NOT EXISTS bridge_tokens (
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
-                created real not null);""")
+                created real not null);""" + pdfmod.SCHEMA)
         db.conn.commit()
     return db
 
@@ -271,7 +276,8 @@ def song_data(db, song_id):
     tags = ''.join(key for _, key, on, _ in db.getUserTags(song_id) if on == 'X')
     return dict(id=song_id, title=title, artist=artist, album=album, capo=capo, url=url,
                 text=text, wrapped=wrap_comments(text), tags=tags,
-                played=db.numPlayed(song_id), last=db.lastPlayed(song_id))
+                played=db.numPlayed(song_id), last=db.lastPlayed(song_id),
+                pdfs=pdfmod.song_pdfs(db.conn, song_id), view=pdfmod.song_view(db.conn, song_id))
 
 
 @app.route('/api/audio/<int:song_id>')
@@ -304,7 +310,10 @@ def now():
         abort(400)
     db = get_db()
     state = {'id': data['id'], 'pos': data.get('pos'), 'at': time.time(),
-             't': float(data.get('t') or 0), 'playing': bool(data.get('playing'))}
+             't': float(data.get('t') or 0), 'playing': bool(data.get('playing')),
+             # what the song shows: its text (pdf None) or a PDF, and the PDF's first page shown
+             'pdf': data.get('pdf') if isinstance(data.get('pdf'), int) else None,
+             'page': int(data.get('page') or 1)}
     previous = hub.get(db.user)
     if previous is None or previous.get('id') != state['id']:
         set_state(db, 'now', {'id': state['id'], 'pos': state['pos'], 'at': state['at']})
@@ -471,9 +480,16 @@ def display_page(code):
 
 @app.route('/d/static/<name>')
 def display_static(name):
-    if name not in ('display.js', 'fit.js', 'style.css', 'icon.svg'):
+    if name not in ('display.js', 'fit.js', 'pdfview.js', 'style.css', 'icon.svg'):
         abort(404)
     return static_file(name)
+
+
+@app.route('/d/static/vendor/pdfjs/<name>')
+def display_pdfjs(name):
+    if name not in ('pdf.min.js', 'pdf.worker.min.js'):
+        abort(404)
+    return static_file('vendor/pdfjs/' + name)
 
 
 @app.route('/d/<code>/state')
@@ -483,8 +499,18 @@ def display_state(code):
     state = current_state(db)
     song = song_data(db, state['id']) if state else None
     if song:
-        song = {key: song[key] for key in ('id', 'title', 'artist', 'capo', 'text', 'wrapped')}
+        song = {key: song[key] for key in ('id', 'title', 'artist', 'capo', 'text', 'wrapped', 'pdfs')}
     return jsonify(state=state, song=song, server_time=time.time())
+
+
+@app.route('/d/<code>/pdf/<int:pdf_id>')
+def display_pdf(code, pdf_id):
+    '''A PDF of the song the controller is on (a display gets nothing else).'''
+    db = get_db(display_user(code)[0])
+    state = current_state(db)
+    if not state or pdf_id not in [p['id'] for p in pdfmod.song_pdfs(db.conn, state['id'])]:
+        abort(404)
+    return pdf_file(db, pdf_id)
 
 
 @app.route('/d/<code>/events')
@@ -722,6 +748,77 @@ def bridge_amp(token):
     return jsonify(ok=True)
 
 
+# --- PDF tabs (web/pdfs.py) ------------------------------------------------------
+
+def pdf_file(db, pdf_id):
+    row = db.conn.execute("SELECT path FROM pdf_files WHERE id = ?", (pdf_id,)).fetchone()
+    if row is None or not os.path.isfile(row[0]):
+        abort(404)
+    return send_file(row[0], mimetype='application/pdf', conditional=True, max_age=600)
+
+
+@app.route('/api/pdf/<int:pdf_id>')
+def pdf(pdf_id):
+    return pdf_file(get_db(), pdf_id)
+
+
+@app.route('/api/song/<int:song_id>/view', methods=['PUT'])
+def view(song_id):
+    '''What the song shows from now on: {pdf: id} or {pdf: null} for its text.'''
+    db = get_db()
+    pdf_id = (request.get_json(silent=True) or {}).get('pdf')
+    if pdf_id is None:
+        db.conn.execute("DELETE FROM song_view WHERE song_id = ?", (song_id,))
+    elif pdf_id in [p['id'] for p in pdfmod.song_pdfs(db.conn, song_id)]:
+        db.conn.execute("INSERT OR REPLACE INTO song_view (song_id, pdf_id) VALUES (?, ?)", (song_id, pdf_id))
+    else:
+        abort(400)
+    db.conn.commit()
+    return jsonify(view=pdfmod.song_view(db.conn, song_id))
+
+
+@app.route('/api/pdfs')
+def pdf_list():
+    '''All PDFs found (scanned now), with the song each one belongs to.'''
+    db = get_db()
+    pdfmod.scan(db.conn, PDF_DIRS)
+    rows = db.conn.execute("""SELECT f.id, f.path, p.song_id, p.part, coalesce(p.manual, 0), s.title, s.artist
+                              FROM pdf_files f LEFT JOIN song_pdfs p ON p.pdf_id = f.id
+                              LEFT JOIN songs s ON s.id = p.song_id ORDER BY f.path""").fetchall()
+    return jsonify(folders=PDF_DIRS, pdfs=[
+        {'id': pid, 'name': os.path.basename(path), 'folder': os.path.dirname(path), 'part': part,
+         'manual': bool(manual), 'song': {'id': sid, 'title': title, 'artist': artist} if sid else None}
+        for pid, path, sid, part, manual, title, artist in rows])
+
+
+@app.route('/api/pdfs/<int:pdf_id>', methods=['PUT'])
+def assign_pdf(pdf_id):
+    '''Assign by hand: {song_id, part} links the PDF to a song, {song_id: null} to none.
+    A later scan leaves it so.'''
+    db = get_db()
+    if db.conn.execute("SELECT 1 FROM pdf_files WHERE id = ?", (pdf_id,)).fetchone() is None:
+        abort(404)
+    data = request.get_json(silent=True) or {}
+    song_id = data.get('song_id')
+    if song_id is not None and (not isinstance(song_id, int) or db.getPlayInfo(song_id) is None):
+        abort(400)
+    part = (data.get('part') or '').strip() or None
+    db.conn.execute("INSERT OR REPLACE INTO song_pdfs (pdf_id, song_id, part, manual) VALUES (?, ?, ?, 1)",
+                    (pdf_id, song_id, part))
+    db.conn.execute("DELETE FROM song_view WHERE pdf_id = ? AND song_id IS NOT ?", (pdf_id, song_id))
+    db.conn.commit()
+    return jsonify(ok=True)
+
+
+@app.route('/api/songs/search')
+def song_search():
+    '''Songs whose title or artist contains q (for assigning a PDF).'''
+    q = '%{}%'.format(request.args.get('q', '').strip())
+    rows = get_db().conn.execute("""SELECT id, title, artist FROM songs WHERE (title LIKE ? OR artist LIKE ?)
+                                    AND lyrics_chords IS NOT NULL ORDER BY artist, title LIMIT 30""", (q, q))
+    return jsonify(songs=[{'id': i, 'title': t, 'artist': a} for i, t, a in rows])
+
+
 # --- library scan -------------------------------------------------------------
 
 def scan_loop(hours, sync_url=None, sync_token=None):
@@ -730,7 +827,20 @@ def scan_loop(hours, sync_url=None, sync_token=None):
         scanner = ChordsPlay.scan.Scan(DB_PATH, DEFAULT_USER, sync_url=sync_url, sync_token=sync_token)
         scanner.start()
         scanner.join()
+        scan_pdfs()
         time.sleep(hours * 3600)
+
+
+def scan_pdfs():
+    db = ChordsPlay.db.Db(DB_PATH, DEFAULT_USER)
+    try:
+        db.conn.executescript(pdfmod.SCHEMA)
+        found, linked = pdfmod.scan(db.conn, PDF_DIRS)
+        log.info('PDF tabs: %d found in %s, %d newly linked', found, ', '.join(PDF_DIRS), linked)
+    except OSError:
+        log.warning('PDF scan failed', exc_info=True)
+    finally:
+        db.close()
 
 
 def start_scanner():
@@ -748,6 +858,7 @@ def main():
         log.error('%s missing: create it with "python -m web.migrate init ~/.chordsplay.py.db"', DB_PATH)
         return 1
     ChordsPlay.db.Db(DB_PATH, DEFAULT_USER).close()  # migrate the schema before serving
+    scan_pdfs()
     start_scanner()
     from waitress import serve
     host = os.environ.get('CHORDSPLAY_HOST', '127.0.0.1')

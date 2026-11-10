@@ -40,11 +40,32 @@ function toast(text, ms = 2500) {
 
 // --- the song text (fit.js) -----------------------------------------------------
 
+let pdfPage = 1;            // first PDF page shown
+let pdfShown = null;        // {pages, first, count} of the PDF on screen
+
 function render() {
+  if (song?.view) {
+    const view = song.view;
+    PdfView.render(sheet, 'api/pdf/' + view, pdfPage).then((shown) => {
+      if (!shown || song?.view !== view) return;
+      pdfShown = shown;
+      pdfPage = shown.first;
+      showTitle();
+    }).catch((e) => {
+      toast('Cannot show the PDF: ' + e.message);
+      ChordsFit.render(sheet, song, '');
+    });
+    return;
+  }
+  pdfShown = null;
   ChordsFit.render(sheet, song, 'Choose a song: double-click it in the list, or press <b>n</b>.');
 }
 
-new ResizeObserver(() => render()).observe(sheet);
+let resizeTimer = null;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, song?.view ? 150 : 0);   // a PDF page takes longer to draw
+}).observe(sheet);
 
 // --- playlist -----------------------------------------------------------------
 
@@ -115,6 +136,7 @@ async function loadSong(i) {
   markCurrent();
   player.src = 'api/audio/' + row.id;
   song = await api('song/' + row.id);
+  pdfPage = 1;
   showTitle();
   render();
   pushNow();
@@ -173,7 +195,8 @@ player.addEventListener('seeked', pushNow);
 // and displays (key d) follow it
 function pushNow() {
   if (!song) return;
-  api('now', { method: 'PUT', body: { id: song.id, pos, t: player.currentTime || 0, playing: !player.paused } })
+  api('now', { method: 'PUT', body: { id: song.id, pos, t: player.currentTime || 0, playing: !player.paused,
+                                     pdf: song.view || null, page: pdfPage } })
     .catch(() => {});
 }
 setInterval(() => { if (!player.paused) pushNow(); }, 15000);   // displays correct their clock
@@ -196,6 +219,12 @@ function showTitle() {
   if (song.capo) meta.push('capo ' + song.capo);
   if (song.tags) meta.push('tags ' + song.tags);
   meta.push(`${song.played}× played`);
+  if (song.view && pdfShown) {
+    const last = pdfShown.first + pdfShown.count - 1;
+    meta.push(`PDF page ${pdfShown.first}${last > pdfShown.first ? '–' + last : ''} of ${pdfShown.pages}`);
+  } else if (song.pdfs?.length) {
+    meta.push(`${song.pdfs.length} PDF – v`);
+  }
   $('#title').innerHTML = `${pos + 1}: ${esc(song.title)} – ${esc(song.artist)}<span class="meta">${esc(meta.join(' · '))}</span>`;
   document.title = `${song.title} – ChordsPlay`;
 }
@@ -616,6 +645,103 @@ async function learnTone() {
   } catch (e) { toast(e.message, 6000); }
 }
 
+// --- PDF tabs (key v / V) -----------------------------------------------------------
+
+// a PDF's name for the user; the folder too when the song has two files of that name
+function pdfLabel(p) {
+  const name = p.part || p.name.replace(/\.pdf$/i, '');
+  const twin = song?.pdfs?.some((o) => o.id !== p.id && (o.part || o.name) === (p.part || p.name));
+  return twin ? `${name} (${p.folder})` : name;
+}
+
+async function setView(pdfId) {
+  try {
+    song.view = (await api(`song/${song.id}/view`, { method: 'PUT', body: { pdf: pdfId } })).view;
+  } catch (e) { toast('Switching failed: ' + e.message); return; }
+  pdfPage = 1;
+  render();
+  showTitle();
+  pushNow();
+}
+
+// v: text -> first PDF -> next PDF ... -> text
+function cycleView() {
+  if (!song) { toast('Start a song first'); return; }
+  if (!song.pdfs?.length) { toast('This song has no PDF – V lists all PDFs'); return; }
+  const order = [null, ...song.pdfs.map((p) => p.id)];
+  const next = order[(order.indexOf(song.view ?? null) + 1) % order.length];
+  setView(next);
+  toast(next ? 'PDF: ' + pdfLabel(song.pdfs.find((p) => p.id === next)) : 'Song text');
+}
+
+function turn(step) {
+  if (!song?.view || !pdfShown) return;
+  const first = step > 0 ? pdfShown.first + pdfShown.count : pdfShown.first - pdfShown.count;
+  if (first > pdfShown.pages || pdfShown.first === 1 && step < 0) return;
+  pdfPage = Math.max(1, first);
+  render();
+  pushNow();
+}
+
+let pdfAll = [];
+
+async function openPdfs() {
+  let r;
+  try { r = await api('pdfs'); } catch (e) { toast('Loading failed: ' + e.message); return; }
+  pdfAll = r.pdfs;
+  $('#pdf-folders').textContent = r.folders.join(', ');
+  if (song) {   // the song's PDFs may have changed by the scan
+    try { Object.assign(song, await api('song/' + song.id)); } catch (e) { /* keep */ }
+  }
+  renderPdfs();
+  if (!$('#d-pdf').open) $('#d-pdf').showModal();
+}
+
+function renderPdfs() {
+  $('#pdf-title').textContent = song ? `PDF tabs: ${song.title} – ${song.artist}` : 'PDF tabs';
+  $('#pdf-views').innerHTML = song ? [`<label><input type="radio" name="view" value="" ${song.view ? '' : 'checked'}> Song text</label>`,
+    ...(song.pdfs || []).map((p) => `<label><input type="radio" name="view" value="${p.id}" ${song.view === p.id ? 'checked' : ''}> ` +
+      `PDF: ${esc(pdfLabel(p))}</label>`)].join('') : '';
+  $('#pdf-list').innerHTML = pdfAll.map((p) => `<tr data-id="${p.id}"><td>${esc(p.name)}</td>` +
+    `<td>${p.song ? esc(`${p.song.artist} – ${p.song.title}`) + (p.part ? ` <span class="none">(${esc(p.part)})</span>` : '')
+                 : `<span class="none">${p.manual ? 'no song' : 'not matched'}</span>`}</td>` +
+    `<td><button type="button" data-assign="${p.id}">Choose song…</button></td></tr>`).join('') ||
+    '<tr><td colspan="3" class="none">No PDFs found.</td></tr>';
+}
+
+$('#pdf-views').addEventListener('change', (e) => setView(e.target.value ? Number(e.target.value) : null));
+
+$('#pdf-list').addEventListener('click', async (e) => {
+  const id = Number(e.target.dataset.assign || e.target.dataset.save || e.target.dataset.nosong);
+  if (!id) return;
+  const pdfRow = pdfAll.find((p) => p.id === id);
+  if (e.target.dataset.assign) {
+    $('#pdf-list').querySelector('.pdf-assign')?.closest('tr').remove();
+    e.target.closest('tr').insertAdjacentHTML('afterend', `<tr><td colspan="3"><div class="pdf-assign">
+      <input id="pdf-q" placeholder="Search title or artist" value="${esc(pdfRow.song?.title || pdfRow.name.split(' - ')[1] || '')}">
+      <select id="pdf-song"></select>
+      <input id="pdf-part" placeholder="Part (e.g. Solo)" value="${esc(pdfRow.part || '')}">
+      <button type="button" data-save="${id}">Save</button>
+      <button type="button" data-nosong="${id}" title="Not a tab of any song">No song</button></div></td></tr>`);
+    const search = async () => {
+      const r = await api('songs/search?q=' + encodeURIComponent($('#pdf-q').value));
+      $('#pdf-song').innerHTML = r.songs.map((s) => `<option value="${s.id}">${esc(s.artist)} – ${esc(s.title)}</option>`).join('');
+      if (pdfRow.song) $('#pdf-song').value = pdfRow.song.id;
+    };
+    $('#pdf-q').addEventListener('input', () => { clearTimeout(search.timer); search.timer = setTimeout(search, 250); });
+    search();
+    $('#pdf-q').focus();
+    return;
+  }
+  const songId = e.target.dataset.save ? Number($('#pdf-song').value) || null : null;
+  if (e.target.dataset.save && !songId) { toast('Choose a song first'); return; }
+  try {
+    await api('pdfs/' + id, { method: 'PUT', body: { song_id: songId, part: e.target.dataset.save ? $('#pdf-part').value : '' } });
+    await openPdfs();
+    showTitle();
+  } catch (err) { toast('Saving failed: ' + err.message); }
+});
+
 // --- keys and buttons -----------------------------------------------------------
 
 function toggleList() {
@@ -639,6 +765,7 @@ const keys = {
   ArrowRight: () => seek(5), ArrowLeft: () => seek(-5),
   F11: toggleFull, '?': () => $('#d-help').showModal(), d: openDisplay,
   g: openAmp, G: learnTone,
+  v: cycleView, V: openPdfs, PageDown: () => turn(1), PageUp: () => turn(-1),
 };
 
 document.addEventListener('keydown', (e) => {
@@ -655,7 +782,7 @@ const buttons = {
   '#b-list': toggleList, '#b-prev': prev, '#b-pause': togglePause, '#b-next': next,
   '#b-shuffle': shuffle, '#b-filter': openFilter, '#b-tags': openTags, '#b-audio': openAudio,
   '#b-full': toggleFull, '#b-help': () => $('#d-help').showModal(), '#b-display': openDisplay,
-  '#b-tone': openAmp, '#amp': openAmp,
+  '#b-tone': openAmp, '#amp': openAmp, '#b-pdf': openPdfs,
 };
 for (const [sel, fn] of Object.entries(buttons)) {
   $(sel).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
