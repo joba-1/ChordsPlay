@@ -247,6 +247,7 @@ inhibitor). The inhibitor ends with ChordsPlay, even after a crash.
 | `-f` / `--fix` | Run one-off database fix-ups and exit |
 | `--sync-url URL` / `--sync-token T` | Central chord-sync service (prefer the config file) |
 | `--sync-seed` | Push all local chord data to the sync service once, then exit |
+| `--import-levels FILE` | Import a level survey of the amp's presets (maneline `mmp_level.py survey`), then exit; only signal-method surveys are used for tones |
 
 ---
 

@@ -148,6 +148,8 @@ the first tone after start-up comes a moment later.
 * Measuring with the signal method needs an adapter cable (3.5 mm plug to 6.35 mm
   socket) from the computer's headphone output to the amp's plug. See maneline's
   `docs/MUSTANG_MICRO_PLUS_LEVELS.md`.
+* Import a survey with `chordsplay.py --import-levels <backup>/levels-signal.json`.
+  A noise survey is stored, with a warning, but not used.
 
 **Verified 2026-11-10 on the amp:**
 * Tones built by ChordsPlay from 80S Rock at +3/+6/−3/−6 dB measured +2.9/+5.8/−3.0/−5.8

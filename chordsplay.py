@@ -317,6 +317,8 @@ def main(argv=None):
         parser.add_option("--sync-url", dest="sync_url", help="central chord-sync service base URL", metavar="URL")
         parser.add_option("--sync-token", dest="sync_token", help="bearer token for the sync service")
         parser.add_option("--sync-seed", dest="sync_seed", action="store_true", help="push all local chord data to central once, then exit")
+        parser.add_option("--import-levels", dest="import_levels", metavar="FILE",
+                          help="import a level survey of the amp's presets (maneline mmp_level.py survey), then exit")
 
         # set defaults
         parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
@@ -378,6 +380,22 @@ def main(argv=None):
         user = opts.user
         db = ChordsPlay.db.Db(connector, user)
 
+        if opts.import_levels:
+            # measured level corrections per amp slot, for tones built on those presets
+            import json
+            try:
+                with open(opts.import_levels, encoding='utf-8') as f:
+                    report = json.load(f)
+                count = db.importPresetLevels(report)
+            except (OSError, ValueError, KeyError) as e:
+                log.error("cannot import levels from {}: {}".format(opts.import_levels, e))
+                return 2
+            log.info("imported level corrections for {} presets ({} method)".format(count, report['method']))
+            if report['method'] != 'signal':
+                log.warning("these were measured with the {} method: stored, but not used for "
+                            "tones - only signal-method corrections match presets as played "
+                            "(see docs/spec-amp.md, Tones)".format(report['method']))
+            return 0
         if opts.sync_seed:
             # one-time: publish all local chord data to central, then exit
             if not opts.sync_url:
