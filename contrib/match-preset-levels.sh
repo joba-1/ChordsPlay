@@ -14,10 +14,11 @@
 #       every preset when prompted (two takes of 4 s each, averaged; a reference
 #       preset shows your drift).
 #
-# Stop any time with Ctrl+C and run the script again later: it goes on with the
-# same backup where it stopped. It first measures the last 2 presets of last time
-# again (OVERLAP=1 for one) and takes the difference in your playing off the new
-# levels. The corrections are imported once every preset is measured.
+# Enter pauses after the current preset (the amp stays connected); Enter again goes
+# on, with the practice takes first. Ctrl+C stops; run the script again later and it
+# goes on with the same backup where it stopped. After a pause or a stop it first
+# measures the last 2 presets again (OVERLAP=1 for one) and takes the difference in
+# your playing off the new levels. The corrections are imported once every preset is measured.
 # FRESH=1 starts over with a new backup.
 #
 # Usage: contrib/match-preset-levels.sh [output dir]

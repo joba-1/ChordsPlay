@@ -181,8 +181,9 @@ less reverb" for a solo.
     preset with a test tone (about 5 s each).
   * **Without a cable:** `PLAYED=1 contrib/match-preset-levels.sh`. You play the same
     short riff for every preset when prompted (4 s each, about ±1 dB).
-  * **Stop any time** with Ctrl+C and run the same command again later: it goes on where
-    it stopped. It first has you play the last 2 presets of last time again (`OVERLAP=1`
+  * **Pause any time** with Enter (after the current preset); Enter again goes on, with
+    the practice takes first. **Stop** with Ctrl+C and run the same command again later:
+    it goes on where it stopped. After a pause or a stop it first has you play the last 2 presets of last time again (`OVERLAP=1`
     for one) and takes the difference in your playing off the new levels. `FRESH=1`
     starts over.
   * Either way, the script imports the corrections once every preset is measured.

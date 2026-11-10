@@ -156,7 +156,8 @@ the first tone after start-up comes a moment later.
   of 100 ms frames is measured, so pauses don't count. It is about ±1 dB from take to
   take. The noise floor is measured once with muted strings; a first take less than
   15 dB above it aborts the run.
-* **In sessions:** every measured preset is saved at once in
+* **In sessions:** Enter pauses after the current preset (amp connected); Enter again
+  goes on with the practice takes and starts a new session. Every measured preset is saved at once in
   `<backup>/survey-<method>.json`, so Ctrl+C loses at most the preset being played. The
   script remembers the unfinished backup in `~/.local/share/chordsplay/levels/current-<method>`
   and goes on with it (`FRESH=1` starts over). A new session first measures the last
