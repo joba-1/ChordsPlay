@@ -503,21 +503,28 @@ function fmtMs(ms) {
 
 function ampOnline() { return amp && Date.now() - ampSeen < BRIDGE_GONE_MS; }
 
-// like the window title of the desktop app (ChordsPlay/amp.py describe())
+// the amp's errors in plain words (the bridge reports ChordsPlay/amp.py's texts)
+function plainAmpError(e) {
+  if (!e) return '';
+  if (/agent not running|agent unreachable/.test(e)) return 'Mustang not connected: switch it on and connect it by Bluetooth';
+  return e;
+}
+
+// like the window title of the desktop app (ChordsPlay/amp.py describe()), in plain words
 function ampText() {
   if (!amp) return '';
-  if (!ampOnline()) return 'amp bridge offline';
+  if (!ampOnline()) return 'amp control off';
   const st = amp.state || {};
-  if (amp.busy) return `amp → ${amp.busy}…`;
-  if (amp.error && !Object.keys(st).length) return 'amp: ' + amp.error;
+  if (amp.busy) return `Mustang → ${amp.busy}…`;
+  if (amp.error && !Object.keys(st).length) return plainAmpError(amp.error);
   let text;
-  if (st.connected && st.audition) text = `amp ▶ ${st.audition.name || 'tone'}`;
-  else if (st.connected) text = st.preset ? `amp ${st.preset} ${st.name || ''}` : 'amp connected';
+  if (st.connected && st.audition) text = `Mustang ▶ ${st.audition.name || 'tone'}`;
+  else if (st.connected) text = st.preset ? `Mustang ${st.preset} ${st.name || ''}` : 'Mustang connected';
   // the agent drops the Bluetooth control link after 5 min without a switch (battery);
   // sound is a separate connection, and the next switch wakes the link
-  else if (st.asleep) text = st.preset ? `amp idle · ${st.preset} ${st.name || ''}` : 'amp idle';
-  else text = 'amp ' + (st.phase || 'disconnected');
-  if (amp.warning || amp.error) text += ' – ' + (amp.warning || amp.error);
+  else if (st.asleep) text = st.preset ? `Mustang idle · ${st.preset} ${st.name || ''}` : 'Mustang idle';
+  else text = st.phase === 'connecting' ? 'Mustang: connecting…' : 'Mustang not connected';
+  if (amp.warning || amp.error) text += ' – ' + (amp.warning || plainAmpError(amp.error));
   return text.trim();
 }
 
@@ -570,10 +577,11 @@ function renderAmp() {
   const names = presetNames();
   const st = amp?.state || {};
   $('#amp-status').textContent = amp ? ampText() + (!ampOnline()
-    ? ' – switching needs the amp bridge on the computer the amp is paired with (Bridge link…)'
+    ? ' – amp control isn\'t running on the computer the Mustang is connected to (see Help, Guitar tone)'
     : st.asleep ? ' – the control link sleeps after 5 minutes without a switch; sound is not affected, ' +
       'and the next switch wakes it (a few seconds)' : '') :
-    'No amp bridge has reported yet: set one up with "Bridge link…". Cues can be edited without it.';
+    'Amp control isn\'t set up yet: see "Set up amp control…" below. You can choose and save sounds without it; ' +
+    'the Mustang switches once amp control runs.';
   const cues = cueList?.cues || [];
   $('#amp-cues').innerHTML = cues.length ? cues.map((c) => {
     const what = c.tone_id ? `tone ${esc(c.tone || '(deleted)')}`
@@ -680,7 +688,7 @@ async function loadKnobs(tries = 0) {
     if (res.status === 202) {
       $('#amp-knobs').innerHTML = '';
       $('#amp-knobs-hint').textContent = r.bridge ? 'Reading the preset from the amp…'
-        : 'This preset is not known yet, and no amp bridge is running to read it.';
+        : 'This sound is not known yet, and amp control isn\'t running to read it from the Mustang.';
       if (r.bridge && tries < 12 && Number($('#amp-presets').value) === slot) setTimeout(() => loadKnobs(tries + 1), 1500);
       return;
     }
@@ -733,7 +741,7 @@ $('#amp-try').addEventListener('click', async () => {
   if (!what) return;
   try {
     const r = await api('amp/try', { method: 'POST', body: what });
-    if (!r.bridge) toast('No amp bridge is running: nothing switched');
+    if (!r.bridge) toast('Amp control isn\'t running: the Mustang was not switched');
   } catch (e) { toast('Failed: ' + e.message); }
 });
 $('#amp-start').addEventListener('click', () => saveCue(0));
@@ -1082,7 +1090,9 @@ async function start() {
     sheet.innerHTML = `<div class="empty">Cannot reach the server: ${esc(e.message)}</div>`;
     return;
   }
-  $('#version').textContent = `ChordsPlay web ${state.version} · user ${state.user}`;
+  $('#help-version').textContent = state.version;
+  $('#version').textContent = `Logged in as ${state.user}`;
+  $('#help-tv-url').textContent = new URL('d/tv/', location.href).href;
   followAmp();
   filterValues = state.filter;
   playlist = state.playlist;

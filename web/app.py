@@ -43,7 +43,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '0.10'
+__version__ = '1.0'
 
 log = logging.getLogger(__name__)
 
@@ -880,12 +880,12 @@ def learn():
     amp = amp_state(db.user)
     state = (amp or {}).get('state') or {}
     if not amp or not amp['online']:
-        return jsonify(error='No amp bridge is running, so the amp\'s preset is not known. '
-                             'Press g to choose a preset instead.'), 409
+        return jsonify(error='Amp control isn\'t running, so the Mustang\'s sound is not known. '
+                             'Press g to choose a sound instead.'), 409
     if state.get('connected') and state.get('audition'):
-        return jsonify(error='A tone is playing, not a preset: press g and choose the tone.'), 409
+        return jsonify(error='The Mustang plays a sound chosen here, not one of its own: press g and choose it there.'), 409
     if not state.get('connected') or not state.get('preset'):
-        return jsonify(error='The amp is not connected, so its current preset is not known. '
+        return jsonify(error='The Mustang is not connected, so its current sound is not known. '
                              'Press g to choose a preset instead.'), 409
     pos = int(float(data.get('t') or 0) * 1000)
     start = 0 if pos < LEARN_START_MS else pos - pos % 500
@@ -953,7 +953,7 @@ def write_slot():
         abort(400)
     amp = amp_state(db.user)
     if not amp or not amp['online']:
-        return jsonify(error='No amp bridge is running, so nothing can be written to the amp.'), 409
+        return jsonify(error='Amp control isn\'t running, so nothing can be written to the Mustang.'), 409
     level, params = sound_from(data)
     names = amp_names(db.user)
     tone = sound_tone(db, 0, data['slot'], names[data['slot'] - 1] if len(names) >= data['slot'] else None,
@@ -1176,7 +1176,7 @@ def take_start():
         abort(400)
     amp = amp_state(db.user)
     if not amp or not amp['online']:
-        return jsonify(error='No amp bridge is running: it records on the computer the amp is connected to by USB.'), 409
+        return jsonify(error='Amp control isn\'t running: it records on the computer the Mustang is connected to by USB.'), 409
     db.conn.execute("UPDATE takes SET state = 'failed' WHERE user_id = ? AND state = 'recording'", (user_id(db),))
     tid = db.conn.execute("INSERT INTO takes (user_id, song_id, created, song_t) VALUES (?, ?, ?, ?)",
                           (user_id(db), data['song_id'], time.time(), float(data.get('t') or 0))).lastrowid

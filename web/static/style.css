@@ -189,3 +189,11 @@ code.copy { user-select: all; word-break: break-all; }
 .pdf-assign { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 0; }
 .pdf-assign input { min-width: 12em; }
 .views { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+
+/* help */
+#d-help { max-height: calc(100vh - 40px); overflow-y: auto; }
+#d-help h2 #help-version { font-weight: 400; color: var(--muted); }
+details.help { border-top: 1px solid var(--line); padding: 6px 0; }
+details.help summary { font-weight: 600; cursor: pointer; padding: 2px 0; }
+details.help p, details.help ol { margin: 6px 0; line-height: 1.45; }
+details.help li { margin: 3px 0; }

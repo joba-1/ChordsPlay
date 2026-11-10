@@ -27,7 +27,7 @@
     <button id="b-help" title="Keys (?)">?</button>
   </div>
   <div id="title" class="title"></div>
-  <div id="amp" class="amp" title="The amp, as the amp bridge reports it (g)"></div>
+  <div id="amp" class="amp" title="What the Mustang does (g for guitar tone)"></div>
   <div id="time" class="time"></div>
 </header>
 <main id="main">
@@ -101,7 +101,7 @@
 <dialog id="d-takes">
   <form method="dialog">
     <h2 id="takes-title">Takes</h2>
-    <p class="hint">Recorded from the amp's USB output by the amp bridge. <b>r</b> starts and stops a take of the song
+    <p class="hint">Recorded from the Mustang's USB output by amp control. <b>r</b> starts and stops a take of the song
       that plays. A take holds the whole mix: the song (over Bluetooth) and your guitar.</p>
     <table class="cues" id="takes-list"></table>
     <audio id="take-player" controls preload="none"></audio>
@@ -182,12 +182,14 @@
       <button type="button" id="amp-write" title="Write it into a free slot of the amp (72–99), for the amp's own buttons">Write to amp slot…</button>
       <button type="button" id="amp-artist-save" title="For every song of this artist without its own start preset">Save for artist</button>
       <span class="grow"></span>
-      <button type="button" id="amp-bridge" title="Link for the amp bridge on the computer the amp is paired with">Bridge link…</button>
+      <button type="button" id="amp-bridge" title="Once, for the computer the Mustang is connected to: it then switches the Mustang for you">Set up amp control…</button>
       <button value="close">Close</button>
     </div>
     <div id="amp-bridge-box" hidden>
-      <p class="hint">Put this line into <code>~/.config/chordsplay/bridge.env</code> on the computer the amp is
-        paired with, then run <code>contrib/install-amp-bridge.sh</code> there. It replaces the previous link.</p>
+      <p class="hint">Amp control runs on the computer the Mustang is connected to and switches it for you. To set it up,
+        that computer needs this line (technically: in <code>~/.config/chordsplay/bridge.env</code>, then
+        <code>contrib/install-amp-bridge.sh</code>). A new line replaces the previous one: amp control with the old line stops
+        until it gets the new one.</p>
       <p><code id="amp-bridge-line" class="copy"></code></p>
     </div>
   </form>
@@ -195,29 +197,99 @@
 
 <dialog id="d-help">
   <form method="dialog">
-    <h2>Keys</h2>
-    <table class="keys">
-      <tr><td>Space, m</td><td>play / pause</td></tr>
-      <tr><td>Enter, n</td><td>next song</td></tr>
-      <tr><td>Backspace, p</td><td>previous song</td></tr>
-      <tr><td>0</td><td>back to the start of the song</td></tr>
-      <tr><td>+ / −, → / ←</td><td>1 s / 5 s forward or back</td></tr>
-      <tr><td>s</td><td>shuffle the playlist</td></tr>
-      <tr><td>f</td><td>filter: choose the songs</td></tr>
-      <tr><td>t</td><td>tags of the song</td></tr>
-      <tr><td>l</td><td>show / hide the playlist</td></tr>
-      <tr><td>d</td><td>show the song on a TV or tablet (display link)</td></tr>
-      <tr><td>r / R</td><td>record a take through the amp's USB (start/stop) / the song's takes</td></tr>
-      <tr><td>v / V</td><td>song text or its PDF tab (cycles) / all PDFs and their songs</td></tr>
-      <tr><td>Page Down / Up</td><td>turn the PDF's pages</td></tr>
-      <tr><td>g</td><td>guitar tone: the amp's presets for this song</td></tr>
-      <tr><td>G</td><td>learn: the amp's current preset from here on (from the start in the first 3 s)</td></tr>
-      <tr><td>a / A</td><td>choose / switch the audio output (Chrome)</td></tr>
-      <tr><td>F11</td><td>full screen</td></tr>
-      <tr><td>Double-click</td><td>play a song from the list; click a heading to sort</td></tr>
-    </table>
-    <p class="hint">A song repeats until you go on, like in the desktop app; each time it ends it counts as played.</p>
+    <h2>ChordsPlay <span id="help-version"></span></h2>
     <p class="hint" id="version"></p>
+
+    <details class="help" open>
+      <summary>What you need for what</summary>
+      <p><b>With any speaker, headphones or amp:</b> playing the songs, the chords as large as the screen allows,
+        PDF tabs, choosing songs (filter), tags, the song on a TV or tablet. The sound comes out of the device this page
+        runs on, so connect it to whatever you play through: headphones, a speaker, the AUX input of an amp, or a
+        Mustang Micro Plus by Bluetooth.</p>
+      <p><b>Only with a Fender Mustang Micro Plus:</b> the guitar sound changing by itself for each song (and within a
+        song), equal loudness of all sounds, adjusting effects, and recording takes. For these, the computer the
+        Mustang is connected to needs <i>amp control</i>, set up once (see <i>Guitar tone</i> below).</p>
+      <p><b>With a separate guitar amp:</b> everything in the first paragraph works. The guitar sound is then set on your
+        amp, ChordsPlay doesn't change it.</p>
+    </details>
+
+    <details class="help">
+      <summary>Show the song on a TV, tablet or second screen</summary>
+      <p>The other screen only shows the song, large, and follows this page: next song, pause, PDF pages. It plays no
+        sound and can't change anything.</p>
+      <ol>
+        <li>Press <b>d</b> here (or <i>Display</i>).</li>
+        <li><b>Tablet, phone, laptop:</b> scan the QR code, or open the link shown there in that device's browser.
+          It works for 12 hours.</li>
+        <li><b>Your own TV:</b> install a browser on it (on Google TV e.g. <i>TV Bro</i>), open
+          <code id="help-tv-url"></code> once and keep it as a bookmark. The TV shows a code: enter it here with <b>d</b>
+          under <i>Pair a TV</i>. From then on just open the bookmark on the TV.</li>
+        <li>On the TV, press OK on the remote (or click the screen) for full screen.</li>
+      </ol>
+    </details>
+
+    <details class="help">
+      <summary>PDF tabs</summary>
+      <p>A song can show a PDF (e.g. a tab printed from Ultimate Guitar, or your own sheet) instead of its chords.</p>
+      <ol>
+        <li>Save the PDF in the song's folder on the music share, with the song file's name: for
+          <code>16 We Will Rock You.mp3</code> name it <code>16 We Will Rock You.pdf</code>. A second one for a part:
+          <code>16 We Will Rock You - Solo.pdf</code>.</li>
+        <li>Press <b>v</b> to switch between the chords and the song's PDFs. ChordsPlay remembers the choice per song.</li>
+        <li><b>Page Down / Page Up</b> turn the pages; a TV or tablet turns along.</li>
+        <li><b>V</b> (or <i>PDF</i>) lists all PDFs. For a file that wasn't found by its name, choose its song there.</li>
+      </ol>
+    </details>
+
+    <details class="help">
+      <summary>Guitar tone (Mustang Micro Plus)</summary>
+      <p>Press <b>g</b> (or <i>Tone</i>) to choose the Mustang's sound for this song: from the start, from a point in the
+        song, or for all songs of the artist. <i>Level</i> makes all sounds equally loud (<i>matched</i>), or louder or
+        quieter, e.g. +3 for a solo. <i>Knobs</i> adjust effects while the song plays; <i>Save</i> keeps them with the
+        song. <b>G</b> keeps the sound the Mustang has right now (chosen with its own buttons) for this song.</p>
+      <p><b>Amp control, set up once:</b> the Mustang is switched by the computer it is connected to by Bluetooth (and
+        USB for takes). On that computer:</p>
+      <ol>
+        <li>Open this page there, press <b>g</b>, then <i>Set up amp control…</i>. Copy the line it shows.</li>
+        <li>Ask the person who looks after your computers to put that line into the amp control's settings and start it
+          (instructions: <code>docs/web.md</code>, "Amp bridge"). It then starts by itself with the computer.</li>
+      </ol>
+      <p>The top right shows what the Mustang does. If it says <i>amp control off</i>, that computer is off or amp control
+        isn't running there. <i>Mustang not connected</i>: switch the Mustang on and connect it to that computer by
+        Bluetooth. <i>Mustang idle</i> is fine: after 5 minutes without a change the Mustang saves battery; sound is not
+        affected, and the next change wakes it.</p>
+    </details>
+
+    <details class="help">
+      <summary>Recording takes (Mustang Micro Plus by USB)</summary>
+      <p>Press <b>r</b> to record yourself while a song plays, <b>r</b> again to stop. The take holds the song and your
+        guitar, as you hear them. <b>R</b> lists the song's takes to listen to or delete. The Mustang must be connected by
+        USB to the amp control computer.</p>
+    </details>
+
+    <details class="help">
+      <summary>Keys</summary>
+      <table class="keys">
+        <tr><td>Space, m</td><td>play / pause</td></tr>
+        <tr><td>Enter, n</td><td>next song</td></tr>
+        <tr><td>Backspace, p</td><td>previous song</td></tr>
+        <tr><td>0</td><td>back to the start of the song</td></tr>
+        <tr><td>+ / −, → / ←</td><td>1 s / 5 s forward or back</td></tr>
+        <tr><td>s</td><td>shuffle the playlist</td></tr>
+        <tr><td>f</td><td>filter: choose the songs</td></tr>
+        <tr><td>t</td><td>tags of the song</td></tr>
+        <tr><td>l</td><td>show / hide the playlist</td></tr>
+        <tr><td>d</td><td>show the song on a TV, tablet or second screen</td></tr>
+        <tr><td>v / V</td><td>chords or PDF / all PDFs</td></tr>
+        <tr><td>Page Down / Up</td><td>turn the PDF's pages</td></tr>
+        <tr><td>g / G</td><td>guitar tone / keep the Mustang's current sound (Mustang)</td></tr>
+        <tr><td>r / R</td><td>record a take / the song's takes (Mustang by USB)</td></tr>
+        <tr><td>a / A</td><td>choose / switch where the sound goes (Chrome)</td></tr>
+        <tr><td>F11</td><td>full screen</td></tr>
+        <tr><td>Double-click</td><td>play a song from the list; click a heading to sort</td></tr>
+      </table>
+      <p class="hint">A song repeats until you go on, and each time it ends it counts as played.</p>
+    </details>
     <div class="dlg-buttons"><span class="grow"></span><button value="close">Close</button></div>
   </form>
 </dialog>

@@ -1,7 +1,24 @@
-# ChordsPlay web app
+# ChordsPlay web app (version 1.0)
 
 ChordsPlay in the browser: <https://example.org/chordsplay/> (Authelia login).
-Plan and reasons: Trac page `ChordsPlay` (phase 1: web app core). The Tk app stays usable.
+Plan and reasons: Trac page `ChordsPlay`. The Tk app stays usable. The page's own help (`?`)
+says the same as the first sections here, in short.
+
+## What you need for what
+
+* **With any speaker, headphones or amp:** playing the songs, the chords as large as the
+  screen allows, PDF tabs, choosing songs (filter), tags, the song on a TV, tablet or
+  second screen. The sound comes out of the device the page runs on, so connect that to
+  whatever you play through: headphones, a speaker, the AUX input of an amp, or a
+  Mustang Micro Plus by Bluetooth.
+* **Only with a Fender Mustang Micro Plus:** the guitar sound changing by itself per song
+  (and within a song), equal loudness of all sounds, adjusting effects, keeping a sound
+  in the amp, recording takes. For these, the computer the Mustang is connected to runs
+  *amp control* (the amp bridge, set up once; see "Guitar tone").
+* **With a separate guitar amp:** everything in the first point works; the guitar sound
+  is set on that amp, ChordsPlay doesn't change it.
+* **On another screen (TV, tablet, laptop):** only a browser. A link or QR code from `d`,
+  or for your own TV a bookmark paired once (see "A TV or tablet as display").
 
 ## Using it
 
@@ -195,6 +212,48 @@ browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/
 * Audio comes from the NFS mount, not from media-find as the plan suggested: the scanner
   needs the files anyway (tags), and no media-find service account is needed. The unit
   mounts the share if it is missing (the fstab entry has `users`).
+
+## Possible, not built: the sound on the TV
+
+Decided 2026-11-11 not to build it for now; recorded so it can be picked up later.
+
+Today the device with this page plays the song, because it is the one paired with the
+Mustang by Bluetooth; a display only shows. "Sound on the TV" would be a switch on the
+controller (*Sound: here / on the TV*):
+
+```mermaid
+flowchart LR
+  subgraph host6
+    srv["ChordsPlay server<br>songs, state, events"]
+    files[("music share<br>audio files")]
+  end
+  ctl["controller page<br>(plays muted: keeps position,<br>'played', repeat)"]
+  tv["TV display page<br>&lt;audio&gt; plays the song"]
+  spk(["TV speakers"])
+  mmp["Mustang Micro Plus"]
+  gtr(["guitar"])
+  ears(["headphones / amp"])
+  ctl -- "now: song, position t,<br>playing, sound=tv" --> srv
+  srv -- "event stream<br>(as for every display)" --> tv
+  files -- "song (HTTP, seekable)" --> tv
+  tv -- "sound" --> spk
+  gtr --> mmp --> ears
+```
+
+* The TV loads the same audio file as the controller (`d/tv/audio/<id>`, only the
+  current song) and follows play/pause/song changes from the event stream. It computes
+  where the controller is (`t` plus the time since `at`, corrected for the clock
+  offset) and seeks when it is more than ~0.25 s off; the drift is small because both
+  play the same file.
+* The controller keeps playing, muted: its position stays the reference, and "played"
+  and the repeat at the end work as before.
+* Browsers start sound only after a key press on the device: the TV shows "Press OK to
+  play the sound here" once.
+* Consequences: the song no longer goes through the Mustang (you hear it from the TV, the
+  guitar from the Mustang's headphones or an amp), and a take then holds only the
+  guitar. The TV's delay (100–200 ms) doesn't matter, as with Bluetooth: the song isn't
+  tied to the guitar's timing. Good for playing to the room or with friends; for
+  practising with headphones the song through the Mustang stays better.
 
 ## Operating it (host6)
 
