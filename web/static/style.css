@@ -167,6 +167,8 @@ body.display.idle, body.display.idle * { cursor: none; }
 .amp-pick label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; font-size: 13px; color: var(--muted); }
 .amp-pick select { width: 100%; }
 .dlg-buttons.wrap { flex-wrap: wrap; }
+#amp-sounds select { max-width: 16em; }
+#amp-suggest button { margin-left: 6px; padding: 0 8px; }
 code.copy { user-select: all; word-break: break-all; }
 
 /* PDF tabs (pdfview.js): pages on white, also in dark mode */

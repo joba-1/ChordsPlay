@@ -110,6 +110,15 @@ every device plays them.
   5 minutes without a switch the agent drops the Bluetooth control link to save the amp's
   battery. Sound (Bluetooth audio, USB) is a separate connection and keeps playing; the
   next switch wakes the link, which takes a few seconds.
+* **Suggested presets** for songs with no preset of their own and none for their artist:
+  the local LLM on host6 puts each song into a sound (clean, crunch, hard rock, …; with
+  the artist's genres from MusicBrainz as a hint) and says whether it knows the song.
+  Only songs it knows are switched; guesses are only shown. `g` shows the suggestion,
+  with *Use from start* (store it as the song's own) and *Reject*. Under *Preset per
+  sound* you set which preset each sound plays: the table starts as a draft by preset
+  names and is meant to be set by ear. New songs get a suggestion after each library
+  scan (`python -m web.suggest` runs it by hand). Order when a song plays: its own cues,
+  the artist's preset, the suggestion, `AMP_DEFAULT_SLOT` of the bridge.
 * The bridge switches only while a song plays. While the desktop app runs as well,
   both can switch the amp; use one at a time.
 

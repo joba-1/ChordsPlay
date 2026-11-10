@@ -469,6 +469,7 @@ $('#display-end').addEventListener('click', async () => {
 let amp = null;             // what the amp bridge reported last: {state, error, busy, warning, ...}
 let ampSeen = 0;            // when (ms): a bridge reports at least every 10 s
 let ampTones = [];
+let ampSounds = [];         // [{category, slot}]: the preset per suggested sound
 let cueList = null;         // the song's cues: {cues, artist, artist_preset}
 const BRIDGE_GONE_MS = 30000;
 
@@ -544,6 +545,20 @@ function renderAmp() {
     ? `Artist preset (${esc(cueList.artist)}): ${base.slot} ${esc(base.name || '')} ` +
       '<button type="button" id="amp-artist-del" title="Delete the artist preset">✕</button>'
     : `No artist preset for ${esc(cueList?.artist || '')}.`;
+  const sg = cueList?.suggestion;
+  const slotName = (slot) => slot ? `${slot} ${names[slot - 1] || ''}`.trim() : 'no preset';
+  $('#amp-suggest').innerHTML = !sg ? 'No suggestion yet (made in the background for new songs).' :
+    `Suggested sound: <b>${esc(sg.category.replace('_', ' '))}</b> → ${esc(slotName(sg.slot))} · ` +
+    (sg.rejected ? 'rejected, not played' : sg.known ? 'the model knows the song: played when there is no other preset'
+      : 'a guess: not played') +
+    (sg.genres?.length ? ` <span class="none">(${esc(sg.genres.join(', '))})</span>` : '') +
+    (sg.slot ? '<button type="button" id="amp-suggest-use" title="Store it as this song\'s start preset">Use from start</button>' : '') +
+    `<button type="button" id="amp-suggest-reject">${sg.rejected ? 'Allow again' : 'Reject'}</button>`;
+  // rebuilt only when not in use: the dialog redraws every few seconds with the amp's state
+  if (!$('#amp-sounds').contains(document.activeElement)) $('#amp-sounds').innerHTML = ampSounds.map((s) => `<tr><td>${esc(s.category.replace('_', ' '))}</td><td>` +
+    `<select data-sound="${s.category}"><option value="">no preset</option>` +
+    Array.from({ length: 100 }, (_, i) => `<option value="${i + 1}" ${s.slot === i + 1 ? 'selected' : ''}>${i + 1} ${esc(names[i] || '')}</option>`).join('') +
+    '</select></td></tr>').join('');
   const presets = $('#amp-presets');
   const keep = presets.value;
   presets.innerHTML = Array.from({ length: 100 }, (_, i) =>
@@ -564,6 +579,7 @@ async function openAmp() {
     const [state, cues] = await Promise.all([api('amp'), api(`song/${song.id}/cues`)]);
     if (state.amp) { amp = state.amp; ampSeen = state.amp.online ? Date.now() : 0; }
     ampTones = state.tones;
+    ampSounds = state.sounds;
     cueList = cues;
   } catch (e) { toast('Loading failed: ' + e.message); return; }
   $('#amp-title').textContent = `Guitar tone: ${song.title} – ${song.artist}`;
@@ -626,6 +642,28 @@ $('#d-amp').addEventListener('click', async (e) => {
       renderAmp();
     }
   } catch (err) { toast('Failed: ' + err.message); }
+});
+
+$('#amp-suggest').addEventListener('click', async (e) => {
+  try {
+    if (e.target.id === 'amp-suggest-use') {
+      cueList = await api(`song/${song.id}/cues/0`, { method: 'PUT', body: { slot: cueList.suggestion.slot } });
+      toast('Stored as the start preset');
+    } else if (e.target.id === 'amp-suggest-reject') {
+      cueList = await api(`song/${song.id}/suggestion`, { method: 'POST', body: { rejected: !cueList.suggestion.rejected } });
+    } else return;
+    renderAmp();
+  } catch (err) { toast('Failed: ' + err.message); }
+});
+
+$('#amp-sounds').addEventListener('change', async (e) => {
+  const cat = e.target.dataset.sound;
+  if (!cat) return;
+  try {
+    ampSounds = (await api('amp/sounds/' + cat, { method: 'PUT', body: { slot: e.target.value ? Number(e.target.value) : null } })).sounds;
+    cueList = await api(`song/${song.id}/cues`);
+    renderAmp();
+  } catch (err) { toast('Saving failed: ' + err.message); }
 });
 
 $('#amp-bridge').addEventListener('click', async () => {

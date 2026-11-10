@@ -18,6 +18,7 @@ Config via env:
   CHORDSPLAY_SCAN_HOURS  rescan the library and fetch new chords every N hours (0: never; default 24)
   CHORDSPLAY_SYNC_URL, CHORDSPLAY_SYNC_TOKEN   optional: keep the old sync service up to date
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
+  CHORDSPLAY_OLLAMA_URL, CHORDSPLAY_SUGGEST_MODEL   suggested presets (web/suggest.py)
   CHORDSPLAY_PDF_DIRS    more folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf);
                          the library's folders are always scanned (tabs next to their songs); see web/pdfs.py
 '''
@@ -39,8 +40,9 @@ import ChordsPlay.db
 import ChordsPlay.scan
 from ChordsPlay.textfit import wrap_comments
 from web import pdfs as pdfmod
+from web import suggest as suggestmod
 
-__version__ = '0.4'
+__version__ = '0.5'
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +116,7 @@ def get_db(user=None):
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
                 created real not null);""" + pdfmod.SCHEMA)
+        suggestmod.setup(db.conn)
         db.conn.commit()
     return db
 
@@ -577,14 +580,40 @@ def song_cues(db, song_id):
     return {'cues': [{'start': start, 'slot': slot, 'name': name, 'tone_id': tone_id,
                       'tone': tones[tone_id]['name'] if tone_id in tones else None}
                      for start, slot, name, tone_id in db.getSongPresets(song_id)],
-            'artist': artist, 'artist_preset': {'slot': base[0], 'name': base[1]} if base else None}
+            'artist': artist, 'artist_preset': {'slot': base[0], 'name': base[1]} if base else None,
+            'suggestion': suggestmod.suggestion(db.conn, song_id)}
 
 
 @app.route('/api/amp')
 def amp():
     '''The amp's state (from the bridge) and the saved tones.'''
     db = get_db()
-    return jsonify(amp=amp_state(db.user), tones=db.getTones(), live_slot=LIVE_SLOT)
+    return jsonify(amp=amp_state(db.user), tones=db.getTones(), live_slot=LIVE_SLOT,
+                   sounds=suggestmod.sound_presets(db.conn))
+
+
+@app.route('/api/song/<int:song_id>/suggestion', methods=['POST'])
+def suggestion(song_id):
+    '''{rejected: true}: never play the suggested preset for this song (false: allow again).'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    db.conn.execute("UPDATE song_suggestions SET rejected = ? WHERE song_id = ?", (int(bool(data.get('rejected'))), song_id))
+    db.conn.commit()
+    plan_changed(db.user, song_id)
+    return jsonify(song_cues(db, song_id))
+
+
+@app.route('/api/amp/sounds/<category>', methods=['PUT'])
+def sound_preset(category):
+    '''The amp slot for a sound category: {slot: 1..100} or {slot: null} (switch nothing).'''
+    db = get_db()
+    slot = (request.get_json(silent=True) or {}).get('slot')
+    if category not in [c for c, _ in suggestmod.CATEGORIES] or not (slot is None or type(slot) is int and 1 <= slot <= 100):
+        abort(400)
+    db.conn.execute("UPDATE sound_presets SET slot = ? WHERE category = ?", (slot, category))
+    db.conn.commit()
+    plan_changed(db.user)
+    return jsonify(sounds=suggestmod.sound_presets(db.conn))
 
 
 @app.route('/api/song/<int:song_id>/cues')
@@ -726,8 +755,10 @@ def bridge_song(token, song_id):
     presets = db.getSongPresets(song_id)
     tones = {tone_id: db.getTone(tone_id) for _, _, _, tone_id in presets if tone_id is not None}
     levels = {tone['base_slot']: db.getPresetLevel(tone['base_slot']) for tone in tones.values() if tone}
+    # the song's base: the artist's preset, else a suggestion the model is sure of
+    suggested = suggestmod.applied_slot(db.conn, song_id)
     return jsonify(id=song_id, title=info[0], artist=info[1], cues=presets,
-                   artist_preset=db.getArtistPreset(info[1]),
+                   artist_preset=db.getArtistPreset(info[1]) or ([suggested, None] if suggested else None),
                    tones={str(k): v for k, v in tones.items() if v},
                    levels={str(k): v for k, v in levels.items() if v})
 
@@ -828,7 +859,19 @@ def scan_loop(hours, sync_url=None, sync_token=None):
         scanner.start()
         scanner.join()
         scan_pdfs()
+        suggest_sounds()
         time.sleep(hours * 3600)
+
+
+def suggest_sounds():
+    '''Suggested presets for new songs (local LLM, background priority at ollama-gate).'''
+    db = ChordsPlay.db.Db(DB_PATH, DEFAULT_USER)
+    try:
+        log.info('suggested sounds for %d songs', suggestmod.run(db.conn))
+    except Exception:
+        log.warning('suggesting sounds failed', exc_info=True)
+    finally:
+        db.close()
 
 
 def scan_pdfs():

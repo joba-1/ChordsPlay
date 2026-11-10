@@ -473,6 +473,68 @@ class Pdfs(Api):
         self.assertEqual([x['title'] for x in r['songs']], ['Alpha', 'Beta'])     # Gamma has no chords
 
 
+@unittest.skipIf(flask is None, 'flask not installed')
+class Suggest(Amp):
+    '''Suggested presets: a sound category per song, played only when the model knows the song.'''
+
+    def suggest(self, answers):
+        from web import suggest
+        db = self.app.get_db('jo')
+        asked = []
+
+        def asker(title, artist, genres):
+            asked.append((title, genres))
+            return answers[title]
+        n = suggest.run(db.conn, asker=asker, genres_of=lambda conn, artist: ['rock'])
+        return n, asked
+
+    def test_run_once_and_what_is_played(self):
+        alpha, beta = self.song_ids()
+        n, asked = self.suggest({'Alpha': ('hard_rock', True), 'Beta': ('jazz', False)})
+        self.assertEqual((n, sorted(asked)), (2, [('Alpha', ['rock']), ('Beta', ['rock'])]))   # Gamma has no chords
+        self.assertEqual(self.suggest({})[0], 0)                                                  # nothing new
+        from web import suggest
+        conn = self.app.get_db('jo').conn
+        self.assertEqual(suggest.applied_slot(conn, alpha), 19)     # hard rock -> 80S Rock (draft)
+        self.assertIsNone(suggest.applied_slot(conn, beta))         # a guess is only shown
+        r = self.client.get('/api/song/{}/cues'.format(beta)).get_json()['suggestion']
+        self.assertEqual((r['category'], r['known'], r['slot']), ('jazz', False, 41))
+
+    def test_precedence_cue_artist_suggestion(self):
+        from web import bridge as bridgemod
+        alpha, beta = self.song_ids()
+        self.suggest({'Alpha': ('hard_rock', True), 'Beta': ('metal', True)})
+        path, opener = self.bridge()
+        agent = FakeAgentClient()
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        play = lambda sid: (b.session.update('now', {'id': sid, 't': 1, 'playing': True, 'at': 1, 'server_time': 1}), b.step())
+        play(alpha)
+        self.assertEqual(agent.requests[-1], ('slot', 19))          # the suggestion
+        self.client.put('/api/artist-preset', json={'artist': 'Band', 'slot': 41})
+        b.session.update('plan', self.app.hub.get('jo', 'plan')); b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 41))          # the artist's preset wins
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
+        b.session.update('plan', self.app.hub.get('jo', 'plan')); b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 7))           # the song's own cue wins
+
+    def test_reject_and_sound_table(self):
+        alpha = self.song_ids()[0]
+        self.suggest({'Alpha': ('hard_rock', True), 'Beta': ('jazz', False)})
+        from web import suggest
+        conn = self.app.get_db('jo').conn
+        r = self.client.post('/api/song/{}/suggestion'.format(alpha), json={'rejected': True}).get_json()
+        self.assertTrue(r['suggestion']['rejected'])
+        self.assertIsNone(suggest.applied_slot(conn, alpha))
+        self.client.post('/api/song/{}/suggestion'.format(alpha), json={'rejected': False})
+        sounds = self.client.put('/api/amp/sounds/hard_rock', json={'slot': 33}).get_json()['sounds']
+        self.assertIn({'category': 'hard_rock', 'slot': 33}, sounds)
+        self.assertEqual(suggest.applied_slot(conn, alpha), 33)
+        self.client.put('/api/amp/sounds/hard_rock', json={'slot': None})
+        self.assertIsNone(suggest.applied_slot(conn, alpha))        # no preset for the sound: nothing switched
+        self.assertEqual(self.client.put('/api/amp/sounds/polka', json={'slot': 3}).status_code, 400)
+        self.assertEqual(len(self.client.get('/api/amp').get_json()['sounds']), 16)
+
+
 class Migrate(unittest.TestCase):
 
     def test_init_and_merge_plays_once(self):
