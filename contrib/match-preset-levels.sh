@@ -11,7 +11,8 @@
 #     - signal method (default): an adapter cable (3.5 mm stereo plug -> 6.35 mm
 #       socket) from the computer's headphone output into the amp's plug;
 #     - played method (PLAYED=1): the guitar, and you play the same short riff for
-#       every preset when prompted (4 s each, about +-1 dB). Tip: --slots in
+#       every preset when prompted (two takes of 4 s each, averaged; a reference
+#       preset shows your drift). Tip: --slots in
 #       MEASURE_SLOTS to do it in parts, e.g. MEASURE_SLOTS=1-20.
 #
 # Usage: contrib/match-preset-levels.sh [output dir]
