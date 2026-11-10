@@ -787,6 +787,7 @@ def try_preset():
 
 
 FREE_SLOTS = range(72, 100)     # the factory presets are 1-71, 100 is the audition slot
+AMP_NAME_MAX = 16               # a longer preset name the amp ignores without a reply
 
 
 @app.route('/api/tones', methods=['POST'])
@@ -813,7 +814,7 @@ def write_slot():
     db = get_db()
     data = request.get_json(silent=True) or {}
     target, name = data.get('target'), (data.get('name') or '').strip()
-    if type(target) is not int or target not in FREE_SLOTS or not name or len(name.encode()) > 64 \
+    if type(target) is not int or target not in FREE_SLOTS or not name or len(name) > AMP_NAME_MAX \
             or type(data.get('slot')) is not int or not 1 <= data['slot'] <= 100:
         abort(400)
     amp = amp_state(db.user)

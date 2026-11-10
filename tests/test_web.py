@@ -492,7 +492,7 @@ class Amp(Api):
         r = self.client.post('/api/tones', json={'name': 'Plain', 'slot': 19}).get_json()      # original
         self.assertEqual([t['level_db'] for t in r['tones'] if t['name'] == 'Plain'], [1.4])     # cancels -1.4
         # writing: free slots only, and only with a bridge
-        body = {'target': 99, 'name': 'Carnies verse', 'slot': 19, 'level': 3, 'params': {'reverb.wetlvl': 0.6}}
+        body = {'target': 99, 'name': 'Carnies verse', 'slot': 19, 'level': 3, 'params': {'reverb.wetlvl': 0.6}}   # 13
         self.assertEqual(self.client.post('/api/amp/write', json=body).status_code, 409)
         path, opener = self.bridge()
         agent = FakeAgentClient()
@@ -500,6 +500,8 @@ class Amp(Api):
         b.report()
         for bad in (19, 71, 100, 101):
             self.assertEqual(self.client.post('/api/amp/write', json=dict(body, target=bad)).status_code, 400)
+        long_name = dict(body, name='80S Rock matched rev')        # 20: the amp would ignore it
+        self.assertEqual(self.client.post('/api/amp/write', json=long_name).status_code, 400)
         self.assertEqual(self.client.post('/api/amp/write', json=body).status_code, 200)
         written = []
         b._write = lambda slot, name, doc: written.append((slot, name, doc))

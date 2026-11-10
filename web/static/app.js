@@ -748,8 +748,9 @@ $('#amp-write').addEventListener('click', async () => {
   if (!free.includes(target)) { toast('Only slots 72 to 99'); return; }
   const now = (names[target - 1] || '').trim();
   if (now && now !== 'Empty' && !confirm(`Slot ${target} holds "${now}". Overwrite it?`)) return;
-  const name = prompt('Name on the amp', soundName(what).slice(0, 32));
+  const name = prompt('Name on the amp (at most 16 characters)', soundName(what).slice(0, 16));
   if (!name) return;
+  if (name.trim().length > 16) { toast('The amp keeps names of at most 16 characters'); return; }
   try {
     await api('amp/write', { method: 'POST', body: { ...what, target, name } });
     toast(`Writing slot ${target}…`);
