@@ -22,7 +22,10 @@ Config via env:
 import json
 import logging
 import os
+import signal
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -36,6 +39,99 @@ TICK_S = 0.2            # as often as the Tk app checks the cue
 REPORT_S = 10           # report the amp's state at least this often (server: BRIDGE_SEEN_S 30)
 COMMAND_MAX_AGE_S = 10  # a "try now" older than this (e.g. from before a reconnect) is ignored
 RECONNECT_S = (3, 60)   # wait before reconnecting the event stream, growing to the max
+TAKE_MAX_S = 20 * 60    # a recording nobody stopped ends after this
+AMP_SOURCE_HINT = 'Fender_Mustang_Micro_Plus'   # the amp's USB recording in PipeWire
+
+
+def amp_source():
+    '''The PipeWire name of the amp's USB recording, or None (USB not connected).'''
+    out = subprocess.run(['pactl', 'list', 'short', 'sources'], capture_output=True, text=True).stdout
+    names = [line.split('\t')[1] for line in out.splitlines()
+             if AMP_SOURCE_HINT in line and '.monitor' not in line]
+    return names[0] if names else None
+
+
+def start_recording(source, path):
+    '''pw-record of the amp's output: stereo, 24 bit, 48 kHz, as the amp sends it.'''
+    return subprocess.Popen(['pw-record', '--target', source, '--rate', '48000', '--channels', '2',
+                             '--format', 's24', path], stderr=subprocess.DEVNULL)
+
+
+def encode(wav, out):
+    '''Opus at 192 kbit/s (about 4 MB for 3 minutes); browsers play it directly.'''
+    subprocess.run(['opusenc', '--quiet', '--bitrate', '192', wav, out], check=True)
+
+
+class Recorder(object):
+    '''Takes over the amp's USB recording channel: start, stop, then compress and upload
+    in a thread of its own, so switching presets never waits for it.'''
+
+    def __init__(self, upload, find_source=amp_source, start=start_recording, encode=encode):
+        self.upload = upload            # (take id, file path, seconds) -> None, raises on failure
+        self.find_source, self.start_proc, self.encode = find_source, start, encode
+        self.take = None                # (take id, process, wav path, started monotonic)
+        self.error = None
+        self.busy = 0                   # takes still being compressed or uploaded
+
+    def state(self):
+        if self.take:
+            return {'take': self.take[0], 'seconds': round(time.monotonic() - self.take[3], 1)}
+        return None
+
+    def start(self, take_id):
+        if self.take:
+            self.stop(self.take[0])
+        source = self.find_source()
+        if source is None:
+            self.error = 'the amp\'s USB is not connected: nothing to record'
+            log.warning('bridge: %s', self.error)
+            return False
+        path = os.path.join(tempfile.mkdtemp(prefix='take-'), 'take.wav')
+        self.take = (take_id, self.start_proc(source, path), path, time.monotonic())
+        self.error = None
+        log.info('bridge: recording take %s from %s', take_id, source)
+        return True
+
+    def stop(self, take_id=None):
+        if not self.take or (take_id is not None and take_id != self.take[0]):
+            return
+        take_id, proc, path, started = self.take
+        self.take = None
+        proc.send_signal(signal.SIGINT)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        seconds = round(time.monotonic() - started, 1)
+        self.busy += 1
+        threading.Thread(target=self._finish, args=(take_id, path, seconds), name='take', daemon=True).start()
+
+    def _finish(self, take_id, wav, seconds):
+        out = os.path.splitext(wav)[0] + '.opus'
+        try:
+            self.encode(wav, out)
+            self.upload(take_id, out, seconds)
+            log.info('bridge: take %s uploaded (%.0f s)', take_id, seconds)
+        except Exception as e:
+            self.error = 'take {} could not be saved: {}'.format(take_id, e)
+            log.warning('bridge: %s', self.error)
+        finally:
+            for f in (wav, out):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(os.path.dirname(wav))
+            except OSError:
+                pass
+            self.busy -= 1
+
+    def check(self):
+        '''Stop a recording that ran too long (the page was closed meanwhile).'''
+        if self.take and time.monotonic() - self.take[3] > TAKE_MAX_S:
+            log.warning('bridge: take %s ran %d min, stopped', self.take[0], TAKE_MAX_S // 60)
+            self.stop()
 
 
 class SongPlan(object):
@@ -144,6 +240,7 @@ class Bridge(object):
         self.plan_rev = None
         self.trying = None          # (command, until): a tone waits for its base preset
         self.fetching = {}          # slot -> until: presets the server asked for (knobs)
+        self.recorder = Recorder(self.upload_take)
         self.reported = (None, 0)   # (report, monotonic)
         self.connected = False
         self.quit = threading.Event()
@@ -191,14 +288,28 @@ class Bridge(object):
                 self.cues.song_id = None
                 self.plan.song = None
         for command in self.session.take_commands():
-            if 'fetch' in command:
+            if 'record' in command:
+                if command['record'] == 'start':
+                    self.recorder.start(command.get('take'))
+                else:
+                    self.recorder.stop(command.get('take'))
+            elif 'fetch' in command:
                 self.fetching[int(command['fetch'])] = time.monotonic() + 30
             else:
                 self.trying = (command, time.monotonic() + 30)
         if self.trying is not None:
             self.try_now()
         self.send_presets()
+        self.recorder.check()
         self.report()
+
+    def upload_take(self, take_id, path, seconds):
+        with open(path, 'rb') as f:
+            data = f.read()
+        request = urllib.request.Request(self.url + 'take/{}'.format(take_id), data=data, method='PUT', headers={
+            'Content-Type': 'audio/ogg', 'X-Take-Seconds': str(seconds)})
+        with self.open(request, timeout=120) as response:
+            response.read()
 
     def send_presets(self):
         '''Presets the server asked for, as soon as the agent has read them.'''
@@ -237,7 +348,8 @@ class Bridge(object):
 
     def report(self):
         snap = self.client.snapshot()
-        report = dict(snap, warning=self.cues.warning)
+        report = dict(snap, warning=self.cues.warning, recording=self.recorder.state(),
+                      record_error=self.recorder.error)
         last, when = self.reported
         if report == last and time.monotonic() - when < REPORT_S:
             return

@@ -433,6 +433,55 @@ class Amp(Api):
         b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
         self.assertEqual(agent.requests[-1], ('tone', 'slot 7 matched tuned', -5 + 5.5))
 
+    def test_take_recorded_uploaded_and_played(self):
+        from web import bridge as bridgemod
+        alpha = self.song_ids()[0]
+        self.app.TAKES_DIR = os.path.join(self.tmp.name, 'takes')
+        self.assertEqual(self.client.post('/api/takes', json={'song_id': alpha, 't': 12}).status_code, 409)   # no bridge
+        path, opener = self.bridge()
+        b = bridgemod.Bridge('http://localhost' + path, FakeAgentClient(), opener=opener)
+        b.report()                                      # the bridge is there
+        started = []
+
+        class Proc(object):
+            def send_signal(self, sig): pass
+            def wait(self, timeout=None): return 0
+
+        def start(source, wav):
+            started.append(source)
+            open(wav, 'wb').write(b'RIFF')
+            return Proc()
+
+        done = threading.Event()
+
+        def encode(wav, out):
+            open(out, 'wb').write(b'OggS take')
+        upload = b.recorder.upload
+        b.recorder = bridgemod.Recorder(lambda *a: (upload(*a), done.set()), find_source=lambda: 'amp-usb',
+                                        start=start, encode=encode)
+        take = self.client.post('/api/takes', json={'song_id': alpha, 't': 12}).get_json()['id']
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
+        self.assertEqual(started, ['amp-usb'])
+        self.assertEqual(self.app.hub.get('jo', 'amp')['recording']['take'], take)
+        self.client.post('/api/takes/{}/stop'.format(take))
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
+        self.assertTrue(done.wait(5))
+        takes = self.client.get('/api/song/{}/takes'.format(alpha)).get_json()['takes']
+        self.assertEqual([(t['id'], t['state'], t['song_t']) for t in takes], [(take, 'ready', 12.0)])
+        r = self.client.get('/api/takes/{}'.format(take))
+        self.assertEqual((r.mimetype, r.data), ('audio/ogg', b'OggS take'))
+        r.close()
+        self.client.delete('/api/takes/{}'.format(take))
+        self.assertEqual(self.client.get('/api/song/{}/takes'.format(alpha)).get_json()['takes'], [])
+        self.assertEqual(os.listdir(self.app.TAKES_DIR), [])
+
+    def test_take_without_amp_usb(self):
+        from web import bridge as bridgemod
+        rec = bridgemod.Recorder(lambda *a: None, find_source=lambda: None)
+        self.assertFalse(rec.start(1))
+        self.assertIn('USB', rec.error)
+        self.assertIsNone(rec.state())
+
     def test_paused_controller_switches_nothing(self):
         from web import bridge as bridgemod
         alpha = self.song_ids()[0]

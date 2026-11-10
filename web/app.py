@@ -43,12 +43,13 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '0.7'
+__version__ = '0.8'
 
 log = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get('CHORDSPLAY_WEB_DB',
                          os.path.expanduser('~/.local/share/chordsplay-web/chordsplay.db'))
+TAKES_DIR = os.path.expanduser(os.environ.get('CHORDSPLAY_TAKES_DIR', '~/.local/share/chordsplay-web/takes'))
 PDF_DIRS = [os.path.expanduser(d) for d in os.environ.get(
     'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf').split(':') if d]
 DEFAULT_USER = os.environ.get('CHORDSPLAY_USER', os.environ.get('USER', 'anonymous'))
@@ -113,6 +114,15 @@ def get_db(user=None):
                 code    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
                 expires real not null);
+            CREATE TABLE IF NOT EXISTS takes (
+                id       integer primary key autoincrement,
+                user_id  int not null references users(id) on delete cascade,
+                song_id  int not null references songs(id) on delete cascade,
+                created  real not null,
+                song_t   real not null default 0,
+                seconds  real,
+                file     text,
+                state    text not null default 'recording');
             CREATE TABLE IF NOT EXISTS bridge_tokens (
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
@@ -891,7 +901,8 @@ def bridge_amp(token):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         abort(400)
-    report = {key: data.get(key) for key in ('state', 'error', 'busy', 'pending', 'warning', 'tone')}
+    report = {key: data.get(key) for key in ('state', 'error', 'busy', 'pending', 'warning', 'tone',
+                                             'recording', 'record_error')}
     # every report, also an unchanged one (at most every REPORT_S in the bridge): the
     # pages see from it that the bridge is still there
     hub.publish(user, dict(report, at=time.time()), 'amp')
@@ -967,6 +978,96 @@ def song_search():
     rows = get_db().conn.execute("""SELECT id, title, artist FROM songs WHERE (title LIKE ? OR artist LIKE ?)
                                     AND lyrics_chords IS NOT NULL ORDER BY artist, title LIMIT 30""", (q, q))
     return jsonify(songs=[{'id': i, 'title': t, 'artist': a} for i, t, a in rows])
+
+
+# --- takes: recordings of the amp's output over USB, by the bridge -----------------
+
+def take_json(row):
+    tid, song_id, created, song_t, seconds, state = row
+    return {'id': tid, 'song_id': song_id, 'created': created, 'song_t': song_t, 'seconds': seconds, 'state': state}
+
+
+TAKE_COLUMNS = "id, song_id, created, song_t, seconds, state"
+
+
+@app.route('/api/takes', methods=['POST'])
+def take_start():
+    '''Start recording a take of the song, which plays from song position t (seconds).'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data.get('song_id'), int) or db.getPlayInfo(data['song_id']) is None:
+        abort(400)
+    amp = amp_state(db.user)
+    if not amp or not amp['online']:
+        return jsonify(error='No amp bridge is running: it records on the computer the amp is connected to by USB.'), 409
+    db.conn.execute("UPDATE takes SET state = 'failed' WHERE user_id = ? AND state = 'recording'", (user_id(db),))
+    tid = db.conn.execute("INSERT INTO takes (user_id, song_id, created, song_t) VALUES (?, ?, ?, ?)",
+                          (user_id(db), data['song_id'], time.time(), float(data.get('t') or 0))).lastrowid
+    db.conn.commit()
+    hub.publish(db.user, {'record': 'start', 'take': tid, 'at': time.time()}, 'cmd')
+    return jsonify(id=tid)
+
+
+@app.route('/api/takes/<int:take_id>/stop', methods=['POST'])
+def take_stop(take_id):
+    db = get_db()
+    hub.publish(db.user, {'record': 'stop', 'take': take_id, 'at': time.time()}, 'cmd')
+    return jsonify(ok=True)
+
+
+@app.route('/api/song/<int:song_id>/takes')
+def song_takes(song_id):
+    db = get_db()
+    rows = db.conn.execute("SELECT {} FROM takes WHERE user_id = ? AND song_id = ? AND state != 'failed' "
+                           "ORDER BY created DESC".format(TAKE_COLUMNS), (user_id(db), song_id))
+    return jsonify(takes=[take_json(r) for r in rows])
+
+
+def own_take(db, take_id):
+    row = db.conn.execute("SELECT file FROM takes WHERE id = ? AND user_id = ?", (take_id, user_id(db))).fetchone()
+    if row is None:
+        abort(404)
+    return row[0]
+
+
+@app.route('/api/takes/<int:take_id>', methods=['GET', 'DELETE'])
+def take(take_id):
+    '''GET: the recording (Ogg Opus). DELETE: remove it.'''
+    db = get_db()
+    name = own_take(db, take_id)
+    path = os.path.join(TAKES_DIR, name) if name else None
+    if request.method == 'DELETE':
+        db.conn.execute("DELETE FROM takes WHERE id = ?", (take_id,))
+        db.conn.commit()
+        if path and os.path.exists(path):
+            os.remove(path)
+        return jsonify(ok=True)
+    if not path or not os.path.isfile(path):
+        abort(404)
+    return send_file(path, mimetype='audio/ogg', conditional=True)
+
+
+@app.route('/d/bridge/<token>/take/<int:take_id>', methods=['PUT'])
+def bridge_take(token, take_id):
+    '''The bridge's recording of a take (Ogg Opus), with its length in X-Take-Seconds.'''
+    db = get_db(bridge_user(token))
+    row = db.conn.execute("SELECT song_id FROM takes WHERE id = ? AND user_id = ? AND state = 'recording'",
+                          (take_id, user_id(db))).fetchone()
+    if row is None:
+        abort(404)
+    os.makedirs(TAKES_DIR, exist_ok=True)
+    name = 'take-{}-song-{}.opus'.format(take_id, row[0])
+    with open(os.path.join(TAKES_DIR, name), 'wb') as f:
+        while True:
+            chunk = request.stream.read(1 << 16)
+            if not chunk:
+                break
+            f.write(chunk)
+    seconds = float(request.headers.get('X-Take-Seconds') or 0)
+    db.conn.execute("UPDATE takes SET file = ?, seconds = ?, state = 'ready' WHERE id = ?", (name, seconds, take_id))
+    db.conn.commit()
+    plan_changed(db.user)       # the controller pages hear of it with the next amp report
+    return jsonify(ok=True)
 
 
 # --- library scan -------------------------------------------------------------

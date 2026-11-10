@@ -499,8 +499,15 @@ function ampText() {
 }
 
 function showAmp() {
-  $('#amp').textContent = ampText();
-  $('#amp').classList.toggle('warn', !!(amp && (amp.warning || !ampOnline())));
+  const rec = ampOnline() && amp.recording;
+  $('#amp').textContent = rec ? `● REC ${fmt(amp.recording.seconds)}` : ampText();
+  $('#amp').classList.toggle('rec', !!rec);
+  $('#amp').classList.toggle('warn', !rec && !!(amp && (amp.warning || !ampOnline())));
+  if (amp?.record_error && amp.record_error !== showAmp.lastError) toast(amp.record_error, 6000);
+  showAmp.lastError = amp?.record_error;
+  // a take just ended: it shows up in the list once compressed and uploaded
+  if (showAmp.wasRecording && !rec && $('#d-takes').open) setTimeout(openTakes, 4000);
+  showAmp.wasRecording = !!rec;
   if ($('#d-amp').open) renderAmp();
 }
 setInterval(showAmp, 5000);     // notices a bridge that went away
@@ -897,6 +904,62 @@ $('#pdf-list').addEventListener('click', async (e) => {
   } catch (err) { toast('Saving failed: ' + err.message); }
 });
 
+// --- takes (key r / R): recordings of the amp's output, made by the amp bridge -----
+
+let takeId = null;          // the take being recorded
+
+async function toggleRecord() {
+  if (!song) { toast('Start a song first'); return; }
+  try {
+    if (takeId || amp?.recording) {
+      await api(`takes/${takeId || amp.recording.take}/stop`, { method: 'POST' });
+      toast('Take stopped: it appears under R in a few seconds');
+      takeId = null;
+    } else {
+      takeId = (await api('takes', { method: 'POST', body: { song_id: song.id, t: player.currentTime || 0 } })).id;
+      toast('Recording – r stops');
+    }
+  } catch (e) { toast(e.message, 6000); }
+}
+
+let takeList = [];
+async function openTakes() {
+  if (!song) { toast('Start a song first'); return; }
+  try { takeList = (await api(`song/${song.id}/takes`)).takes; } catch (e) { toast('Loading failed: ' + e.message); return; }
+  $('#takes-title').textContent = `Takes: ${song.title} – ${song.artist}`;
+  const when = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  $('#takes-list').innerHTML = takeList.map((t) => `<tr><td>${when(t.created)}</td>` +
+    `<td class="t">${t.seconds ? fmt(t.seconds) : ''}</td><td class="t">from ${fmt(t.song_t)}</td><td>` +
+    (t.state === 'ready' ? `<button type="button" data-take="${t.id}">▶</button>` +
+      `<button type="button" data-with="${t.id}" title="Together with the song, from where the take began">▶ with the song</button>`
+      : '<span class="none">recording…</span>') +
+    `<button type="button" data-deltake="${t.id}" title="Delete this take">✕</button></td></tr>`).join('') ||
+    '<tr><td class="hint">No takes of this song yet: r records one.</td></tr>';
+  $('#take-record').textContent = takeId || amp?.recording ? '■ Stop' : '● Record';
+  if (!$('#d-takes').open) $('#d-takes').showModal();
+}
+
+$('#takes-list').addEventListener('click', async (e) => {
+  const { take, with: withSong, deltake } = e.target.dataset;
+  const tp = $('#take-player');
+  if (take || withSong) {
+    const t = takeList.find((x) => x.id === Number(take || withSong));
+    tp.src = `api/takes/${t.id}`;
+    if (withSong) {
+      player.currentTime = t.song_t;
+      await Promise.all([tp.play(), player.play()]).catch((err) => toast('Cannot play: ' + err.message));
+    } else {
+      player.pause();
+      tp.play().catch((err) => toast('Cannot play: ' + err.message));
+    }
+  } else if (deltake) {
+    await api('takes/' + deltake, { method: 'DELETE' }).catch((err) => toast('Deleting failed: ' + err.message));
+    openTakes();
+  }
+});
+$('#take-record').addEventListener('click', async () => { await toggleRecord(); setTimeout(openTakes, 500); });
+$('#d-takes').addEventListener('close', () => { $('#take-player').pause(); });
+
 // --- keys and buttons -----------------------------------------------------------
 
 function toggleList() {
@@ -920,7 +983,7 @@ const keys = {
   ArrowRight: () => seek(5), ArrowLeft: () => seek(-5),
   F11: toggleFull, '?': () => $('#d-help').showModal(), d: openDisplay,
   g: openAmp, G: learnTone,
-  v: cycleView, V: openPdfs, PageDown: () => turn(1), PageUp: () => turn(-1),
+  v: cycleView, V: openPdfs, r: toggleRecord, R: openTakes, PageDown: () => turn(1), PageUp: () => turn(-1),
 };
 
 document.addEventListener('keydown', (e) => {
@@ -937,7 +1000,7 @@ const buttons = {
   '#b-list': toggleList, '#b-prev': prev, '#b-pause': togglePause, '#b-next': next,
   '#b-shuffle': shuffle, '#b-filter': openFilter, '#b-tags': openTags, '#b-audio': openAudio,
   '#b-full': toggleFull, '#b-help': () => $('#d-help').showModal(), '#b-display': openDisplay,
-  '#b-tone': openAmp, '#amp': openAmp, '#b-pdf': openPdfs,
+  '#b-tone': openAmp, '#amp': openAmp, '#b-pdf': openPdfs, '#b-takes': openTakes,
 };
 for (const [sel, fn] of Object.entries(buttons)) {
   $(sel).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });

@@ -159,6 +159,8 @@ body.display.idle, body.display.idle * { cursor: none; }
 .amp { flex: none; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 30vw; cursor: pointer; }
 .amp.warn { color: #c0392b; }
+.amp.rec { color: #c0392b; font-weight: 600; }
+#take-player { width: 100%; margin-top: 8px; }
 .cues { border-collapse: collapse; margin: 4px 0; min-width: 60%; }
 .cues td { padding: 2px 8px 2px 0; }
 .cues td.t { font-variant-numeric: tabular-nums; }

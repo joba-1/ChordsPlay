@@ -67,6 +67,16 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
 * The display needs no login (a TV, a friend's TV): the code in the link is the key.
   Everything else under `/chordsplay/` still needs the Authelia login.
 
+## Takes: recording yourself
+
+`r` records a take of the playing song through the amp's USB output (stereo, 24 bit,
+48 kHz, as the amp sends it), `r` again stops it; the top right shows `● REC 0:12`.
+The amp bridge records on the computer the amp is connected to by USB, compresses
+the take to Opus (192 kbit/s, about 4 MB for 3 minutes) and sends it to the server
+(`~/.local/share/chordsplay-web/takes`, `CHORDSPLAY_TAKES_DIR`). `R` (or *Takes*) lists
+the song's takes: ▶ plays one, *with the song* plays it together with the song from
+where the take began, ✕ deletes it. A take nobody stops ends after 20 minutes.
+
 ## PDF tabs
 
 A song can show a PDF (a tab printed from Ultimate Guitar, your own sheet) instead of

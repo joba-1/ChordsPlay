@@ -21,6 +21,7 @@
     <button id="b-audio" title="Audio output (a)">Audio</button>
     <button id="b-pdf" title="PDF tabs: show the song's PDF instead of its text (v cycles; V lists all PDFs)">PDF</button>
     <button id="b-tone" title="Guitar tone: the amp's preset for this song (g; G learns the amp's current one)">Tone</button>
+    <button id="b-takes" title="Record yourself through the amp's USB (r starts/stops; R lists the takes)">Takes</button>
     <button id="b-display" title="Show the song on a TV or tablet (d)">Display</button>
     <button id="b-full" title="Full screen (F11)">⛶</button>
     <button id="b-help" title="Keys (?)">?</button>
@@ -94,6 +95,18 @@
     <table class="pdf-list"><thead><tr><th>File</th><th>Song</th><th></th></tr></thead>
       <tbody id="pdf-list"></tbody></table>
     <div class="dlg-buttons"><span class="grow"></span><button value="close">Close</button></div>
+  </form>
+</dialog>
+
+<dialog id="d-takes">
+  <form method="dialog">
+    <h2 id="takes-title">Takes</h2>
+    <p class="hint">Recorded from the amp's USB output by the amp bridge. <b>r</b> starts and stops a take of the song
+      that plays; <i>with the song</i> plays the take together with the song from where the take began.</p>
+    <table class="cues" id="takes-list"></table>
+    <audio id="take-player" controls preload="none"></audio>
+    <div class="dlg-buttons"><button type="button" id="take-record">● Record</button><span class="grow"></span>
+      <button value="close">Close</button></div>
   </form>
 </dialog>
 
@@ -183,6 +196,7 @@
       <tr><td>t</td><td>tags of the song</td></tr>
       <tr><td>l</td><td>show / hide the playlist</td></tr>
       <tr><td>d</td><td>show the song on a TV or tablet (display link)</td></tr>
+      <tr><td>r / R</td><td>record a take through the amp's USB (start/stop) / the song's takes</td></tr>
       <tr><td>v / V</td><td>song text or its PDF tab (cycles) / all PDFs and their songs</td></tr>
       <tr><td>Page Down / Up</td><td>turn the PDF's pages</td></tr>
       <tr><td>g</td><td>guitar tone: the amp's presets for this song</td></tr>
