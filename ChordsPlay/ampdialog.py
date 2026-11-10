@@ -549,21 +549,28 @@ class TonePanel(ttk.Frame):
         self.base_label.configure(text='Base {} {}{}'.format(
             self.base_slot, self.base_name or '',
             ' (level matched {:+.1f} dB)'.format(level[0]) if level else ''))
-        for row, knob in enumerate(tone_knobs(self.base_doc)):
+        knobs = tone_knobs(self.base_doc)
+        # many knobs (a preset with every effect block) go into two columns, so the
+        # dialog stays low enough for a laptop screen
+        per_column = len(knobs) if len(knobs) <= 10 else (len(knobs) + 1) // 2
+        for index, knob in enumerate(knobs):
             key = knob['key']
+            row, col = index % per_column, 2 * (index // per_column)
+            pad = (0, 0) if col == 0 else (15, 0)
             if knob['kind'] == 'switch':
                 param = key
                 var = tk.BooleanVar(value=not self.params[param] if param in self.params else knob['value'])
                 ttk.Checkbutton(self.knob_frame, text=knob['label'], variable=var,
                                 command=lambda k=param, v=var: self.set_param(k, not v.get())
-                                ).grid(row=row, column=0, columnspan=2, sticky=tk.W)
+                                ).grid(row=row, column=col, columnspan=2, sticky=tk.W, padx=pad)
             else:
                 var = tk.DoubleVar(value=self.params.get(key, knob['value']))
-                ttk.Label(self.knob_frame, text=knob['label']).grid(row=row, column=0, sticky=tk.W)
+                ttk.Label(self.knob_frame, text=knob['label']).grid(row=row, column=col, sticky=tk.W,
+                                                                   padx=pad)
                 tk.Scale(self.knob_frame, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
-                         length=160, variable=var, showvalue=True,
+                         length=140, variable=var, showvalue=True,
                          command=lambda value, k=key: self.set_param(k, round(float(value), 3))
-                         ).grid(row=row, column=1, sticky=tk.W)
+                         ).grid(row=row, column=col + 1, sticky=tk.W)
         self.dialog.grow_to_fit()
 
     def set_param(self, key, value):
