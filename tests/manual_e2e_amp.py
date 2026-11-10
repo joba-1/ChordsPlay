@@ -17,7 +17,9 @@ Run from the repo root; the song's audio goes into a null sink, the GUI into Xvf
 KEEP=1 keeps the temporary DB copy for inspection.
 
 Expected: the agent starts by itself, the amp goes to slot 2 at the start and slot 3
-at 8 s, "G" stores slot 3 at 0:11.5 instantly (no GUI stall), the amp ends on slot 1,
+at 8 s, "G" stores slot 3 at 0:11.5 instantly (no GUI stall), the tone cue at 14 s
+plays "CP e2e Dome +3" as an audition on the live slot, the amp ends on the preset it
+started on,
 and the agent unit is inactive afterwards.
 '''
 
@@ -28,6 +30,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -40,6 +43,7 @@ import ChordsPlay.gui   # noqa: E402
 AGENT = 'http://localhost:8081/api/micro-plus'
 SLOT_A = (2, 'Stadium Lead')        # adjust to your amp's preset names
 SLOT_B = (3, 'Swirling Echoes')
+TONE = ('CP e2e Dome +3', 21, 'Echo Dome', 3.0)     # name, base slot, base name, level dB
 
 
 def main():
@@ -63,6 +67,13 @@ def main():
     spec.loader.exec_module(cp)
     logging.getLogger('ChordsPlay.amp').setLevel(logging.DEBUG)
     events = []
+    # the preset the amp is on before the test, to return to it at the end; read before
+    # the app starts its agent (only one program may hold the amp's connection)
+    agent = os.path.expanduser('~/.local/share/chordsplay/maneline')
+    status = subprocess.run([agent + '-venv/bin/python', agent + '/scripts/mmp_ble.py', 'status'],
+                            capture_output=True, text=True, timeout=60).stdout.strip().splitlines()
+    results = {'original': json.loads(status[-1])['preset'] if status else 1}
+    print('amp starts on preset', results['original'])
     t0 = time.monotonic()
 
     def note(*a):
@@ -83,6 +94,8 @@ def main():
             song = cp.player.song_id
             cp.db.setSongPreset(song, 0, *SLOT_A)
             cp.db.setSongPreset(song, 8000, *SLOT_B)
+            tone_id = cp.db.saveTone(TONE[0], TONE[1], TONE[2], TONE[3], {})
+            cp.db.setSongTone(song, 14000, tone_id, cp.amp.live_slot)
             cp.cues.reload()
             note('playing song', song)
 
@@ -94,11 +107,17 @@ def main():
             cp.learnPreset()
             note('G took %.2fs' % (time.monotonic() - t), cp.db.getSongPresets(cp.player.song_id))
 
+        def tone_check():
+            state = cp.amp.snapshot()['state']
+            note('tone cue', 'pos=%dms' % cp.playPosition(), 'audition=%s' % state.get('audition'))
+            results['tone'] = (state.get('audition') or {}).get('name') == TONE[0]
+
         steps = ((1000, start), (6000, lambda: check('after start')), (9000, lambda: check('t~8s')),
                  (12500, lambda: check('t~11.5s')), (13000, learn),
-                 (16000, lambda: check('after learn')),
-                 (16500, lambda: cp.amp.request(1)), (20000, lambda: check('restored')),
-                 (20500, gui.quit))
+                 (16000, lambda: check('after learn')), (19000, tone_check),
+                 (19500, lambda: cp.amp.request(results.get('original', 1))),
+                 (23000, lambda: check('restored')),
+                 (23500, gui.quit))
         for delay, step in steps:
             gui.after(delay, step)
         return orig(gui, *a)
@@ -109,6 +128,7 @@ def main():
     rc = cp.main(['-c', cfg_path, '-d', db_path])
     note('main returned', rc)
     print('\n'.join(events))
+    print('tone cue played as audition:', 'PASS' if results.get('tone') else 'FAIL')
     if os.environ.get('KEEP'):
         print('work dir (test DB copy):', work)
     else:
