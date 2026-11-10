@@ -615,7 +615,7 @@ def tv_pair_poll():
     db.conn.commit()
     response = jsonify(paired=True)
     # no Path: the browser takes this page's folder (/chordsplay/d/tv behind Apache)
-    response.set_cookie(TV_COOKIE, row[0], max_age=TV_COOKIE_DAYS * 86400, httponly=True,
+    response.set_cookie(TV_COOKIE, row[0], max_age=TV_COOKIE_DAYS * 86400, httponly=True, path=None,
                         secure=request.headers.get(PROXY_HEADER) is not None, samesite='Lax')
     return response
 
