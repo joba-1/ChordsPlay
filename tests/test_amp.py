@@ -39,10 +39,10 @@ class TimeFormat(unittest.TestCase):
 class CueLogic(unittest.TestCase):
 
     def test_base_fills_start_only(self):
-        self.assertEqual(build_cues([(60000, 5, 'Loud')], (2, 'Clean')),
-                         [(0, 2, 'Clean'), (60000, 5, 'Loud')])
-        self.assertEqual(build_cues([(0, 7, 'Acoustic')], (2, 'Clean')), [(0, 7, 'Acoustic')])
-        self.assertEqual(build_cues([(60000, 5, None)], None), [(60000, 5, None)])
+        self.assertEqual(build_cues([(60000, 5, 'Loud', None)], (2, 'Clean')),
+                         [(0, 2, 'Clean', None), (60000, 5, 'Loud', None)])
+        self.assertEqual(build_cues([(0, 7, 'Acoustic', None)], (2, 'Clean')), [(0, 7, 'Acoustic', None)])
+        self.assertEqual(build_cues([(60000, 5, None)], None), [(60000, 5, None, None)])   # old 3-tuples
 
     def test_active_index_with_lead(self):
         cues = [(0, 1, None), (60000, 2, None)]
@@ -84,13 +84,13 @@ class DbPresets(TempDb):
         db, song = self.db, self.song
         db.setSongPreset(song, 0, 3, 'Clean')
         db.setSongPreset(song, 60000, 9, 'Lead')
-        self.assertEqual(db.getSongPresets(song), [(0, 3, 'Clean'), (60000, 9, 'Lead')])
+        self.assertEqual(db.getSongPresets(song), [(0, 3, 'Clean', None), (60000, 9, 'Lead', None)])
         db.setSongPreset(song, 61500, 10, 'Lead 2', replace_within_ms=2000)   # replaces 60000
-        self.assertEqual(db.getSongPresets(song), [(0, 3, 'Clean'), (61500, 10, 'Lead 2')])
+        self.assertEqual(db.getSongPresets(song), [(0, 3, 'Clean', None), (61500, 10, 'Lead 2', None)])
         self.assertTrue(db.moveSongPreset(song, 61500, 30000))
         self.assertFalse(db.moveSongPreset(song, 99999, 1))
         db.delSongPreset(song, 0)
-        self.assertEqual(db.getSongPresets(song), [(30000, 10, 'Lead 2')])
+        self.assertEqual(db.getSongPresets(song), [(30000, 10, 'Lead 2', None)])
 
     def test_slot_range_enforced(self):
         with self.assertRaises(sqlite3.IntegrityError):
@@ -107,7 +107,7 @@ class DbPresets(TempDb):
         self.assertEqual(db.presetUsage(), {4: 2})
         db.renamePresetSlot(4, 'Octobot')
         self.assertEqual(db.getArtistPreset('Band'), (4, 'Octobot'))
-        self.assertEqual(db.getSongPresets(self.song), [(0, 4, 'Octobot')])
+        self.assertEqual(db.getSongPresets(self.song), [(0, 4, 'Octobot', None)])
         db.delArtistPreset('Band')
         self.assertIsNone(db.getArtistPreset('Band'))
 
@@ -176,6 +176,8 @@ class FakeAgent(object):
                                                 for i in range(1, 101)]}
         self.switch_delay = switch_delay
         self.posts = []
+        self.auditions = []     # (name, slot) of every audition POST
+        self.preset_gets = []
         self.origins = []
         self.fail = 0           # answer this many POSTs with 503
         agent = self
@@ -193,14 +195,28 @@ class FakeAgent(object):
                 self.wfile.write(body)
 
             def do_GET(self):
+                if self.path.startswith('/api/micro-plus/preset?slot='):
+                    slot = int(self.path.split('=')[1])
+                    agent.preset_gets.append(slot)
+                    return self.reply(200, {'info': {'displayName': 'P{}'.format(slot)},
+                                            'audioGraph': {'nodes': [{'nodeId': 'amp', 'FenderId': 'ACD_Test',
+                                                                      'dspUnitParameters': {'volume': -10.0, 'gain': 0.5}}]}})
                 self.reply(200, agent.state)
 
             def do_POST(self):
                 agent.origins.append(self.headers.get('Origin'))
                 if self.headers.get('Origin') != 'http://' + self.headers.get('Host'):
                     return self.reply(403, {'error': 'origin'})
-                slot = json.loads(self.rfile.read(int(self.headers['Content-Length'])))['preset']
+                request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                if self.path == '/api/micro-plus/audition':
+                    doc, slot = request['preset'], request.get('slot')
+                    agent.auditions.append((doc['info']['displayName'], slot))
+                    agent.state.update(preset=slot, name=doc['info']['displayName'],
+                                       audition={'name': doc['info']['displayName'], 'slot': slot})
+                    return self.reply(200, agent.state)
+                slot = request['preset']
                 agent.posts.append(slot)
+                agent.state['audition'] = None
                 time.sleep(agent.switch_delay)
                 if agent.fail:
                     agent.fail -= 1
@@ -267,10 +283,11 @@ class Client(unittest.TestCase):
 
     def test_superseded_request_not_sent(self):
         '''A worker that picked slot 3 must not send it once a newer request arrived.'''
-        idle = AmpClient(self.agent.url)        # not started: drive _switch by hand
+        idle = AmpClient(self.agent.url)        # not started: drive _send by hand
         idle.request(3)
+        picked = idle.target                     # what the worker took
         idle.request(1)                          # arrives before the worker sends 3
-        idle._switch(3)
+        idle._send(picked)
         self.assertEqual(self.agent.posts, [])
         self.assertEqual(idle.snapshot()['pending'], 1)
 

@@ -41,9 +41,9 @@ import ChordsPlay.ampdialog
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.34'  # update also in setup.py
+__version__ = '3.35'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2026-11-09'
+__updated__ = '2026-11-10'
 
 DEBUG = 0
 TESTRUN = 0
@@ -182,6 +182,10 @@ def learnPreset():
         return
     state = amp.snapshot()['state']
     slot = state.get('preset')
+    if state.get('connected') and state.get('audition'):
+        messagebox.showinfo("Guitar tone", 'A tone is playing (an audition on slot {}), not a preset. '
+                            'Press g and use "Tone from here" in the tone panel to store it.'.format(slot))
+        return
     if not state.get('connected') or not slot:
         messagebox.showinfo("Guitar tone", 'The amp is not connected, so its current preset is '
                             'not known. Press g to choose a preset instead.')
@@ -209,7 +213,8 @@ def startAmp(config, section):
     if default_slot is not None and not ChordsPlay.amp.valid_slot(default_slot):
         log.warning("amp_default_slot %s ignored, must be 1..100", default_slot)
         default_slot = None
-    amp = ChordsPlay.amp.AmpClient(url, control=control).start()
+    live_slot = config.getint(section, 'amp_live_slot', fallback=100)
+    amp = ChordsPlay.amp.AmpClient(url, control=control, live_slot=live_slot).start()
     cues = ChordsPlay.amp.AmpCues(db, amp, lead_ms=config.getint(section, 'amp_lead_ms', fallback=300),
                                   default_slot=default_slot)
     log.info("amp agent %s%s", url, " (unit {})".format(unit) if unit else "")
@@ -312,6 +317,8 @@ def main(argv=None):
         parser.add_option("--sync-url", dest="sync_url", help="central chord-sync service base URL", metavar="URL")
         parser.add_option("--sync-token", dest="sync_token", help="bearer token for the sync service")
         parser.add_option("--sync-seed", dest="sync_seed", action="store_true", help="push all local chord data to central once, then exit")
+        parser.add_option("--import-levels", dest="import_levels", metavar="FILE",
+                          help="import a level survey of the amp's presets (maneline mmp_level.py survey), then exit")
 
         # set defaults
         parser.set_defaults(cfgfile=os.path.expanduser("~/.{}.cfg".format(program_name)))
@@ -373,6 +380,22 @@ def main(argv=None):
         user = opts.user
         db = ChordsPlay.db.Db(connector, user)
 
+        if opts.import_levels:
+            # measured level corrections per amp slot, for tones built on those presets
+            import json
+            try:
+                with open(opts.import_levels, encoding='utf-8') as f:
+                    report = json.load(f)
+                count = db.importPresetLevels(report)
+            except (OSError, ValueError, KeyError) as e:
+                log.error("cannot import levels from {}: {}".format(opts.import_levels, e))
+                return 2
+            log.info("imported level corrections for {} presets ({} method)".format(count, report['method']))
+            if report['method'] not in ('signal', 'played'):
+                log.warning("these were measured with the {} method: stored, but not used for "
+                            "tones - only signal- or played-method corrections match presets "
+                            "as played (see docs/spec-amp.md, Tones)".format(report['method']))
+            return 0
         if opts.sync_seed:
             # one-time: publish all local chord data to central, then exit
             if not opts.sync_url:

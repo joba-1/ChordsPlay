@@ -4,6 +4,7 @@ Created on 18.02.2016
 @author: joba1
 '''
 
+import json
 import sqlite3
 import ChordsPlay.song
 import logging
@@ -124,6 +125,22 @@ class Db(object):
                 slot          int not null check(slot between 1 and 100),
                 slot_name     text
             );
+            create table if not exists tones (
+                id            integer not null primary key autoincrement,
+                name          text not null unique,
+                base_slot     int not null check(base_slot between 1 and 100),
+                base_name     text,
+                level_db      real not null default 0,
+                params        text not null default '{}',
+                created       text default (datetime('now'))
+            );
+            create table if not exists preset_levels (
+                slot          int not null primary key check(slot between 1 and 100),
+                name          text,
+                correction_db real not null,
+                method        text not null,
+                measured_at   text
+            );
             create table if not exists user_filters (
                 user_id       int not null references users(id) on delete cascade,
                 name          text not null,
@@ -150,6 +167,12 @@ class Db(object):
         # dirty = has local changes not yet pushed to central (push detection)
         try:
             self.conn.execute("ALTER TABLE songs ADD COLUMN dirty integer default 0")
+        except sqlite3.OperationalError:
+            pass  # column already present
+        # a cue may play a tone (auditioned on the live slot) instead of a preset slot
+        try:
+            self.conn.execute("ALTER TABLE song_presets ADD COLUMN tone_id integer default null "
+                              "references tones(id) on delete set null")
         except sqlite3.OperationalError:
             pass  # column already present
 
@@ -563,9 +586,88 @@ WHERE s.lyrics_chords IS NOT NULL
     # that was re-edited on the amp. Local only: not part of the central sync yet.
 
     def getSongPresets(self, song_id):
+        '''Cues as (start_ms, slot, slot_name, tone_id); tone_id is None for a plain slot.'''
         return list(self.conn.execute(
-            "SELECT start_ms, slot, slot_name FROM song_presets WHERE song_id = ? ORDER BY start_ms",
-            (song_id,)))
+            "SELECT start_ms, slot, slot_name, tone_id FROM song_presets WHERE song_id = ? "
+            "ORDER BY start_ms", (song_id,)))
+
+    def setSongTone(self, song_id, start_ms, tone_id, live_slot, replace_within_ms=0):
+        '''A cue that plays a saved tone (auditioned on live_slot).'''
+        tone = self.getTone(tone_id)
+        if tone is None:
+            raise ValueError('unknown tone {}'.format(tone_id))
+        self.setSongPreset(song_id, start_ms, live_slot, tone['name'], replace_within_ms)
+        self.conn.execute("UPDATE song_presets SET tone_id = ? WHERE song_id = ? AND start_ms = ?",
+                          (tone_id, song_id, int(start_ms)))
+        self.conn.commit()
+
+    # --- tones: a base preset plus a level offset and knob settings, played by
+    # audition on the amp's live slot; nothing is written to the amp
+
+    def getTones(self):
+        return [self._tone(row) for row in self.conn.execute(
+            "SELECT id, name, base_slot, base_name, level_db, params FROM tones ORDER BY name")]
+
+    def getTone(self, tone_id):
+        row = self.conn.execute("SELECT id, name, base_slot, base_name, level_db, params FROM tones "
+                                "WHERE id = ?", (tone_id,)).fetchone()
+        return self._tone(row) if row else None
+
+    @staticmethod
+    def _tone(row):
+
+        return {'id': row[0], 'name': row[1], 'base_slot': row[2], 'base_name': row[3],
+                'level_db': row[4], 'params': json.loads(row[5] or '{}')}
+
+    def saveTone(self, name, base_slot, base_name, level_db, params):
+        '''Insert or update the tone called name; returns its id.'''
+
+        name = name.strip()
+        if not name:
+            raise ValueError('a tone needs a name')
+        params_json = json.dumps(params, sort_keys=True)
+        row = self.conn.execute("SELECT id FROM tones WHERE name = ?", (name,)).fetchone()
+        if row:
+            self.conn.execute("UPDATE tones SET base_slot = ?, base_name = ?, level_db = ?, params = ? "
+                              "WHERE id = ?", (base_slot, base_name, float(level_db), params_json, row[0]))
+            tone_id = row[0]
+        else:
+            tone_id = self.conn.execute(
+                "INSERT INTO tones (name, base_slot, base_name, level_db, params) VALUES (?, ?, ?, ?, ?)",
+                (name, base_slot, base_name, float(level_db), params_json)).lastrowid
+        self.conn.execute("UPDATE song_presets SET slot_name = ? WHERE tone_id = ?", (name, tone_id))
+        self.conn.commit()
+        return tone_id
+
+    def delTone(self, tone_id):
+        '''Delete a tone and the cues that play it.'''
+        self.conn.execute("DELETE FROM song_presets WHERE tone_id = ?", (tone_id,))
+        self.conn.execute("DELETE FROM tones WHERE id = ?", (tone_id,))
+        self.conn.commit()
+
+    def toneUsage(self):
+        return dict(self.conn.execute("SELECT tone_id, count(*) FROM song_presets "
+                                      "WHERE tone_id IS NOT NULL GROUP BY tone_id"))
+
+    # --- measured level corrections per amp slot (maneline mmp_level.py survey)
+
+    def importPresetLevels(self, report):
+        '''Store the corrections of a level survey; returns the number of presets.'''
+        method = report.get('method')
+        if method not in ('signal', 'played', 'noise'):
+            raise ValueError('unknown measuring method {!r}'.format(method))
+        rows = [(p['slot'], p.get('name'), float(p['correction_db']), method, report.get('measured_at'))
+                for p in report.get('presets', [])]
+        self.conn.executemany("INSERT OR REPLACE INTO preset_levels (slot, name, correction_db, method, "
+                              "measured_at) VALUES (?, ?, ?, ?, ?)", rows)
+        self.conn.commit()
+        return len(rows)
+
+    def getPresetLevel(self, slot, methods=('signal', 'played')):
+        '''(correction_db, name) for slot if measured with one of methods, else None.'''
+        row = self.conn.execute("SELECT correction_db, name, method FROM preset_levels WHERE slot = ?",
+                                (slot,)).fetchone()
+        return (row[0], row[1]) if row and row[2] in methods else None
 
     def setSongPreset(self, song_id, start_ms, slot, slot_name=None, replace_within_ms=0):
         '''Store a cue; cues closer than replace_within_ms to start_ms are replaced.'''
@@ -581,15 +683,15 @@ WHERE s.lyrics_chords IS NOT NULL
     def moveSongPreset(self, song_id, old_start_ms, new_start_ms):
         '''Change a cue's time; an existing cue at the new time is replaced.'''
         row = self.conn.execute(
-            "SELECT slot, slot_name FROM song_presets WHERE song_id = ? AND start_ms = ?",
+            "SELECT slot, slot_name, tone_id FROM song_presets WHERE song_id = ? AND start_ms = ?",
             (song_id, old_start_ms)).fetchone()
         if row is None:
             return False
         self.conn.execute("DELETE FROM song_presets WHERE song_id = ? AND start_ms IN (?, ?)",
                           (song_id, old_start_ms, new_start_ms))
         self.conn.execute(
-            "INSERT INTO song_presets (song_id, start_ms, slot, slot_name) VALUES (?, ?, ?, ?)",
-            (song_id, int(new_start_ms), row[0], row[1]))
+            "INSERT INTO song_presets (song_id, start_ms, slot, slot_name, tone_id) VALUES (?, ?, ?, ?, ?)",
+            (song_id, int(new_start_ms), row[0], row[1], row[2]))
         self.conn.commit()
         return True
 

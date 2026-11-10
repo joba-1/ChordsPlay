@@ -1,13 +1,17 @@
 '''
 Guitar-tone dialog (key g): the amp's presets and the playing song's cues.
 
-Upper list: when the song switches to which slot (cues). A position slider seeks
-the song, so several cues can be set in one go. Lower list: the amp's 100 presets,
-the current one marked. Changes are stored at once and take effect immediately;
-the dialog has only a Close button.
+Upper list: when the song switches to which slot or tone (cues). A position slider
+seeks the song, so several cues can be set in one go. Lower list: the amp's 100
+presets, the current one marked. Changes are stored at once and take effect
+immediately; the dialog has only a Close button.
 
 "Try" only switches the amp now (nothing is stored); "Save from …" stores a cue,
 so the amp switches there every time the song plays.
+
+Right: the tone panel ("audition fiddling"). A tone is a base preset with a level
+offset and knob settings, played by audition on the amp's live slot: nothing is
+written to the amp, and tones are kept in ChordsPlay's database.
 '''
 
 import time
@@ -17,7 +21,8 @@ import logging
 
 import ChordsPlay.dialog
 import ChordsPlay.mclist
-from ChordsPlay.amp import build_cues, describe, fmt_ms, parse_ms, name_mismatch
+from ChordsPlay.amp import (build_cues, build_tone, describe, fmt_ms, parse_ms, name_mismatch,
+                            tone_knobs)
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +34,11 @@ HELP = ('Try now: switch the amp to hear the selected preset; nothing is saved.\
         'Save from …: store it for this song from that time on; the amp then switches '
         'there every time the song plays.\n'
         'The slider or +/− (1 s) moves the song, to set several switches in one go. '
-        'Double-click a cue to play from 2 s before it.')
+        'Double-click a cue to play from 2 s before it.\n'
+        'Edit as tone (e): adjust level and knobs of the selected preset on the right; it plays '
+        'on the live slot while you adjust. Tone from start/here (B/H) saves it as a cue.')
+LEVEL_STEPS = (-6, -3, 0, 3, 6)     # quick level buttons, dB
+PLAY_DELAY_MS = 300                 # wait this long after the last change before auditioning
 
 
 class AmpDialog(ChordsPlay.dialog.Dialog):
@@ -107,12 +116,17 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         buttons = (ttk.Button(preset_buttons, text='Try now (s)', command=self.switch_now),
                    ttk.Button(preset_buttons, text='Save from start (b)', command=self.add_start),
                    self.here_button,
-                   ttk.Button(preset_buttons, text='Save for artist (a)', command=self.set_artist))
+                   ttk.Button(preset_buttons, text='Save for artist (a)', command=self.set_artist),
+                   ttk.Button(preset_buttons, text='Edit as tone (e)', command=self.edit_tone))
         for col, button in enumerate(buttons):
             button.grid(row=0, column=col, padx=5)
 
         self.help = ttk.Label(master, text=HELP, foreground='#555555', justify=tk.LEFT)
-        self.help.grid(row=8, column=0, sticky=tk.EW, pady=(0, 5))
+        # spans both columns: wrapped to the window width, it must not widen the left one
+        self.help.grid(row=8, column=0, columnspan=2, sticky=tk.EW, pady=(0, 5))
+
+        self.tone = TonePanel(master, self)
+        self.tone.grid(row=1, column=1, rowspan=7, sticky=tk.NSEW, padx=(15, 0))
 
         master.columnconfigure(0, weight=1)
         master.rowconfigure(6, weight=1)
@@ -120,7 +134,9 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         for key, command in (('t', self.set_time), ('<Delete>', self.delete), ('r', self.accept_name),
                              ('s', self.switch_now), ('b', self.add_start), ('h', self.add_here),
                              ('a', self.set_artist), ('+', lambda: self.step(1000)),
-                             ('-', lambda: self.step(-1000))):
+                             ('-', lambda: self.step(-1000)), ('e', self.edit_tone),
+                             ('B', lambda: self.tone.cue(0)), ('H', lambda: self.tone.cue(self.here_ms())),
+                             ('p', lambda: self.tone.play())):
             self.bind(key, lambda e, c=command: c())
 
         self.refresh()
@@ -144,6 +160,14 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         self.geometry('{}x{}'.format(width, height))
         self.minsize(width, height // 2)
 
+    def grow_to_fit(self):
+        '''Make the window larger if new content (tone knobs) needs it; never shrink.'''
+        self.update_idletasks()
+        width = max(self.winfo_width(), self.winfo_reqwidth())
+        height = max(self.winfo_height(), self.winfo_reqheight())
+        if (width, height) != (self.winfo_width(), self.winfo_height()):
+            self.geometry('{}x{}'.format(width, height))
+
     def buttonbox(self):
         box = ttk.Frame(self)
         ttk.Button(box, text='Close', width=10, command=self.cancel,
@@ -161,13 +185,20 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         self.status.configure(text=describe(snap))
 
         rows = []
-        for start, slot, slot_name, source in self.song_cues():
+        for start, slot, slot_name, source, tone_id in self.song_cues():
             notes = [] if source == 'song' else [source]
-            renamed = name_mismatch(slot, slot_name, names)
+            if tone_id is not None:
+                tone = self.db.getTone(tone_id)
+                notes.append('tone on {}'.format(tone['base_name']) if tone else 'deleted tone')
+                renamed = name_mismatch(tone['base_slot'], tone['base_name'], names) if tone else None
+                shown_slot = 'tone'
+            else:
+                renamed = name_mismatch(slot, slot_name, names)
+                shown_slot = slot
             if renamed is not None:
                 notes.append('now "{}"'.format(renamed))
             iid = str(start) if source == 'song' else BASE
-            rows.append((iid, fmt_ms(start), slot, slot_name or '', ', '.join(notes)))
+            rows.append((iid, fmt_ms(start), shown_slot, slot_name or '', ', '.join(notes)))
         self.cue_list.set(rows)
 
         usage = self.db.presetUsage()
@@ -175,8 +206,10 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         self.shown = (current, state.get('connected'))
         mark = '◀' if state.get('connected') else '(last)'
         selected = self.selected(self.preset_list)
+        live = self.client.live_slot
         rows = [(str(slot), slot, names[slot - 1] if slot <= len(names) else '',
-                 mark if slot == current else '', usage.get(slot, ''))
+                 (mark if slot == current else '') + (' live' if slot == live else ''),
+                 usage.get(slot, '') if slot != live else '')
                 for slot in range(1, 101)]
         self.preset_list.set(rows)
         focus = selected or (str(current) if current else '1')
@@ -189,6 +222,7 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
             if not self.winfo_exists():
                 return
             self.follow_player()
+            self.tone.tick()
             state = self.client.snapshot()['state']
             if (state.get('preset'), state.get('connected')) != self.shown:
                 self.refresh()      # the amp changed slot: move the marker
@@ -211,18 +245,23 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         base, source = self.db.getArtistPreset(self.artist), 'artist'
         if base is None and self.cues.default_slot:
             base, source = (self.cues.default_slot, None), 'default'
-        starts = {start for start, _, _ in song}
-        return [(start, slot, name, 'song' if start in starts else source)
-                for start, slot, name in build_cues(song, base)]
+        starts = {cue[0] for cue in song}
+        return [(start, slot, name, 'song' if start in starts else source, tone_id)
+                for start, slot, name, tone_id in build_cues(song, base)]
 
     @staticmethod
     def selected(mclist):
         items = mclist.tree.selection() or (mclist.tree.focus(),)
         return items[0] if items and items[0] else None
 
-    def selected_slot(self):
+    def selected_slot(self, allow_live=False):
         item = self.selected(self.preset_list)
-        return int(item) if item else None
+        slot = int(item) if item else None
+        if slot is not None and slot == self.client.live_slot and not allow_live:
+            messagebox.showinfo('Guitar tone', 'Slot {} is reserved for tones (auditions). '
+                                'Choose another preset.'.format(slot), parent=self)
+            return None
+        return slot
 
     def slot_name(self, slot):
         names = self.client.names()
@@ -368,10 +407,244 @@ class AmpDialog(ChordsPlay.dialog.Dialog):
         if item is None:
             return
         start = 0 if item == BASE else int(item)
-        for cue_start, slot, slot_name, _ in self.song_cues():
+        for cue_start, slot, slot_name, _, tone_id in self.song_cues():
             if cue_start == start:
+                if tone_id is not None:
+                    tone = self.db.getTone(tone_id)
+                    current = tone and name_mismatch(tone['base_slot'], tone['base_name'],
+                                                     self.client.names())
+                    if current is not None and tone:
+                        self.db.saveTone(tone['name'], tone['base_slot'], current, tone['level_db'],
+                                         tone['params'])
+                        self.changed()
+                    return
                 current = name_mismatch(slot, slot_name, self.client.names())
                 if current is not None:
                     self.db.renamePresetSlot(slot, current)
                     self.changed()
                 return
+
+    def edit_tone(self):
+        slot = self.selected_slot()
+        if slot:
+            self.tone.set_base(slot, self.slot_name(slot))
+
+
+class TonePanel(ttk.Frame):
+    '''
+    Audition fiddling: a base preset with a level offset and knob settings, played
+    on the live slot while you adjust it. Saved tones live in ChordsPlay's database.
+    '''
+
+    def __init__(self, master, dialog):
+        ttk.Frame.__init__(self, master)
+        self.dialog = dialog
+        self.db = dialog.db
+        self.client = dialog.client
+        self.base_slot = None
+        self.base_name = None
+        self.base_doc = None
+        self.params = {}
+        self.tone_id = None             # the saved tone being edited, if any
+        self.modified = False
+        self.pending = None             # after() id of a scheduled audition
+        self.level = tk.DoubleVar(value=0)
+        self.live = tk.BooleanVar(value=True)
+
+        ttk.Label(self, text='Tone: plays on slot {},\nnothing is saved on the amp'.format(
+            self.client.live_slot), justify=tk.LEFT).grid(row=0, column=0, columnspan=3, sticky=tk.W)
+        self.base_label = ttk.Label(self, text='Select a preset, then Edit as tone (e)',
+                                    foreground='#555555', wraplength=330)
+        self.base_label.grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(0, 5))
+
+        saved = ttk.Frame(self)
+        saved.grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=(0, 5))
+        ttk.Label(saved, text='Saved tones').grid(row=0, column=0, padx=(0, 5))
+        self.tones = ttk.Combobox(saved, state='readonly', width=24)
+        self.tones.grid(row=0, column=1)
+        ttk.Button(saved, text='Load', command=self.load).grid(row=0, column=2, padx=5)
+        ttk.Button(saved, text='Delete', command=self.delete_tone).grid(row=0, column=3)
+
+        level = ttk.Frame(self)
+        level.grid(row=3, column=0, columnspan=3, sticky=tk.EW)
+        ttk.Label(level, text='Level dB').grid(row=0, column=0, padx=(0, 5))
+        tk.Scale(level, from_=-12, to=12, resolution=1, orient=tk.HORIZONTAL, length=200,
+                 variable=self.level, command=lambda _: self.on_change()).grid(row=0, column=1)
+        steps = ttk.Frame(level)
+        steps.grid(row=1, column=1, sticky=tk.W)
+        for col, step in enumerate(LEVEL_STEPS):
+            ttk.Button(steps, text='{:+d}'.format(step) if step else '0', width=3,
+                       command=lambda v=step: self.set_level(v)).grid(row=0, column=col, padx=1)
+
+        self.knob_frame = ttk.Frame(self)
+        self.knob_frame.grid(row=4, column=0, columnspan=3, sticky=tk.NSEW, pady=5)
+
+        controls = ttk.Frame(self)
+        controls.grid(row=5, column=0, columnspan=3, sticky=tk.W)
+        ttk.Checkbutton(controls, text='Play while adjusting', variable=self.live).grid(row=0, column=0)
+        ttk.Button(controls, text='Play (p)', command=self.play).grid(row=0, column=1, padx=5)
+        ttk.Button(controls, text='Reset', command=self.reset).grid(row=0, column=2)
+
+        cue = ttk.Frame(self)
+        cue.grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=(5, 0))
+        ttk.Button(cue, text='Save tone…', command=self.save).grid(row=0, column=0, sticky=tk.W)
+        ttk.Button(cue, text='Tone from start (B)', command=lambda: self.cue(0)).grid(
+            row=1, column=0, sticky=tk.W, pady=(5, 0))
+        ttk.Button(cue, text='Tone from here (H)',
+                   command=lambda: self.cue(self.dialog.here_ms())).grid(row=1, column=1, padx=5, pady=(5, 0))
+        self.columnconfigure(0, weight=1)
+        self.refresh_tones()
+
+    # -- state
+
+    def refresh_tones(self):
+        self.saved = {t['name']: t for t in self.db.getTones()}
+        self.tones.configure(values=sorted(self.saved))
+
+    def set_base(self, slot, name, level=0.0, params=None, tone_id=None):
+        self.base_slot, self.base_name = slot, name
+        self.base_doc = self.client.preset(slot)        # None until fetched; see tick()
+        self.params = dict(params or {})
+        self.tone_id = tone_id
+        self.modified = False
+        self.level.set(level)
+        self.build_knobs()
+        if self.base_doc is not None:
+            self.on_change(force=True)
+
+    def tick(self):
+        if self.base_slot is not None and self.base_doc is None:
+            self.base_doc = self.client.preset(self.base_slot)
+            if self.base_doc is not None:
+                self.build_knobs()
+                self.on_change(force=True)
+
+    def name(self):
+        if self.tone_id is not None and not self.modified:
+            tone = self.db.getTone(self.tone_id)
+            if tone:
+                return tone['name']
+        level = int(round(self.level.get()))
+        return '{}{}{}'.format(self.base_name or 'Slot {}'.format(self.base_slot),
+                               ' {:+d} dB'.format(level) if level else '', ' *' if self.params else '')
+
+    def doc(self):
+        if self.base_doc is None:
+            return None
+        level = self.db.getPresetLevel(self.base_slot)
+        return build_tone(self.base_doc, self.level.get(), self.params, name=self.name()[:30],
+                          correction_db=level[0] if level else 0.0)
+
+    # -- knobs
+
+    def build_knobs(self):
+        for child in self.knob_frame.winfo_children():
+            child.destroy()
+        if self.base_slot is None:
+            return
+        if self.base_doc is None:
+            self.base_label.configure(text='Base {} {}: loading…'.format(self.base_slot, self.base_name or ''))
+            return
+        level = self.db.getPresetLevel(self.base_slot)
+        self.base_label.configure(text='Base {} {}{}'.format(
+            self.base_slot, self.base_name or '',
+            ' (level matched {:+.1f} dB)'.format(level[0]) if level else ''))
+        knobs = tone_knobs(self.base_doc)
+        # many knobs (a preset with every effect block) go into two columns, so the
+        # dialog stays low enough for a laptop screen
+        per_column = len(knobs) if len(knobs) <= 10 else (len(knobs) + 1) // 2
+        for index, knob in enumerate(knobs):
+            key = knob['key']
+            row, col = index % per_column, 2 * (index // per_column)
+            pad = (0, 0) if col == 0 else (15, 0)
+            if knob['kind'] == 'switch':
+                param = key
+                var = tk.BooleanVar(value=not self.params[param] if param in self.params else knob['value'])
+                ttk.Checkbutton(self.knob_frame, text=knob['label'], variable=var,
+                                command=lambda k=param, v=var: self.set_param(k, not v.get())
+                                ).grid(row=row, column=col, columnspan=2, sticky=tk.W, padx=pad)
+            else:
+                var = tk.DoubleVar(value=self.params.get(key, knob['value']))
+                ttk.Label(self.knob_frame, text=knob['label']).grid(row=row, column=col, sticky=tk.W,
+                                                                   padx=pad)
+                tk.Scale(self.knob_frame, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL,
+                         length=140, variable=var, showvalue=True,
+                         command=lambda value, k=key: self.set_param(k, round(float(value), 3))
+                         ).grid(row=row, column=col + 1, sticky=tk.W)
+        self.dialog.grow_to_fit()
+
+    def set_param(self, key, value):
+        if self.params.get(key) == value:
+            return
+        self.params[key] = value
+        self.on_change()
+
+    def set_level(self, value):
+        self.level.set(value)
+        self.on_change()
+
+    def reset(self):
+        if self.base_slot is not None:
+            self.set_base(self.base_slot, self.base_name)
+
+    # -- playing
+
+    def on_change(self, force=False):
+        if not force:
+            self.modified = True
+        if self.live.get() or force:
+            if self.pending is not None:
+                self.after_cancel(self.pending)
+            self.pending = self.after(PLAY_DELAY_MS, self.play)
+
+    def play(self):
+        self.pending = None
+        doc = self.doc()
+        if doc is not None:
+            self.client.audition(doc)
+
+    # -- saving
+
+    def save(self):
+        if self.base_slot is None:
+            messagebox.showinfo('Guitar tone', 'Select a preset and press Edit as tone first',
+                                parent=self.dialog)
+            return None
+        dlg = ChordsPlay.dialog.Dialog(self.dialog, 'Save tone', 'Name')
+        if dlg.result is None or not dlg.result.strip():
+            return None
+        self.tone_id = self.db.saveTone(dlg.result.strip()[:30], self.base_slot, self.base_name,
+                                        self.level.get(), self.params)
+        self.modified = False
+        self.refresh_tones()
+        self.tones.set(dlg.result.strip()[:30])
+        return self.tone_id
+
+    def cue(self, start_ms):
+        if not self.dialog.need_song():
+            return
+        tone_id = self.tone_id if self.tone_id is not None and not self.modified else self.save()
+        if tone_id is None:
+            return
+        self.db.setSongTone(self.dialog.song_id, start_ms, tone_id, self.client.live_slot)
+        log.info('song %s: tone %s from %s', self.dialog.song_id, tone_id, fmt_ms(start_ms))
+        self.dialog.changed()
+
+    def load(self):
+        tone = self.saved.get(self.tones.get())
+        if tone:
+            self.set_base(tone['base_slot'], tone['base_name'], tone['level_db'], tone['params'], tone['id'])
+
+    def delete_tone(self):
+        tone = self.saved.get(self.tones.get())
+        if not tone:
+            return
+        used = self.db.toneUsage().get(tone['id'], 0)
+        if messagebox.askyesno('Guitar tone', 'Delete tone "{}"{}?'.format(
+                tone['name'], ' and its {} cue(s)'.format(used) if used else ''), parent=self.dialog):
+            self.db.delTone(tone['id'])
+            if self.tone_id == tone['id']:
+                self.tone_id = None
+            self.refresh_tones()
+            self.tones.set('')
+            self.dialog.changed()

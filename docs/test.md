@@ -10,6 +10,13 @@ venv/bin/python -m unittest discover -s tests
 hardware, display or network. The agent is a fake HTTP server.
 `tests/test_exit.py` checks that the scanner stops between songs when asked (it
 used to go through every remaining song first) and that the DB is committed and closed.
+`tests/test_tones.py` covers tones:
+* building a tone's preset JSON (level, correction, knobs, ignored empty blocks);
+* the knobs offered;
+* tones and tone cues in the DB;
+* "signal-only" level corrections;
+* auditioning on the live slot and fetching presets over HTTP (fake agent);
+* tone cues waiting for their base preset.
 
 | Area | What is checked |
 |---|---|
@@ -39,6 +46,27 @@ Expected:
 * the amp back on slot 1, and `systemctl --user is-active chordsplay-amp-agent` → inactive
 
 Last run 2026-11-09 (firmware 1.1.11, BlueZ 5.87): all as expected; G 0.13 s.
+
+## Manual tone level test (after changing tones, the client or the agent)
+
+`tests/manual_tone_level_test.py` runs the whole path:
+1. ChordsPlay's `AmpClient` builds tones from a stored preset.
+2. The installed agent auditions them on slot 100.
+3. The amp's USB output is measured with maneline's `mmp_level`.
+
+Needs the amp on Bluetooth **and** USB, and plugged into an instrument with its volume
+at zero. Run it with the agent's venv, which has numpy:
+
+```bash
+~/.local/share/chordsplay/maneline-venv/bin/python tests/manual_tone_level_test.py [slot]
+```
+
+Expected: every level offset (+3, +6, −3, −6 dB) measures within 1 dB, and the amp
+ends on the preset it started on.
+
+Last run 2026-11-10 with 80S Rock: +2.9/+5.8/−3.0/−5.8 dB, reference drift −0.08 dB.
+`tests/manual_e2e_amp.py` now also plays a tone cue at 14 s. It reads the starting
+preset first and returns to it.
 
 ## Manual exit test (on minor releases, and after changing start-up or exit code)
 
