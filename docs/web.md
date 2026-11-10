@@ -84,7 +84,10 @@ every device plays them.
   It starts the amp agent while the amp is connected as an audio device, like the
   desktop app does. A new bridge link ends the previous one.
 * The top right shows what the bridge reports: `amp 19 80S Rock`, `amp ▶ <tone>`,
-  `amp asleep`, or `amp bridge offline` (nothing heard for 30 s).
+  `amp idle · 19 80S Rock`, or `amp bridge offline` (nothing heard for 30 s). *Idle*: after
+  5 minutes without a switch the agent drops the Bluetooth control link to save the amp's
+  battery. Sound (Bluetooth audio, USB) is a separate connection and keeps playing; the
+  next switch wakes the link, which takes a few seconds.
 * The bridge switches only while a song plays. While the desktop app runs as well,
   both can switch the amp; use one at a time.
 

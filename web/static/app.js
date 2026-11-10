@@ -278,6 +278,9 @@ async function openFilter() {
   try {
     for (const name of (await api('filters')).names) sel.add(new Option(name, name));
   } catch (e) { /* list stays empty */ }
+  sel.disabled = sel.length === 1;
+  sel.options[0].textContent = sel.disabled ? 'No saved filters' : 'Load…';
+  sel.title = sel.disabled ? 'Filters stored with "Save as…" appear here' : 'Load a saved filter';
   previewFilter();
   d.showModal();
   d.querySelector('input').focus();
@@ -449,7 +452,9 @@ function ampText() {
   let text;
   if (st.connected && st.audition) text = `amp ▶ ${st.audition.name || 'tone'}`;
   else if (st.connected) text = st.preset ? `amp ${st.preset} ${st.name || ''}` : 'amp connected';
-  else if (st.asleep) text = 'amp asleep';
+  // the agent drops the Bluetooth control link after 5 min without a switch (battery);
+  // sound is a separate connection, and the next switch wakes the link
+  else if (st.asleep) text = st.preset ? `amp idle · ${st.preset} ${st.name || ''}` : 'amp idle';
   else text = 'amp ' + (st.phase || 'disconnected');
   if (amp.warning || amp.error) text += ' – ' + (amp.warning || amp.error);
   return text.trim();
@@ -484,8 +489,10 @@ function chosen() {
 function renderAmp() {
   const names = presetNames();
   const st = amp?.state || {};
-  $('#amp-status').textContent = amp ? ampText() + (ampOnline() ? '' :
-    ' – switching needs the amp bridge on the computer the amp is paired with (Bridge link…)') :
+  $('#amp-status').textContent = amp ? ampText() + (!ampOnline()
+    ? ' – switching needs the amp bridge on the computer the amp is paired with (Bridge link…)'
+    : st.asleep ? ' – the control link sleeps after 5 minutes without a switch; sound is not affected, ' +
+      'and the next switch wakes it (a few seconds)' : '') :
     'No amp bridge has reported yet: set one up with "Bridge link…". Cues can be edited without it.';
   const cues = cueList?.cues || [];
   $('#amp-cues').innerHTML = cues.length ? cues.map((c) => {
