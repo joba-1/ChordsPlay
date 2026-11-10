@@ -273,17 +273,23 @@ async function openFilter() {
   const d = $('#d-filter');
   setFilterForm(filterValues);
   showFilterErrors({});
+  await fillSavedFilters();
+  previewFilter();
+  d.showModal();
+  d.querySelector('input').focus();
+}
+
+// the saved filters; the first entry is only the label of the closed list (hidden)
+async function fillSavedFilters() {
   const sel = $('#filter-load');
   sel.length = 1;
   try {
     for (const name of (await api('filters')).names) sel.add(new Option(name, name));
   } catch (e) { /* list stays empty */ }
+  sel.value = '';
   sel.disabled = sel.length === 1;
   sel.options[0].textContent = sel.disabled ? 'No saved filters' : 'Load…';
   sel.title = sel.disabled ? 'Filters stored with "Save as…" appear here' : 'Load a saved filter';
-  previewFilter();
-  d.showModal();
-  d.querySelector('input').focus();
 }
 
 $('#filter-load').addEventListener('change', async (e) => {
@@ -301,6 +307,7 @@ $('#filter-save').addEventListener('click', async () => {
   try {
     await api('filters/' + encodeURIComponent(name), { method: 'PUT', body: filterForm() });
     toast(`Saved filter "${name}"`);
+    fillSavedFilters();
   } catch (e) { showFilterErrors(e.data?.errors || {}); toast('Saving failed: ' + e.message); }
 });
 
