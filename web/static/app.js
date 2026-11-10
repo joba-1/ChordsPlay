@@ -523,7 +523,8 @@ function levelText(level) {
 function chosen() {
   const slot = Number($('#amp-presets').value), tone = Number($('#amp-tones').value);
   const level = $('#amp-level').value === '' ? null : Number($('#amp-level').value);
-  if (slot) return { slot, level };
+  const params = slot && slot === knobSlot && Object.keys(knobParams).length ? { ...knobParams } : null;
+  if (slot) return { slot, level, params };
   if (tone) return { tone_id: tone };
   toast('Choose a preset or a tone first');
   return null;
@@ -539,11 +540,14 @@ function renderAmp() {
     'No amp bridge has reported yet: set one up with "Bridge link…". Cues can be edited without it.';
   const cues = cueList?.cues || [];
   $('#amp-cues').innerHTML = cues.length ? cues.map((c) => {
-    const what = c.tone_id ? `tone ${esc(c.tone || '(deleted)')}` : `${c.slot} ${esc(c.name || '')}${levelText(c.level)}`;
+    const what = c.tone_id ? `tone ${esc(c.tone || '(deleted)')}`
+      : `${c.slot} ${esc(c.name || '')}${levelText(c.level)}${c.params ? ' · tuned' : ''}`;
     const now = !c.tone_id && names[c.slot - 1] && c.name && names[c.slot - 1].trim() !== c.name.trim()
       ? ` <span class="err">slot is now "${esc(names[c.slot - 1])}": save it again</span>` : '';
     return `<tr><td class="t">${fmtMs(c.start)}</td><td>${what}${now}</td>` +
       `<td><button type="button" data-play="${c.start}" title="Play from 2 s before">▶</button>` +
+      (c.tone_id ? '' : `<button type="button" data-edit="${c.start}" title="Load into the choice and the knobs, to change it">✎</button>` +
+        `<button type="button" data-store="${c.start}" title="Store the current choice in this cue">⤓</button>`) +
       `<button type="button" data-del="${c.start}" title="Delete this cue">✕</button></td></tr>`;
   }).join('') : '<tr><td class="hint">No cues for this song yet.</td></tr>';
   const base = cueList?.artist_preset;
@@ -614,11 +618,77 @@ async function saveCue(start) {
 }
 
 // one of the two lists: choosing in one clears the other
-$('#amp-presets').addEventListener('change', () => { $('#amp-tones').value = ''; renderAmp(); });
+$('#amp-presets').addEventListener('change', () => { $('#amp-tones').value = ''; renderAmp(); loadKnobs(); });
 $('#amp-level').addEventListener('change', () => renderAmp());
 $('#amp-tones').addEventListener('change', () => { $('#amp-presets').value = ''; });
 $('#amp-presets').addEventListener('dblclick', () => $('#amp-try').click());
 $('#amp-tones').addEventListener('dblclick', () => $('#amp-try').click());
+
+// --- knobs: adjust the chosen preset while the song plays, stored with the cue
+
+let knobSlot = null;        // the preset the knobs belong to
+let knobParams = {};        // only what differs from the preset ('reverb.wetlvl': 0.4, 'delay.bypass': true)
+let knobList = [];
+
+async function loadKnobs(tries = 0) {
+  const slot = Number($('#amp-presets').value);
+  if (!$('#amp-knobs-box').open) return;
+  if (!slot) { $('#amp-knobs').innerHTML = ''; $('#amp-knobs-hint').textContent = 'Choose a preset first.'; return; }
+  if (slot !== knobSlot) { knobSlot = slot; knobParams = {}; }
+  let r;
+  try {
+    const res = await fetch('api/amp/preset/' + slot);
+    r = await res.json();
+    if (res.status === 202) {
+      $('#amp-knobs').innerHTML = '';
+      $('#amp-knobs-hint').textContent = r.bridge ? 'Reading the preset from the amp…'
+        : 'This preset is not known yet, and no amp bridge is running to read it.';
+      if (r.bridge && tries < 12 && Number($('#amp-presets').value) === slot) setTimeout(() => loadKnobs(tries + 1), 1500);
+      return;
+    }
+  } catch (e) { $('#amp-knobs-hint').textContent = 'Loading failed: ' + e.message; return; }
+  if (Number($('#amp-presets').value) !== slot) return;
+  knobList = r.knobs;
+  $('#amp-knobs-hint').textContent = `${slot} ${r.name}: a changed knob is bold.` +
+    ($('#amp-level').value === '' ? ' With "original" the preset keeps its own volume.' : '');
+  renderKnobs();
+}
+
+function renderKnobs() {
+  $('#amp-knobs').innerHTML = knobList.map((k) => {
+    const changed = k.key in knobParams;
+    if (k.kind === 'switch') {
+      const on = changed ? !knobParams[k.key] : k.value;     // stored as "bypass"
+      return `<label class="switch${changed ? ' changed' : ''}"><input type="checkbox" data-knob="${k.key}" ${on ? 'checked' : ''}>${esc(k.label)}</label>`;
+    }
+    const v = changed ? knobParams[k.key] : k.value;
+    return `<label${changed ? ' class="changed"' : ''}>${esc(k.label)}<input type="range" min="0" max="1" step="0.01" ` +
+      `value="${v}" data-knob="${k.key}"><output>${v.toFixed(2)}</output></label>`;
+  }).join('') || '<span class="hint">This preset has no adjustable knobs.</span>';
+}
+
+let knobTimer = null;
+$('#amp-knobs').addEventListener('input', (e) => {
+  const key = e.target.dataset.knob;
+  if (!key) return;
+  const knob = knobList.find((k) => k.key === key);
+  if (knob.kind === 'switch') {
+    const bypass = !e.target.checked;
+    if (bypass === !knob.value) delete knobParams[key]; else knobParams[key] = bypass;
+  } else {
+    const v = Math.round(Number(e.target.value) * 1000) / 1000;
+    e.target.nextElementSibling.value = v.toFixed(2);
+    if (Math.abs(v - knob.value) < 0.005) delete knobParams[key]; else knobParams[key] = v;
+  }
+  e.target.closest('label').classList.toggle('changed', key in knobParams);
+  if ($('#amp-live').checked) { clearTimeout(knobTimer); knobTimer = setTimeout(() => $('#amp-try').click(), 250); }
+});
+$('#amp-knobs-box').addEventListener('toggle', () => loadKnobs());
+$('#amp-knobs-reset').addEventListener('click', () => {
+  knobParams = {};
+  renderKnobs();
+  if ($('#amp-live').checked) $('#amp-try').click();
+});
 
 $('#amp-try').addEventListener('click', async () => {
   const what = chosen();
@@ -633,9 +703,9 @@ $('#amp-here').addEventListener('click', () => saveCue(Math.floor((player.curren
 $('#amp-artist-save').addEventListener('click', async () => {
   const slot = Number($('#amp-presets').value);
   if (!slot) { toast('Choose a preset (tones are per song)'); return; }
-  const level = $('#amp-level').value === '' ? null : Number($('#amp-level').value);
+  const { level, params } = chosen();
   try {
-    await api('artist-preset', { method: 'PUT', body: { artist: song.artist, slot, level } });
+    await api('artist-preset', { method: 'PUT', body: { artist: song.artist, slot, level, params } });
     cueList = await api(`song/${song.id}/cues`);
     renderAmp();
     toast(`Preset ${slot} for every song of ${song.artist}`);
@@ -644,8 +714,26 @@ $('#amp-artist-save').addEventListener('click', async () => {
 
 $('#d-amp').addEventListener('click', async (e) => {
   const play = e.target.dataset.play, del = e.target.dataset.del;
+  const editAt = e.target.dataset.edit, storeAt = e.target.dataset.store;
   try {
-    if (play !== undefined) {
+    if (editAt !== undefined) {
+      const c = cueList.cues.find((x) => x.start === Number(editAt));
+      $('#amp-presets').value = c.slot;
+      $('#amp-tones').value = '';
+      $('#amp-level').value = c.level === null ? '' : String(c.level);
+      knobSlot = c.slot;
+      knobParams = { ...(c.params || {}) };
+      $('#amp-knobs-box').open = true;
+      renderAmp();
+      loadKnobs();
+      toast(`Cue at ${fmtMs(c.start)} loaded: change it, then ⤓ in its row stores it`);
+    } else if (storeAt !== undefined) {
+      const what = chosen();
+      if (!what) return;
+      cueList = await api(`song/${song.id}/cues/${storeAt}`, { method: 'PUT', body: what });
+      renderAmp();
+      toast(`Stored at ${fmtMs(Number(storeAt))}`);
+    } else if (play !== undefined) {
       player.currentTime = Math.max(0, Number(play) / 1000 - 2);
       player.play().catch(() => {});
     } else if (del !== undefined) {

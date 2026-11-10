@@ -393,6 +393,46 @@ class Amp(Api):
         self.assertEqual(agent.requests[-1], ('slot', 7))
         self.assertEqual(self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'level': 40}).status_code, 400)
 
+    def test_knobs_fetched_through_the_bridge(self):
+        from web import bridge as bridgemod
+        path, opener = self.bridge()
+        agent = FakeAgentClient()
+        agent.base = {'info': {'displayName': 'Twin'}, 'audioGraph': {'nodes': [
+            {'nodeId': 'amp', 'FenderId': 'ACD_Twin', 'dspUnitParameters': {'volume': -5.0, 'gain': 0.4, 'bass': 0.5}},
+            {'nodeId': 'reverb', 'FenderId': 'ACD_Spring', 'dspUnitParameters': {'bypass': False, 'wetlvl': 0.3, 'decay': 0.6}},
+            {'nodeId': 'delay', 'FenderId': 'DUBS_Unknown', 'dspUnitParameters': {}}]}}
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        r = self.client.get('/api/amp/preset/7')
+        self.assertEqual((r.status_code, r.get_json()['pending']), (202, True))
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd'))
+        b.step()                                    # the bridge reads slot 7 and sends it
+        r = self.client.get('/api/amp/preset/7').get_json()
+        self.assertEqual([k['key'] for k in r['knobs']],
+                         ['amp.gain', 'amp.bass', 'reverb.bypass', 'reverb.wetlvl', 'reverb.decay'])   # empty block: none
+        # the amp's name for slot 7 changed: read again
+        self.client.put(path + 'amp', json={'state': {'connected': True, 'preset': 1,
+                                                     'presets': [{'preset': i, 'name': 'Other' if i == 7 else ''}
+                                                                 for i in range(1, 101)]}})
+        self.assertEqual(self.client.get('/api/amp/preset/7').status_code, 202)
+
+    def test_original_with_knobs_keeps_the_presets_volume(self):
+        from web import bridge as bridgemod
+        alpha = self.song_ids()[0]
+        self.app.get_db('jo').importPresetLevels({'method': 'played', 'presets': [{'slot': 7, 'correction_db': 5.5}]})
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'params': {'reverb.wetlvl': 0.8}})
+        self.client.put('/api/song/{}/cues/20000'.format(alpha), json={'slot': 7, 'level': 3, 'params': {'reverb.wetlvl': 0.8}})
+        path, opener = self.bridge()
+        agent = FakeAgentClient()
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        b.session.update('now', {'id': alpha, 't': 1, 'playing': True, 'at': 1, 'server_time': 1}); b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'slot 7 tuned', -5.0))              # own volume, knobs changed
+        b.session.update('now', {'id': alpha, 't': 21, 'playing': True, 'at': 1, 'server_time': 1}); b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'slot 7 +3 dB tuned', -5 + 5.5 + 3))
+        # live while fiddling: try now with knobs
+        self.client.post('/api/amp/try', json={'slot': 7, 'level': 0, 'params': {'amp.gain': 0.9}})
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'slot 7 matched tuned', -5 + 5.5))
+
     def test_paused_controller_switches_nothing(self):
         from web import bridge as bridgemod
         alpha = self.song_ids()[0]

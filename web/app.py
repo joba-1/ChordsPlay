@@ -40,9 +40,10 @@ import ChordsPlay.db
 import ChordsPlay.scan
 from ChordsPlay.textfit import wrap_comments
 from web import pdfs as pdfmod
+from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '0.6'
+__version__ = '0.7'
 
 log = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ def get_db(user=None):
             CREATE TABLE IF NOT EXISTS bridge_tokens (
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
-                created real not null);""" + pdfmod.SCHEMA)
+                created real not null);""" + pdfmod.SCHEMA + presetmod.SCHEMA)
         suggestmod.setup(db.conn)
         db.conn.commit()
     return db
@@ -586,12 +587,22 @@ def sound_from(data):
     return (None if level is None else float(level)), (params or None)
 
 
-def sound_tone(tone_id, slot, slot_name, level, params):
-    '''A cue's own sound as a tone the bridge plays by audition (ChordsPlay.amp: the
-    measured correction of the slot is added to level).'''
+def sound_tone(db, tone_id, slot, slot_name, level, params):
+    '''A cue's own sound as a tone the bridge plays by audition. The bridge adds the
+    slot's measured correction to a tone's level (ChordsPlay.amp.tone_document), so
+    "original" (level None) with changed knobs subtracts it again: the preset's own
+    volume, as with a plain switch.'''
     label = slot_name or 'slot {}'.format(slot)
-    return {'id': tone_id, 'name': '{} {:+g} dB'.format(label, level) if level else label + ' matched',
-            'base_slot': slot, 'base_name': slot_name, 'level_db': level or 0.0, 'params': params or {}}
+    if level is None:
+        measured = db.getPresetLevel(slot)
+        level_db, name = -(measured[0] if measured else 0.0), label + ' tuned'
+    else:
+        level_db = level
+        name = '{} {:+g} dB'.format(label, level) if level else label + ' matched'
+    if params and level is not None:
+        name += ' tuned'
+    return {'id': tone_id, 'name': name, 'base_slot': slot, 'base_name': slot_name,
+            'level_db': level_db, 'params': params or {}}
 
 
 def song_cues(db, song_id):
@@ -745,7 +756,7 @@ def try_preset():
         else:
             names = amp_names(db.user)
             name = names[data['slot'] - 1] if len(names) >= data['slot'] else None
-            command = {'tone': sound_tone(0, data['slot'], name, level, params),
+            command = {'tone': sound_tone(db, 0, data['slot'], name, level, params),
                        'level': db.getPresetLevel(data['slot'])}
     else:
         abort(400)
@@ -799,7 +810,7 @@ def bridge_song(token, song_id):
 
     def own_tone(slot, name, level, params):
         tone_id = -(len(tones) + 1)
-        tones[tone_id] = sound_tone(tone_id, slot, name, level, params)
+        tones[tone_id] = sound_tone(db, tone_id, slot, name, level, params)
         return tone_id
 
     for start, slot, name, tone_id in db.getSongPresets(song_id):
@@ -824,6 +835,40 @@ def bridge_song(token, song_id):
                    artist_preset=list(base) if base else None,
                    tones={str(k): v for k, v in tones.items()},
                    levels={str(k): v for k, v in levels.items() if v})
+
+
+# --- preset contents (for the knobs) ---------------------------------------------
+
+@app.route('/api/amp/preset/<int:slot>')
+def amp_preset(slot):
+    '''The knobs of the preset in a slot. If it isn't known (or the amp's name for the
+    slot changed), the bridge is asked to read it: 202, ask again in a moment.'''
+    if not 1 <= slot <= 100:
+        abort(404)
+    db = get_db()
+    cached = presetmod.cached(db.conn, slot)
+    names = amp_names(db.user)
+    current = names[slot - 1].strip() if len(names) >= slot else None
+    if cached is None or (current and current != cached[0].strip()):
+        hub.publish(db.user, {'fetch': slot, 'at': time.time()}, 'cmd')
+        amp = amp_state(db.user)
+        return jsonify(slot=slot, pending=True, bridge=bool(amp and amp['online'])), 202
+    import ChordsPlay.amp
+    return jsonify(slot=slot, name=cached[0], knobs=ChordsPlay.amp.tone_knobs(cached[1]))
+
+
+@app.route('/d/bridge/<token>/preset/<int:slot>', methods=['PUT'])
+def bridge_preset(token, slot):
+    '''A slot's stored preset as the bridge read it from the amp.'''
+    db = get_db(bridge_user(token))
+    if not 1 <= slot <= 100 or (request.content_length or 0) > 64 * 1024:
+        abort(400)
+    doc = request.get_json(silent=True)
+    if not isinstance(doc, dict) or not isinstance(doc.get('audioGraph'), dict):
+        abort(400)
+    names = amp_names(db.user)
+    presetmod.store(db.conn, slot, names[slot - 1] if len(names) >= slot else doc.get('info', {}).get('displayName', ''), doc)
+    return jsonify(ok=True)
 
 
 @app.route('/d/bridge/<token>/amp', methods=['PUT'])

@@ -103,8 +103,15 @@ every device plays them.
   loud, plus −6 … +6 dB (e.g. +3 for a solo). It is stored with the cue, the artist
   preset and the preset per sound, and used by *Try now*. Level-matched presets play
   by audition on slot 100 (nothing is written to the amp); a preset that wasn't
-  measured plays at its own volume plus the offset. Knob settings per cue are stored
-  the same way (`params`), for adjusting effects later.
+  measured plays at its own volume plus the offset.
+* **Knobs** (fold out under the presets): the chosen preset's amp gain and EQ, and per
+  effect on/off, mix, depth, decay, feedback. With *Play while adjusting* every change
+  is heard at once (by audition, nothing written to the amp). *Save …* stores the
+  knobs with the cue or the artist, together with the level; ✎ in a cue's row loads
+  it for changing, ⤓ stores the current choice into that cue. With *original* the
+  preset keeps its own volume. The server knows each slot's preset from a backup
+  (`python -m web.presets import BACKUP_DIR`) and asks the bridge to read a slot again
+  when the amp's name for it changed.
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.

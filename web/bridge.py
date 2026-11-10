@@ -79,7 +79,7 @@ class Session(object):
         self.lock = threading.Lock()
         self.now = None         # (song_id, t at `since`, playing, since (monotonic))
         self.plan_rev = None
-        self.command = None
+        self.commands = []      # try now / fetch a preset, in order
 
     def update(self, channel, data):
         with self.lock:
@@ -96,7 +96,7 @@ class Session(object):
                 self.plan_rev = data.get('rev')
             elif channel == 'cmd':
                 if time.time() - float(data.get('at') or 0) < COMMAND_MAX_AGE_S:
-                    self.command = data
+                    self.commands.append(data)
 
     def position(self):
         '''(song_id, ms, playing) or None.'''
@@ -108,10 +108,10 @@ class Session(object):
                 t += time.monotonic() - since
             return song_id, int(t * 1000), playing
 
-    def take_command(self):
+    def take_commands(self):
         with self.lock:
-            command, self.command = self.command, None
-            return command
+            commands, self.commands = self.commands, []
+            return commands
 
 
 def read_events(response, on_event):
@@ -143,6 +143,7 @@ class Bridge(object):
         self.cues = ampmod.AmpCues(self.plan, client, lead_ms=lead_ms, default_slot=default_slot)
         self.plan_rev = None
         self.trying = None          # (command, until): a tone waits for its base preset
+        self.fetching = {}          # slot -> until: presets the server asked for (knobs)
         self.reported = (None, 0)   # (report, monotonic)
         self.connected = False
         self.quit = threading.Event()
@@ -189,12 +190,33 @@ class Bridge(object):
                 log.warning('bridge: cues of song %s not loaded (%s)', song_id, getattr(e, 'reason', e))
                 self.cues.song_id = None
                 self.plan.song = None
-        command = self.session.take_command()
-        if command is not None:
-            self.trying = (command, time.monotonic() + 30)
+        for command in self.session.take_commands():
+            if 'fetch' in command:
+                self.fetching[int(command['fetch'])] = time.monotonic() + 30
+            else:
+                self.trying = (command, time.monotonic() + 30)
         if self.trying is not None:
             self.try_now()
+        self.send_presets()
         self.report()
+
+    def send_presets(self):
+        '''Presets the server asked for, as soon as the agent has read them.'''
+        for slot, until in list(self.fetching.items()):
+            doc = self.client.preset(slot)
+            if doc is None:
+                if time.monotonic() > until:
+                    log.warning('bridge: slot %d could not be read', slot)
+                    del self.fetching[slot]
+                continue
+            request = urllib.request.Request(self.url + 'preset/{}'.format(slot), data=json.dumps(doc).encode(),
+                                             method='PUT', headers={'Content-Type': 'application/json'})
+            try:
+                with self.open(request, timeout=15) as response:
+                    response.read()
+                del self.fetching[slot]
+            except (urllib.error.URLError, OSError) as e:
+                log.warning('bridge: sending slot %d failed (%s)', slot, getattr(e, 'reason', e))
 
     def try_now(self):
         command, until = self.trying
