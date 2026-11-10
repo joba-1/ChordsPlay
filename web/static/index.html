@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ChordsPlay</title>
+<link rel="icon" href="static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header id="bar">
+  <div class="buttons">
+    <button id="b-list" title="Show/hide the playlist (l)">☰</button>
+    <button id="b-prev" title="Previous song (p, Backspace)">⏮</button>
+    <button id="b-pause" title="Play/pause (Space, m)">▶</button>
+    <button id="b-next" title="Next song (n, Enter)">⏭</button>
+    <button id="b-shuffle" title="Shuffle the playlist (s)">⤮</button>
+    <button id="b-filter" title="Filter the songs (f)">Filter</button>
+    <button id="b-tags" title="Tag the song (t)">Tags</button>
+    <button id="b-audio" title="Audio output (a)">Audio</button>
+    <button id="b-full" title="Full screen (F11)">⛶</button>
+    <button id="b-help" title="Keys (?)">?</button>
+  </div>
+  <div id="title" class="title"></div>
+  <div id="time" class="time"></div>
+</header>
+<main id="main">
+  <aside id="side">
+    <div class="side-head"><span id="count"></span></div>
+    <div class="list-wrap">
+      <table id="list">
+        <thead><tr>
+          <th data-key="title">Title</th><th data-key="artist">Artist</th><th data-key="album">Album</th>
+          <th data-key="capo">Capo</th><th data-key="chords">Chords</th><th data-key="tags">Tags</th>
+          <th data-key="played">Played</th><th data-key="last">Last</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </aside>
+  <section id="sheet" tabindex="-1"></section>
+</main>
+<audio id="player" preload="auto"></audio>
+
+<dialog id="d-filter">
+  <form method="dialog">
+    <h2>Playlist filter</h2>
+    <p class="hint">Regular expressions; empty fields match everything. Chords: <i>Required</i> must all
+      occur, <i>Accepted</i> are the only ones allowed besides them.</p>
+    <div id="filter-fields" class="fields"></div>
+    <p id="filter-count" class="hint"></p>
+    <div class="dlg-buttons">
+      <select id="filter-load"><option value="">Load…</option></select>
+      <button type="button" id="filter-save">Save as…</button>
+      <span class="grow"></span>
+      <button value="cancel">Cancel</button>
+      <button value="ok" id="filter-ok" class="default">Ok</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="d-tags">
+  <form method="dialog">
+    <h2 id="tags-title">Tags</h2>
+    <p class="hint">Press a tag's key to switch it.</p>
+    <div id="tags-list" class="tags"></div>
+    <div class="dlg-buttons"><span class="grow"></span><button value="close">Close</button></div>
+  </form>
+</dialog>
+
+<dialog id="d-audio">
+  <form method="dialog">
+    <h2>Audio output</h2>
+    <div id="audio-list" class="outputs"></div>
+    <p id="audio-hint" class="hint"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="audio-names">Show device names</button>
+      <span class="grow"></span><button value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="d-help">
+  <form method="dialog">
+    <h2>Keys</h2>
+    <table class="keys">
+      <tr><td>Space, m</td><td>play / pause</td></tr>
+      <tr><td>Enter, n</td><td>next song</td></tr>
+      <tr><td>Backspace, p</td><td>previous song</td></tr>
+      <tr><td>0</td><td>back to the start of the song</td></tr>
+      <tr><td>+ / −, → / ←</td><td>1 s / 5 s forward or back</td></tr>
+      <tr><td>s</td><td>shuffle the playlist</td></tr>
+      <tr><td>f</td><td>filter: choose the songs</td></tr>
+      <tr><td>t</td><td>tags of the song</td></tr>
+      <tr><td>l</td><td>show / hide the playlist</td></tr>
+      <tr><td>a / A</td><td>choose / switch the audio output (Chrome)</td></tr>
+      <tr><td>F11</td><td>full screen</td></tr>
+      <tr><td>Double-click</td><td>play a song from the list; click a heading to sort</td></tr>
+    </table>
+    <p class="hint">A song repeats until you go on, like in the desktop app; each time it ends it counts as played.</p>
+    <p class="hint" id="version"></p>
+    <div class="dlg-buttons"><span class="grow"></span><button value="close">Close</button></div>
+  </form>
+</dialog>
+
+<div id="toast" role="status"></div>
+<script src="static/app.js"></script>
+</body>
+</html>

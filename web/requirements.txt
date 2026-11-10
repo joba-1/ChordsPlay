@@ -1,0 +1,4 @@
+flask
+waitress
+mutagen
+curl_cffi

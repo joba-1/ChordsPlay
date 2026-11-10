@@ -298,3 +298,8 @@ StartupNotify=true
   to test against a single hardcoded song without going through the GUI.
 
 License: GPL 2.0.
+
+## Web app
+
+ChordsPlay also runs in the browser, with one central database for all devices:
+see [docs/web.md](docs/web.md).

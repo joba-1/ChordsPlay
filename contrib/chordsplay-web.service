@@ -1,0 +1,22 @@
+# ChordsPlay web app (web/app.py): central database, audio files and the page.
+# Installed by contrib/install-web.sh; Apache publishes it at /chordsplay/
+# (contrib/apache-chordsplay-web.conf). See docs/spec-web.md.
+[Unit]
+Description=ChordsPlay web app
+After=network-online.target
+
+[Service]
+Type=simple
+# The music share: the fstab entry has "users", so it can be mounted without
+# root. At boot it is sometimes not mounted (network not up yet).
+Environment=CHORDSPLAY_MUSIC_MOUNT=/srv/music
+# Optional settings (CHORDSPLAY_USER_MAP, CHORDSPLAY_SYNC_URL/_TOKEN, ...): see web/app.py
+EnvironmentFile=-%h/.config/chordsplay/web.env
+ExecStartPre=-/bin/sh -c 'mountpoint -q "$CHORDSPLAY_MUSIC_MOUNT" || mount "$CHORDSPLAY_MUSIC_MOUNT"'
+WorkingDirectory=%h/.local/share/chordsplay-web/app
+ExecStart=%h/.local/share/chordsplay-web/venv/bin/python -m web.app
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
