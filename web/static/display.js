@@ -17,6 +17,7 @@ let pairTimer = null;
 // the controller's view: the song text, or one of its PDFs from a page on
 let shownPdf = null;    // 'pdf/page' rendered last
 function render(force = true) {
+  if (pairCode || expired) return;      // the pairing code or the "expired" message stays
   const pdf = state?.pdf && song?.pdfs?.some((p) => p.id === state.pdf) ? state.pdf : null;
   if (pdf) {
     const key = pdf + '/' + (state.page || 1);
