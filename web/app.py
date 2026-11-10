@@ -628,7 +628,18 @@ def amp():
     '''The amp's state (from the bridge) and the saved tones.'''
     db = get_db()
     return jsonify(amp=amp_state(db.user), tones=db.getTones(), live_slot=LIVE_SLOT,
-                   sounds=suggestmod.sound_presets(db.conn))
+                   sounds=suggestmod.sound_presets(db.conn), suggest_auto=bool(get_state(db, 'suggest_auto')))
+
+
+@app.route('/api/amp/suggest-auto', methods=['PUT'])
+def suggest_auto():
+    '''{on: true}: songs without their own or their artist's preset play the suggested one.
+    Off by default: the model says it "knows" nearly every song (2026-11-10: 98 %), so the
+    suggestions are shown, and played only once you choose to (after setting the presets by ear).'''
+    db = get_db()
+    set_state(db, 'suggest_auto', bool((request.get_json(silent=True) or {}).get('on')))
+    plan_changed(db.user)
+    return jsonify(suggest_auto=bool(get_state(db, 'suggest_auto')))
 
 
 @app.route('/api/song/<int:song_id>/suggestion', methods=['POST'])
@@ -824,7 +835,7 @@ def bridge_song(token, song_id):
     # the song's base: the artist's preset, else a suggestion the model is sure of
     base = db.getArtistPreset(info[1])
     level, params = db.getArtistSound(info[1]) if base else (None, None)
-    if base is None and suggestmod.applied(db.conn, song_id):
+    if base is None and get_state(db, 'suggest_auto') and suggestmod.applied(db.conn, song_id):
         slot, level = suggestmod.applied(db.conn, song_id)
         base = (slot, None)
     if base and (level is not None or params) and not any(c[0] == 0 for c in cues):

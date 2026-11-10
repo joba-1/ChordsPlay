@@ -470,6 +470,7 @@ let amp = null;             // what the amp bridge reported last: {state, error,
 let ampSeen = 0;            // when (ms): a bridge reports at least every 10 s
 let ampTones = [];
 let ampSounds = [];         // [{category, slot}]: the preset per suggested sound
+let suggestAuto = false;    // play suggestions without asking
 let cueList = null;         // the song's cues: {cues, artist, artist_preset}
 const BRIDGE_GONE_MS = 30000;
 
@@ -559,8 +560,8 @@ function renderAmp() {
   const slotName = (slot) => slot ? `${slot} ${names[slot - 1] || ''}`.trim() : 'no preset';
   $('#amp-suggest').innerHTML = !sg ? 'No suggestion yet (made in the background for new songs).' :
     `Suggested sound: <b>${esc(sg.category.replace('_', ' '))}</b> → ${esc(slotName(sg.slot))}${levelText(sg.level)} · ` +
-    (sg.rejected ? 'rejected, not played' : sg.known ? 'the model knows the song: played when there is no other preset'
-      : 'a guess: not played') +
+    (sg.rejected ? 'rejected, not played' : !sg.known ? 'a guess: not played'
+      : suggestAuto ? 'played when there is no other preset' : 'shown only (automatic suggestions are off, see below)') +
     (sg.genres?.length ? ` <span class="none">(${esc(sg.genres.join(', '))})</span>` : '') +
     (sg.slot ? '<button type="button" id="amp-suggest-use" title="Store it as this song\'s start preset">Use from start</button>' : '') +
     `<button type="button" id="amp-suggest-reject">${sg.rejected ? 'Allow again' : 'Reject'}</button>`;
@@ -597,6 +598,8 @@ async function openAmp() {
     if (state.amp) { amp = state.amp; ampSeen = state.amp.online ? Date.now() : 0; }
     ampTones = state.tones;
     ampSounds = state.sounds;
+    suggestAuto = state.suggest_auto;
+    $('#amp-suggest-auto').checked = suggestAuto;
     cueList = cues;
   } catch (e) { toast('Loading failed: ' + e.message); return; }
   $('#amp-title').textContent = `Guitar tone: ${song.title} – ${song.artist}`;
@@ -758,6 +761,13 @@ $('#amp-suggest').addEventListener('click', async (e) => {
     } else return;
     renderAmp();
   } catch (err) { toast('Failed: ' + err.message); }
+});
+
+$('#amp-suggest-auto').addEventListener('change', async (e) => {
+  try {
+    suggestAuto = (await api('amp/suggest-auto', { method: 'PUT', body: { on: e.target.checked } })).suggest_auto;
+    renderAmp();
+  } catch (err) { toast('Saving failed: ' + err.message); e.target.checked = suggestAuto; }
 });
 
 $('#amp-sounds').addEventListener('change', async (e) => {

@@ -582,6 +582,8 @@ class Suggest(Amp):
         from web import bridge as bridgemod
         alpha, beta = self.song_ids()
         self.suggest({'Alpha': ('hard_rock', True), 'Beta': ('metal', True)})
+        self.assertFalse(self.client.get('/api/amp').get_json()['suggest_auto'])     # off until chosen
+        self.client.put('/api/amp/suggest-auto', json={'on': True})
         path, opener = self.bridge()
         agent = FakeAgentClient()
         b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)

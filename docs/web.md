@@ -128,7 +128,10 @@ every device plays them.
 * **Suggested presets** for songs with no preset of their own and none for their artist:
   the local LLM on host6 puts each song into a sound (clean, crunch, hard rock, …; with
   the artist's genres from MusicBrainz as a hint) and says whether it knows the song.
-  Only songs it knows are switched; guesses are only shown. `g` shows the suggestion,
+  Suggestions are **only shown** until you tick *Play suggestions automatically* (under
+  *Preset per sound*): the model claims to know nearly every song (98 % on 2026-11-10,
+  album tracks of German singers included), so set the presets by ear first. Then songs
+  it "knows" are switched; guesses never are. `g` shows the suggestion,
   with *Use from start* (store it as the song's own) and *Reject*. Under *Preset per
   sound* you set which preset each sound plays: the table starts as a draft by preset
   names and is meant to be set by ear. New songs get a suggestion after each library
