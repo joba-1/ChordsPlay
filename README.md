@@ -157,6 +157,24 @@ shows the amp's state, e.g. `[amp 7 Hey Jimi]`.
 Which preset plays: the song's cues; before the first one, the artist's preset,
 else `amp_default_slot`; with none of these the amp is left alone.
 
+**Tones (the panel on the right of the `g` dialog).** A tone is one of the amp's
+presets with your own level and knob settings, for example "Echo Dome +3 dB with
+less reverb" for a solo.
+* **Nothing is written to the amp.** ChordsPlay plays a tone as an *audition* on a
+  reserved slot (`amp_live_slot`, default 100). The amp's 100 presets and their names
+  stay as they are, and switching tones costs no flash writes.
+* **Editing:**
+  1. Select a preset and press `e` (Edit as tone).
+  2. Move the level slider (−12 to +12 dB; quick buttons −6, −3, 0, +3, +6) and the
+     knobs: amp gain, bass, mid, treble, and for each effect on/off, mix, decay and
+     so on.
+  3. With *Play while adjusting* on, you hear each change on the amp a moment later.
+* **Using it:**
+  * `B` / `H` (*Tone from start* / *Tone from here*) save the tone and make it a cue
+    of the song.
+  * *Save tone…* keeps it under a name; *Load* and *Delete* manage saved tones.
+  * In the cue list a tone shows as `tone`.
+
 **Setup** (Linux, once):
 
 1. BlueZ 5.84+ with `Experimental = true` and the amp paired over Bluetooth LE
@@ -194,6 +212,7 @@ amp_unit = chordsplay-amp-agent.service
 # amp_sink = Mustang Micro Plus      text in the amp's audio output name
 # amp_default_slot = 1               preset for songs without one
 # amp_lead_ms = 300                  switch this much before a cue
+# amp_live_slot = 100                reserved slot for tones (auditions)
 ```
 
 The file holds the sync token, so keep it private: `chmod 600 ~/.chordsplay.py.cfg`.
