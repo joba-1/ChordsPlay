@@ -799,9 +799,20 @@ WHERE s.lyrics_chords IS NOT NULL
                 "INSERT OR IGNORE INTO song_tags (user_id, song_id, tag_id) VALUES (?, ?, ?)",
                 (uid, song_id, trow[0]))
 
+    LOCK_TAG = 'Fixiert'    # key x: the song's text is fixed, never fetched or synced over
+
+    def isLocked(self, song_id):
+        '''True if any user locked the song (tag x).'''
+        return self.conn.execute(
+            "SELECT 1 FROM song_tags st JOIN tags t ON t.id = st.tag_id "
+            "WHERE st.song_id = ? AND t.name = ?", (song_id, self.LOCK_TAG)).fetchone() is not None
+
     def upsertRemoteSong(self, s):
         '''Last-write-wins upsert of a remote song dict by (title, artist).
-        Tags are always merged additively. Returns True if chord data changed.'''
+        Tags are always merged additively. Returns True if chord data changed.
+        A song locked here (tag x) keeps its text: a newer remote version that is
+        not locked anywhere makes the local one dirty, so it goes back to central
+        and wins there (before 2026-11-10 locks were ignored and overwritten).'''
         row = self.conn.execute(
             "SELECT id, modified FROM songs WHERE title = ? AND artist = ?",
             (s['title'], s['artist'])).fetchone()
@@ -810,6 +821,13 @@ WHERE s.lyrics_chords IS NOT NULL
             sid, local_mod = row
             if local_mod is not None and remote_mod is not None and local_mod >= remote_mod:
                 self._applyTags(sid, s.get('tags', []))   # still merge tags
+                return False
+            if self.isLocked(sid):
+                remote_locked = any(name == self.LOCK_TAG for _, name in s.get('tags', []))
+                self._applyTags(sid, s.get('tags', []))
+                if not remote_locked:
+                    self.conn.execute("UPDATE songs SET modified = datetime('now'), dirty = 1 WHERE id = ?", (sid,))
+                log.info("sync: kept the locked text of %s - %s", s['artist'], s['title'])
                 return False
             self.conn.execute(
                 "UPDATE songs SET album = ?, lyrics_chords = ?, lyrics_url = ?, capo = ?, "

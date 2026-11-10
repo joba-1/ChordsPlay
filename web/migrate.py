@@ -119,9 +119,37 @@ def merge(db, other):
                            (uid(r['user']), r['name'], r['json_dict']))
         stats['filters'] += cur.rowcount
     stats.update(merge_amp(con, conn, song_id))
+    stats['locked texts'] = merge_locked(con, conn, song_id)
     conn.commit()
     con.close()
     return stats
+
+
+def merge_locked(con, conn, song_id):
+    '''Songs locked in the other database (tag x, "Fixiert"): their text is the one
+    the user fixed, so it replaces ours. Marked dirty, it goes to the sync service
+    with its lock (the tag comes with the tags above) and wins on the other hosts.'''
+    taken = 0
+    for r in con.execute("""SELECT DISTINCT s.id, s.title, s.artist, s.lyrics_chords, s.lyrics_url, s.capo
+                            FROM songs s JOIN song_tags st ON st.song_id = s.id
+                            JOIN tags t ON t.id = st.tag_id WHERE t.name = 'Fixiert'"""):
+        sid = song_id(r['title'], r['artist'])
+        if sid is None or r['lyrics_chords'] is None:
+            continue
+        mine = conn.execute("SELECT lyrics_chords, lyrics_url, capo FROM songs WHERE id = ?", (sid,)).fetchone()
+        if tuple(mine) == (r['lyrics_chords'], r['lyrics_url'], r['capo']):
+            continue
+        conn.execute("UPDATE songs SET lyrics_chords = ?, lyrics_url = ?, capo = ?, modified = datetime('now'), "
+                     "dirty = 1 WHERE id = ?", (r['lyrics_chords'], r['lyrics_url'], r['capo'], sid))
+        conn.execute("DELETE FROM song_chords WHERE song_id = ?", (sid,))
+        for (name,) in con.execute("SELECT c.name FROM song_chords sc JOIN chords c ON c.id = sc.chord_id "
+                                   "WHERE sc.song_id = ?", (r['id'],)):
+            conn.execute("INSERT OR IGNORE INTO chords (name) VALUES (?)", (name,))
+            conn.execute("INSERT OR IGNORE INTO song_chords (song_id, chord_id) "
+                         "SELECT ?, id FROM chords WHERE name = ?", (sid, name))
+        log.info('locked text taken over: %s - %s', r['artist'], r['title'])
+        taken += 1
+    return taken
 
 
 def tables(con):

@@ -420,6 +420,32 @@ class Migrate(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 migrate.init(target, local)
 
+    def test_locked_text_taken_over(self):
+        from web import migrate
+        with tempfile.TemporaryDirectory() as tmp:
+            target, other = os.path.join(tmp, 'web.db'), os.path.join(tmp, 'host4.db')
+            make_db(target).close()
+            db = make_db(other)
+            beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
+            db.conn.execute("UPDATE songs SET lyrics_chords = ? WHERE id = ?", ('Em  C\nmy fixed beta', beta))
+            db.conn.execute("INSERT INTO chords (name) VALUES ('Em')")
+            db.conn.execute("INSERT INTO song_chords (song_id, chord_id) SELECT ?, id FROM chords WHERE name = 'Em'",
+                            (beta,))
+            db.conn.commit()
+            db.setUserTag(beta, 6)          # x, Fixiert
+            db.close()
+            db = ChordsPlay.db.Db(target, 'jo')
+            self.assertEqual(migrate.merge(db, other)['locked texts'], 1)
+            sid = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
+            self.assertEqual(db.conn.execute("SELECT lyrics_chords, dirty FROM songs WHERE id = ?", (sid,)).fetchone(),
+                             ('Em  C\nmy fixed beta', 1))
+            self.assertTrue(db.isLocked(sid))
+            self.assertEqual([c for (c,) in db.conn.execute(
+                "SELECT c.name FROM song_chords sc JOIN chords c ON c.id = sc.chord_id WHERE sc.song_id = ?", (sid,))],
+                ['Em'])
+            self.assertEqual(migrate.merge(db, other)['locked texts'], 0)    # once
+            db.close()
+
     def test_central_newer_wins(self):
         from web import migrate
         with tempfile.TemporaryDirectory() as tmp:
