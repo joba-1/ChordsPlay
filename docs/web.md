@@ -74,8 +74,9 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
 The amp bridge records on the computer the amp is connected to by USB, compresses
 the take to Opus (192 kbit/s, about 4 MB for 3 minutes) and sends it to the server
 (`~/.local/share/chordsplay-web/takes`, `CHORDSPLAY_TAKES_DIR`). `R` (or *Takes*) lists
-the song's takes: ▶ plays one, *with the song* plays it together with the song from
-where the take began, ✕ deletes it. A take nobody stops ends after 20 minutes.
+the song's takes: ▶ plays one, ✕ deletes it. A take holds the **whole mix**: the amp
+mixes the song arriving over Bluetooth into its USB output (measured 2026-11-10: −92.5 dBFS
+with nothing playing, −41 dBFS with a song and the strings quiet). A take nobody stops ends after 20 minutes.
 
 ## PDF tabs
 

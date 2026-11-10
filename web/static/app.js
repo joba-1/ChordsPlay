@@ -930,9 +930,7 @@ async function openTakes() {
   const when = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
   $('#takes-list').innerHTML = takeList.map((t) => `<tr><td>${when(t.created)}</td>` +
     `<td class="t">${t.seconds ? fmt(t.seconds) : ''}</td><td class="t">from ${fmt(t.song_t)}</td><td>` +
-    (t.state === 'ready' ? `<button type="button" data-take="${t.id}">▶</button>` +
-      `<button type="button" data-with="${t.id}" title="Together with the song, from where the take began">▶ with the song</button>`
-      : '<span class="none">recording…</span>') +
+    (t.state === 'ready' ? `<button type="button" data-take="${t.id}">▶</button>` : '<span class="none">recording…</span>') +
     `<button type="button" data-deltake="${t.id}" title="Delete this take">✕</button></td></tr>`).join('') ||
     '<tr><td class="hint">No takes of this song yet: r records one.</td></tr>';
   $('#take-record').textContent = takeId || amp?.recording ? '■ Stop' : '● Record';
@@ -940,18 +938,14 @@ async function openTakes() {
 }
 
 $('#takes-list').addEventListener('click', async (e) => {
-  const { take, with: withSong, deltake } = e.target.dataset;
+  // a take holds the whole mix (the song over Bluetooth and the guitar, measured
+  // 2026-11-10), so it plays alone: the song is paused
+  const { take, deltake } = e.target.dataset;
   const tp = $('#take-player');
-  if (take || withSong) {
-    const t = takeList.find((x) => x.id === Number(take || withSong));
-    tp.src = `api/takes/${t.id}`;
-    if (withSong) {
-      player.currentTime = t.song_t;
-      await Promise.all([tp.play(), player.play()]).catch((err) => toast('Cannot play: ' + err.message));
-    } else {
-      player.pause();
-      tp.play().catch((err) => toast('Cannot play: ' + err.message));
-    }
+  if (take) {
+    tp.src = `api/takes/${take}`;
+    player.pause();
+    tp.play().catch((err) => toast('Cannot play: ' + err.message));
   } else if (deltake) {
     await api('takes/' + deltake, { method: 'DELETE' }).catch((err) => toast('Deleting failed: ' + err.message));
     openTakes();
