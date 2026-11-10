@@ -11,6 +11,10 @@ Type=simple
 # --idle-disconnect: save the amp's battery when idle; stays connected while
 #   Bluetooth audio streams to the amp, so switching during a song is instant.
 # --log /dev/null: the protocol log records every heartbeat (4/s, ~1 MB/hour).
-ExecStart=%h/.local/share/chordsplay/maneline-venv/bin/python %h/.local/share/chordsplay/maneline/scripts/mmp_web.py --port 8081 --idle-disconnect 300 --log /dev/null
+# Port: set AMP_AGENT_PORT in the optional environment file (written by
+#   install-amp-agent.sh when AMP_PORT is given); amp_url must use the same port.
+Environment=AMP_AGENT_PORT=8081
+EnvironmentFile=-%h/.config/chordsplay/amp-agent.env
+ExecStart=%h/.local/share/chordsplay/maneline-venv/bin/python %h/.local/share/chordsplay/maneline/scripts/mmp_web.py --port ${AMP_AGENT_PORT} --idle-disconnect 300 --log /dev/null
 Restart=on-failure
 RestartSec=5

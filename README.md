@@ -163,6 +163,8 @@ else `amp_default_slot`; with none of these the amp is left alone.
    as well as for audio: maneline's `docs/MUSTANG_MICRO_PLUS_LINUX.md`.
 2. `contrib/install-amp-agent.sh` installs the amp agent (maneline's
    `mmp_web.py`) as the systemd user unit `chordsplay-amp-agent.service`.
+   It uses port 8081; if that is taken, run it as
+   `AMP_PORT=8091 contrib/install-amp-agent.sh` (the port is kept for later runs).
 3. Add `amp_url` and `amp_unit` to the configuration file (below).
 
 ChordsPlay never talks Bluetooth itself: the agent owns the amp's connection.
@@ -189,7 +191,7 @@ sync_url   = http://host6:8615
 sync_token = <token>
 
 # Mustang Micro Plus guitar tone (see "Guitar tone" above)
-amp_url  = http://localhost:8081
+amp_url  = http://localhost:8081   # the agent's port (AMP_PORT)
 amp_unit = chordsplay-amp-agent.service
 # amp_sink = Mustang Micro Plus      text in the amp's audio output name
 # amp_default_slot = 1               preset for songs without one

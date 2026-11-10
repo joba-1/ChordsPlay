@@ -92,7 +92,8 @@ artist_presets (artist PK, slot 1..100, slot_name)
 
 ## Security
 
-* The agent listens on port 8081 on all interfaces. Its host check allows only localhost and
+* The agent listens on port 8081 (or `AMP_AGENT_PORT` from `~/.config/chordsplay/amp-agent.env`,
+  written by the installer's `AMP_PORT`) on all interfaces. Its host check allows only localhost and
   this machine's hostname, and its Origin check blocks other web pages.
 * ChordsPlay talks to `localhost` only and validates the replies.
 * Slot numbers are validated in the DB (`CHECK`) and in the client (1–100).
