@@ -180,9 +180,12 @@ less reverb" for a solo.
     adapter cable (3.5 mm stereo plug to 6.35 mm socket). The script measures every
     preset with a test tone (about 5 s each).
   * **Without a cable:** `PLAYED=1 contrib/match-preset-levels.sh`. You play the same
-    short riff for every preset when prompted (4 s each, about ±1 dB). Use
-    `MEASURE_SLOTS=1-20` and so on to do it in parts.
-  * Either way, the script imports the corrections at the end.
+    short riff for every preset when prompted (4 s each, about ±1 dB).
+  * **Stop any time** with Ctrl+C and run the same command again later: it goes on where
+    it stopped. It first has you play the last 2 presets of last time again (`OVERLAP=1`
+    for one) and takes the difference in your playing off the new levels. `FRESH=1`
+    starts over.
+  * Either way, the script imports the corrections once every preset is measured.
   * After that, every tone starts at the same measured level, and −6/−3/+3/+6 are exact
     variants of it.
   * Without that measurement, tones start at Fender's own factory levels.

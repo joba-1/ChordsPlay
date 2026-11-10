@@ -156,6 +156,14 @@ the first tone after start-up comes a moment later.
   of 100 ms frames is measured, so pauses don't count. It is about ±1 dB from take to
   take. The noise floor is measured once with muted strings; a first take less than
   15 dB above it aborts the run.
+* **In sessions:** every measured preset is saved at once in
+  `<backup>/survey-<method>.json`, so Ctrl+C loses at most the preset being played. The
+  script remembers the unfinished backup in `~/.local/share/chordsplay/levels/current-<method>`
+  and goes on with it (`FRESH=1` starts over). A new session first measures the last
+  `OVERLAP` presets (default 2) again; their mean difference to last time is that
+  session's offset and is taken off all its levels, so every session is on the scale of
+  the first. If the repeats disagree by more than 1.5 dB the script suggests stopping and
+  warming up. The levels are imported only when every preset is measured.
 * **One step, once the cable is there:** `contrib/match-preset-levels.sh` backs up the
   presets, measures every slot 1–99 with the test tone (headphone output at a fixed
   40%), and imports the corrections.
