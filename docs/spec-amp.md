@@ -150,6 +150,15 @@ the first tone after start-up comes a moment later.
   `docs/MUSTANG_MICRO_PLUS_LEVELS.md`.
 * Import a survey with `chordsplay.py --import-levels <backup>/levels-signal.json`.
   A noise survey is stored, with a warning, but not used.
+* **One step, once the cable is there:** `contrib/match-preset-levels.sh` backs up the
+  presets, measures every slot 1–99 with the test tone (headphone output at a fixed
+  40%), and imports the corrections.
+  * The measurement aborts before writing anything if the tone doesn't arrive (less
+    than 15 dB above the amp's level without it).
+  * A dry run without the cable on 2026-11-10 stopped there as intended.
+* **No software-only alternative:** a fuzz at full gain in front of the amp lifts the
+  input noise by only 9–27 dB, far from playing level. USB and Bluetooth playback don't
+  pass the amp model.
 
 **Verified 2026-11-10 on the amp:**
 * Tones built by ChordsPlay from 80S Rock at +3/+6/−3/−6 dB measured +2.9/+5.8/−3.0/−5.8
