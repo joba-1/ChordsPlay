@@ -482,6 +482,33 @@ class Amp(Api):
         self.assertIn('USB', rec.error)
         self.assertIsNone(rec.state())
 
+    def test_save_tone_and_write_slot(self):
+        from web import bridge as bridgemod
+        self.app.get_db('jo').importPresetLevels({'method': 'played', 'presets': [{'slot': 19, 'correction_db': -1.4}]})
+        r = self.client.post('/api/tones', json={'name': 'Carnies verse', 'slot': 19, 'level': 3,
+                                                 'params': {'reverb.wetlvl': 0.6}}).get_json()
+        tone = [t for t in r['tones'] if t['name'] == 'Carnies verse'][0]
+        self.assertEqual((tone['base_slot'], tone['level_db'], tone['params']), (19, 3.0, {'reverb.wetlvl': 0.6}))
+        r = self.client.post('/api/tones', json={'name': 'Plain', 'slot': 19}).get_json()      # original
+        self.assertEqual([t['level_db'] for t in r['tones'] if t['name'] == 'Plain'], [1.4])     # cancels -1.4
+        # writing: free slots only, and only with a bridge
+        body = {'target': 99, 'name': 'Carnies verse', 'slot': 19, 'level': 3, 'params': {'reverb.wetlvl': 0.6}}
+        self.assertEqual(self.client.post('/api/amp/write', json=body).status_code, 409)
+        path, opener = self.bridge()
+        agent = FakeAgentClient()
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        b.report()
+        for bad in (19, 71, 100, 101):
+            self.assertEqual(self.client.post('/api/amp/write', json=dict(body, target=bad)).status_code, 400)
+        self.assertEqual(self.client.post('/api/amp/write', json=body).status_code, 200)
+        written = []
+        b._write = lambda slot, name, doc: written.append((slot, name, doc))
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
+        slot, name, doc = written[0]
+        amp = [n for n in doc['audioGraph']['nodes'] if n['nodeId'] == 'amp'][0]['dspUnitParameters']
+        self.assertEqual((slot, name, doc['info']['displayName'], amp['volume']), (99, 'Carnies verse', 'Carnies verse',
+                                                                                 round(-5 - 1.4 + 3, 3)))
+
     def test_paused_controller_switches_nothing(self):
         from web import bridge as bridgemod
         alpha = self.song_ids()[0]

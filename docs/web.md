@@ -123,6 +123,11 @@ every device plays them.
   preset keeps its own volume. The server knows each slot's preset from a backup
   (`python -m web.presets import BACKUP_DIR`) and asks the bridge to read a slot again
   when the amp's name for it changed.
+* **Keep a tuned sound:** *Save as tone…* names it (preset, level, knobs); it is then in
+  the *Tones* list for any song. *Write to amp slot…* writes it into a free slot of the
+  amp (72–99), so the amp's own buttons call it up too: built exactly as it is heard by
+  audition, read back after writing. The factory presets (1–71) and slot 100 (used for
+  auditions) are never written. maneline's `mmp_restore.py` puts slots back from a backup.
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.

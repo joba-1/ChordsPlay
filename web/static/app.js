@@ -504,6 +504,11 @@ function showAmp() {
   $('#amp').classList.toggle('rec', !!rec);
   $('#amp').classList.toggle('warn', !rec && !!(amp && (amp.warning || !ampOnline())));
   if (amp?.record_error && amp.record_error !== showAmp.lastError) toast(amp.record_error, 6000);
+  const w = amp?.written;
+  if (w && w.at !== showAmp.lastWrite?.at && showAmp.lastWrite !== undefined) {
+    toast(w.ok ? `Written into slot ${w.slot}: "${w.name}"` : `Writing slot ${w.slot} failed: ${w.error}`, 6000);
+  }
+  showAmp.lastWrite = w || null;
   showAmp.lastError = amp?.record_error;
   // a take just ended: it shows up in the list once compressed and uploaded
   if (showAmp.wasRecording && !rec && $('#d-takes').open) setTimeout(openTakes, 4000);
@@ -710,6 +715,47 @@ $('#amp-try').addEventListener('click', async () => {
 });
 $('#amp-start').addEventListener('click', () => saveCue(0));
 $('#amp-here').addEventListener('click', () => saveCue(Math.floor((player.currentTime || 0) * 2) * 500));
+function soundName(what) {
+  const names = presetNames();
+  const base = names[what.slot - 1] || 'Slot ' + what.slot;
+  return `${base}${what.level === null ? '' : what.level === 0 ? ' matched' : ` ${what.level > 0 ? '+' : ''}${what.level}`}` +
+    (what.params ? ' tuned' : '');
+}
+
+$('#amp-tone-save').addEventListener('click', async () => {
+  const what = chosen();
+  if (!what || !what.slot) { if (what) toast('Choose a preset first'); return; }
+  const name = prompt('Save this sound as a tone named', song ? `${song.title} – ${soundName(what)}` : soundName(what));
+  if (!name) return;
+  try {
+    const r = await api('tones', { method: 'POST', body: { ...what, name } });
+    ampTones = r.tones;
+    renderAmp();
+    toast(`Tone "${name}" saved: it is in the Tones list now`);
+  } catch (e) { toast('Saving failed: ' + e.message); }
+});
+
+$('#amp-write').addEventListener('click', async () => {
+  const what = chosen();
+  if (!what || !what.slot) { if (what) toast('Choose a preset first'); return; }
+  const names = presetNames();
+  const free = Array.from({ length: 28 }, (_, i) => i + 72);
+  const list = free.map((s) => `${s} ${names[s - 1] || '?'}`).join(', ');
+  const answer = prompt(`Write it into which amp slot (72–99)? The factory presets (1–71) stay as they are.\n${list}`,
+    String(free.find((s) => (names[s - 1] || '').trim() === 'Empty') || 99));
+  if (!answer) return;
+  const target = Number(answer);
+  if (!free.includes(target)) { toast('Only slots 72 to 99'); return; }
+  const now = (names[target - 1] || '').trim();
+  if (now && now !== 'Empty' && !confirm(`Slot ${target} holds "${now}". Overwrite it?`)) return;
+  const name = prompt('Name on the amp', soundName(what).slice(0, 32));
+  if (!name) return;
+  try {
+    await api('amp/write', { method: 'POST', body: { ...what, target, name } });
+    toast(`Writing slot ${target}…`);
+  } catch (e) { toast(e.message, 6000); }
+});
+
 $('#amp-artist-save').addEventListener('click', async () => {
   const slot = Number($('#amp-presets').value);
   if (!slot) { toast('Choose a preset (tones are per song)'); return; }

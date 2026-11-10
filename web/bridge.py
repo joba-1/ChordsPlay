@@ -241,6 +241,8 @@ class Bridge(object):
         self.trying = None          # (command, until): a tone waits for its base preset
         self.fetching = {}          # slot -> until: presets the server asked for (knobs)
         self.recorder = Recorder(self.upload_take)
+        self.writing = []           # (command, until): sounds to write into an amp slot
+        self.written = None         # result of the last write, for the report
         self.reported = (None, 0)   # (report, monotonic)
         self.connected = False
         self.quit = threading.Event()
@@ -293,6 +295,8 @@ class Bridge(object):
                     self.recorder.start(command.get('take'))
                 else:
                     self.recorder.stop(command.get('take'))
+            elif 'write' in command:
+                self.writing.append((command, time.monotonic() + 30))
             elif 'fetch' in command:
                 self.fetching[int(command['fetch'])] = time.monotonic() + 30
             else:
@@ -300,6 +304,7 @@ class Bridge(object):
         if self.trying is not None:
             self.try_now()
         self.send_presets()
+        self.write_slots()
         self.recorder.check()
         self.report()
 
@@ -346,10 +351,52 @@ class Bridge(object):
                                                correction_db=level[0] if level else 0.0))
         self.trying = None
 
+    def write_slots(self):
+        '''Write a sound into an amp slot (savePresetAsRequest through the agent) once its
+        base preset is known; built exactly as it is auditioned.'''
+        for item in list(self.writing):
+            command, until = item
+            tone, level, target = command['tone'], command.get('level'), command['write']
+            base = self.client.preset(tone['base_slot'])
+            if base is None:
+                if time.monotonic() > until:
+                    self.writing.remove(item)
+                    self.written = {'slot': target['slot'], 'name': target['name'], 'ok': False, 'at': time.time(),
+                                    'error': 'the base preset could not be read'}
+                continue
+            self.writing.remove(item)
+            doc = ampmod.build_tone(base, tone['level_db'], tone['params'], name=target['name'],
+                                    correction_db=level[0] if level else 0.0)
+            threading.Thread(target=self._write, args=(target['slot'], target['name'], doc), name='write',
+                             daemon=True).start()
+
+    def _write(self, slot, name, doc):
+        result = {'slot': slot, 'name': name, 'ok': False, 'at': time.time()}
+        request = urllib.request.Request(self.client.api + '/save', method='POST', headers={
+            'Content-Type': 'application/json', 'Origin': self.client.origin},
+            data=json.dumps({'slot': slot, 'preset': doc, 'name': name}).encode())
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                stored = json.loads(response.read()).get('preset')
+            result['ok'] = stored is not None and ampmod.nodes(stored).get('amp') is not None
+            with self.client.cond:
+                self.client.presets.pop(slot, None)     # the client's copy of the slot is old now
+            log.info('bridge: wrote "%s" into slot %d', name, slot)
+        except urllib.error.HTTPError as e:
+            try:
+                result['error'] = json.loads(e.read()).get('error') or 'agent error {}'.format(e.code)
+            except ValueError:
+                result['error'] = 'agent error {}'.format(e.code)
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            result['error'] = str(getattr(e, 'reason', e))
+        if not result['ok']:
+            log.warning('bridge: writing slot %d failed: %s', slot, result.get('error'))
+        self.written = result
+
     def report(self):
         snap = self.client.snapshot()
         report = dict(snap, warning=self.cues.warning, recording=self.recorder.state(),
-                      record_error=self.recorder.error)
+                      record_error=self.recorder.error, written=self.written)
         last, when = self.reported
         if report == last and time.monotonic() - when < REPORT_S:
             return

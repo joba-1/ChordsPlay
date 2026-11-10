@@ -43,7 +43,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '0.8'
+__version__ = '0.9'
 
 log = logging.getLogger(__name__)
 
@@ -786,6 +786,48 @@ def try_preset():
     return jsonify(ok=True, bridge=bool(amp and amp['online']))
 
 
+FREE_SLOTS = range(72, 100)     # the factory presets are 1-71, 100 is the audition slot
+
+
+@app.route('/api/tones', methods=['POST'])
+def save_tone():
+    '''A tuned sound as a named tone: {name, slot, level, params}; a tone of that name is replaced.'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name or type(data.get('slot')) is not int or not 1 <= data['slot'] <= 100:
+        abort(400)
+    level, params = sound_from(data)
+    names = amp_names(db.user)
+    tone = sound_tone(db, 0, data['slot'], names[data['slot'] - 1] if len(names) >= data['slot'] else None,
+                      level, params)
+    tone_id = db.saveTone(name, data['slot'], tone['base_name'], tone['level_db'], params or {})
+    plan_changed(db.user)
+    return jsonify(id=tone_id, tones=db.getTones())
+
+
+@app.route('/api/amp/write', methods=['POST'])
+def write_slot():
+    '''Write a sound into a free amp slot (72-99): {target, name, slot, level, params}.
+    The factory presets (1-71) and the audition slot (100) are never written.'''
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    target, name = data.get('target'), (data.get('name') or '').strip()
+    if type(target) is not int or target not in FREE_SLOTS or not name or len(name.encode()) > 64 \
+            or type(data.get('slot')) is not int or not 1 <= data['slot'] <= 100:
+        abort(400)
+    amp = amp_state(db.user)
+    if not amp or not amp['online']:
+        return jsonify(error='No amp bridge is running, so nothing can be written to the amp.'), 409
+    level, params = sound_from(data)
+    names = amp_names(db.user)
+    tone = sound_tone(db, 0, data['slot'], names[data['slot'] - 1] if len(names) >= data['slot'] else None,
+                      level, params)
+    hub.publish(db.user, {'write': {'slot': target, 'name': name}, 'tone': tone,
+                          'level': db.getPresetLevel(data['slot']), 'at': time.time()}, 'cmd')
+    return jsonify(ok=True)
+
+
 def token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -902,7 +944,7 @@ def bridge_amp(token):
     if not isinstance(data, dict):
         abort(400)
     report = {key: data.get(key) for key in ('state', 'error', 'busy', 'pending', 'warning', 'tone',
-                                             'recording', 'record_error')}
+                                             'recording', 'record_error', 'written')}
     # every report, also an unchanged one (at most every REPORT_S in the bridge): the
     # pages see from it that the bridge is still there
     hub.publish(user, dict(report, at=time.time()), 'amp')
