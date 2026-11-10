@@ -97,6 +97,14 @@ every device plays them.
   presets (◀ = the current one) and the saved tones. *Try now* switches the amp without
   storing anything; *Save from start*, *Save from m:ss* (where the song is) and *Save for
   artist* store it. ▶ plays a cue from 2 s before, ✕ deletes it.
+* **Level** (next to the presets): *original* plays the preset as stored in the amp. A
+  number plays it **level-matched**: with the correction from your level measurement
+  (`contrib/match-preset-levels.sh`), so every preset at *matched* (0 dB) is equally
+  loud, plus −6 … +6 dB (e.g. +3 for a solo). It is stored with the cue, the artist
+  preset and the preset per sound, and used by *Try now*. Level-matched presets play
+  by audition on slot 100 (nothing is written to the amp); a preset that wasn't
+  measured plays at its own volume plus the offset. Knob settings per cue are stored
+  the same way (`params`), for adjusting effects later.
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.

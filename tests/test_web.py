@@ -261,7 +261,8 @@ class Amp(Api):
     def test_cues_put_delete_and_artist(self):
         alpha = self.song_ids()[0]
         r = self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'name': 'Twin Trem'}).get_json()
-        self.assertEqual(r['cues'], [{'start': 0, 'slot': 7, 'name': 'Twin Trem', 'tone_id': None, 'tone': None}])
+        self.assertEqual(r['cues'], [{'start': 0, 'slot': 7, 'name': 'Twin Trem', 'tone_id': None, 'tone': None,
+                                      'level': None, 'params': None}])
         self.assertEqual(self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 101}).status_code, 400)
         self.client.put('/api/artist-preset', json={'artist': 'Band', 'slot': 19})
         r = self.client.get('/api/song/{}/cues'.format(alpha)).get_json()
@@ -354,6 +355,43 @@ class Amp(Api):
         b.session.update('cmd', self.app.hub.get('jo', 'cmd'))
         b.step()
         self.assertEqual(agent.requests, [('slot', 7), ('slot', 8), ('slot', 33)])
+
+    def test_levels_play_level_matched(self):
+        '''A cue, an artist preset or "try now" with a level plays the slot by audition,
+        with the slot's measured correction plus the level; without one, the slot as stored.'''
+        from web import bridge as bridgemod
+        alpha, beta = self.song_ids()
+        db = self.app.get_db('jo')
+        db.importPresetLevels({'method': 'played', 'presets': [{'slot': 7, 'correction_db': 5.5},
+                                                                 {'slot': 41, 'correction_db': -0.5}]})
+        self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'level': 3})
+        self.client.put('/api/song/{}/cues/30000'.format(alpha), json={'slot': 19})        # as stored
+        self.client.put('/api/artist-preset', json={'artist': 'Band', 'slot': 41, 'level': -6})
+        cues = self.client.get('/api/song/{}/cues'.format(alpha)).get_json()
+        self.assertEqual([(c['slot'], c['level']) for c in cues['cues']], [(7, 3.0), (19, None)])
+        self.assertEqual((cues['artist_preset']['slot'], cues['artist_preset']['level']), (41, -6.0))
+        self.assertEqual(sorted(cues['measured']), [7, 41])
+        path, opener = self.bridge()
+        agent = FakeAgentClient()       # its stored presets have the amp at -5 dB
+        b = bridgemod.Bridge('http://localhost' + path, agent, opener=opener)
+        b.session.update('now', {'id': alpha, 't': 1, 'playing': True, 'at': 1, 'server_time': 1})
+        b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'slot 7 +3 dB', -5 + 5.5 + 3))
+        b.session.update('now', {'id': alpha, 't': 31, 'playing': True, 'at': 1, 'server_time': 1})
+        b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 19))
+        # Beta has no cue: the artist preset at its level, level-matched
+        b.session.update('now', {'id': beta, 't': 1, 'playing': True, 'at': 1, 'server_time': 1})
+        b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'slot 41 -6 dB', -5 - 0.5 - 6))
+        # try now: matched (0) and as stored
+        self.client.post('/api/amp/try', json={'slot': 7, 'level': 0})
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
+        self.assertEqual(agent.requests[-1], ('tone', 'slot 7 matched', -5 + 5.5))
+        self.client.post('/api/amp/try', json={'slot': 7})
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd')); b.step()
+        self.assertEqual(agent.requests[-1], ('slot', 7))
+        self.assertEqual(self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'level': 40}).status_code, 400)
 
     def test_paused_controller_switches_nothing(self):
         from web import bridge as bridgemod
@@ -527,10 +565,12 @@ class Suggest(Amp):
         self.assertIsNone(suggest.applied_slot(conn, alpha))
         self.client.post('/api/song/{}/suggestion'.format(alpha), json={'rejected': False})
         sounds = self.client.put('/api/amp/sounds/hard_rock', json={'slot': 33}).get_json()['sounds']
-        self.assertIn({'category': 'hard_rock', 'slot': 33}, sounds)
+        self.assertIn({'category': 'hard_rock', 'slot': 33, 'level': None}, sounds)
         self.assertEqual(suggest.applied_slot(conn, alpha), 33)
         self.client.put('/api/amp/sounds/hard_rock', json={'slot': None})
         self.assertIsNone(suggest.applied_slot(conn, alpha))        # no preset for the sound: nothing switched
+        self.client.put('/api/amp/sounds/hard_rock', json={'slot': 19, 'level': 3})
+        self.assertEqual(suggest.applied(conn, alpha), (19, 3.0))
         self.assertEqual(self.client.put('/api/amp/sounds/polka', json={'slot': 3}).status_code, 400)
         self.assertEqual(len(self.client.get('/api/amp').get_json()['sounds']), 16)
 

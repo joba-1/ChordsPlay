@@ -175,6 +175,15 @@ class Db(object):
                               "references tones(id) on delete set null")
         except sqlite3.OperationalError:
             pass  # column already present
+        # how a cue or an artist preset sounds (web app): level_db NULL plays the slot as
+        # stored; a number plays it level-matched (measured correction) plus level_db, by
+        # audition; params are knob settings like a tone's ({"reverb.wetlvl": 0.3, ...})
+        for table in ('song_presets', 'artist_presets'):
+            for column in ('level_db real default null', 'params text default null'):
+                try:
+                    self.conn.execute("ALTER TABLE {} ADD COLUMN {}".format(table, column))
+                except sqlite3.OperationalError:
+                    pass  # column already present
 
         try:
             self.conn.execute("insert into users (name) values (?)", (user,))
@@ -698,6 +707,26 @@ WHERE s.lyrics_chords IS NOT NULL
     def delSongPreset(self, song_id, start_ms):
         self.conn.execute("DELETE FROM song_presets WHERE song_id = ? AND start_ms = ?",
                           (song_id, start_ms))
+        self.conn.commit()
+
+    def getCueSound(self, song_id, start_ms):
+        '''(level_db, params) of a cue: (None, None) plays the slot as stored.'''
+        row = self.conn.execute("SELECT level_db, params FROM song_presets WHERE song_id = ? AND start_ms = ?",
+                                (song_id, start_ms)).fetchone()
+        return (row[0], json.loads(row[1]) if row[1] else None) if row else (None, None)
+
+    def setCueSound(self, song_id, start_ms, level_db=None, params=None):
+        self.conn.execute("UPDATE song_presets SET level_db = ?, params = ? WHERE song_id = ? AND start_ms = ?",
+                          (level_db, json.dumps(params, sort_keys=True) if params else None, song_id, start_ms))
+        self.conn.commit()
+
+    def getArtistSound(self, artist):
+        row = self.conn.execute("SELECT level_db, params FROM artist_presets WHERE artist = ?", (artist,)).fetchone()
+        return (row[0], json.loads(row[1]) if row[1] else None) if row else (None, None)
+
+    def setArtistSound(self, artist, level_db=None, params=None):
+        self.conn.execute("UPDATE artist_presets SET level_db = ?, params = ? WHERE artist = ?",
+                          (level_db, json.dumps(params, sort_keys=True) if params else None, artist))
         self.conn.commit()
 
     def getArtistPreset(self, artist):

@@ -133,6 +133,12 @@
     <div class="amp-pick">
       <label>Presets<select id="amp-presets" size="12"></select></label>
       <label>Tones<select id="amp-tones" size="12"></select></label>
+      <label class="level">Level
+        <select id="amp-level" title="Original: the preset as stored in the amp. Otherwise level-matched by your measurement, plus this much">
+          <option value="">original</option><option value="-6">-6 dB</option><option value="-5">-5 dB</option><option value="-4">-4 dB</option><option value="-3">-3 dB</option><option value="-2">-2 dB</option><option value="-1">-1 dB</option><option value="0">matched (0 dB)</option><option value="1">+1 dB</option><option value="2">+2 dB</option><option value="3">+3 dB</option><option value="4">+4 dB</option><option value="5">+5 dB</option><option value="6">+6 dB</option>
+        </select>
+        <span class="hint" id="amp-level-hint"></span>
+      </label>
     </div>
     <div class="dlg-buttons wrap">
       <button type="button" id="amp-try" title="Switch the amp now; nothing is stored">Try now</button>

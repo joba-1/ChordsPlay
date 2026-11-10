@@ -58,33 +58,43 @@ CREATE TABLE IF NOT EXISTS artist_genres (
 
 def setup(conn):
     conn.executescript(SCHEMA)
+    try:        # how the sound's preset plays: NULL as stored, else level-matched plus this (web 0.6)
+        conn.execute("ALTER TABLE sound_presets ADD COLUMN level_db real default null")
+    except Exception:
+        pass    # column already present
     conn.executemany("INSERT OR IGNORE INTO sound_presets (category, slot) VALUES (?, ?)", CATEGORIES)
     conn.commit()
 
 
 def sound_presets(conn):
     order = [c for c, _ in CATEGORIES]
-    rows = dict(conn.execute("SELECT category, slot FROM sound_presets"))
-    return [{'category': c, 'slot': rows.get(c)} for c in order]
+    rows = {c: (slot, level) for c, slot, level in conn.execute("SELECT category, slot, level_db FROM sound_presets")}
+    return [{'category': c, 'slot': rows.get(c, (None, None))[0], 'level': rows.get(c, (None, None))[1]} for c in order]
 
 
 def suggestion(conn, song_id):
     '''{category, known, rejected, genres, slot} or None.'''
-    row = conn.execute("""SELECT s.category, s.known, s.rejected, s.genres, p.slot FROM song_suggestions s
+    row = conn.execute("""SELECT s.category, s.known, s.rejected, s.genres, p.slot, p.level_db FROM song_suggestions s
                           LEFT JOIN sound_presets p ON p.category = s.category WHERE s.song_id = ?""",
                        (song_id,)).fetchone()
     if row is None:
         return None
     return {'category': row[0], 'known': bool(row[1]), 'rejected': bool(row[2]),
-            'genres': json.loads(row[3] or '[]'), 'slot': row[4]}
+            'genres': json.loads(row[3] or '[]'), 'slot': row[4], 'level': row[5]}
+
+
+def applied(conn, song_id):
+    '''(slot, level_db) a suggestion puts at the song's start, or None (unknown, guessed,
+    rejected, "none"). level_db None: the slot as stored.'''
+    s = suggestion(conn, song_id)
+    if s and s['known'] and not s['rejected'] and s['slot']:
+        return s['slot'], s['level']
+    return None
 
 
 def applied_slot(conn, song_id):
-    '''The slot a suggestion puts at the song's start, or None (unknown, guessed, rejected, "none").'''
-    s = suggestion(conn, song_id)
-    if s and s['known'] and not s['rejected'] and s['slot']:
-        return s['slot']
-    return None
+    hit = applied(conn, song_id)
+    return hit[0] if hit else None
 
 
 # --- MusicBrainz --------------------------------------------------------------------

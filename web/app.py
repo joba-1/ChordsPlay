@@ -42,7 +42,7 @@ from ChordsPlay.textfit import wrap_comments
 from web import pdfs as pdfmod
 from web import suggest as suggestmod
 
-__version__ = '0.5'
+__version__ = '0.6'
 
 log = logging.getLogger(__name__)
 
@@ -572,15 +572,43 @@ def plan_changed(user, song_id=None):
     hub.publish(user, {'song': song_id, 'at': time.time()}, 'plan')
 
 
+LEVEL_RANGE_DB = 12     # a cue's level offset; the page offers -6..+6
+
+
+def sound_from(data):
+    '''(level_db, params) of a request: level None (or missing) plays the slot as stored;
+    a number plays it level-matched plus that many dB; params are knob settings.'''
+    level, params = data.get('level'), data.get('params')
+    if level is not None and (type(level) not in (int, float) or abs(level) > LEVEL_RANGE_DB):
+        abort(400)
+    if params is not None and not (isinstance(params, dict) and all(isinstance(k, str) for k in params)):
+        abort(400)
+    return (None if level is None else float(level)), (params or None)
+
+
+def sound_tone(tone_id, slot, slot_name, level, params):
+    '''A cue's own sound as a tone the bridge plays by audition (ChordsPlay.amp: the
+    measured correction of the slot is added to level).'''
+    label = slot_name or 'slot {}'.format(slot)
+    return {'id': tone_id, 'name': '{} {:+g} dB'.format(label, level) if level else label + ' matched',
+            'base_slot': slot, 'base_name': slot_name, 'level_db': level or 0.0, 'params': params or {}}
+
+
 def song_cues(db, song_id):
     tones = {tone['id']: tone for tone in db.getTones()}
     info = db.getPlayInfo(song_id)
     artist = info[1] if info else None
     base = db.getArtistPreset(artist) if artist is not None else None
-    return {'cues': [{'start': start, 'slot': slot, 'name': name, 'tone_id': tone_id,
-                      'tone': tones[tone_id]['name'] if tone_id in tones else None}
-                     for start, slot, name, tone_id in db.getSongPresets(song_id)],
-            'artist': artist, 'artist_preset': {'slot': base[0], 'name': base[1]} if base else None,
+    base_level, base_params = db.getArtistSound(artist) if base else (None, None)
+    cues = []
+    for start, slot, name, tone_id in db.getSongPresets(song_id):
+        level, params = db.getCueSound(song_id, start)
+        cues.append({'start': start, 'slot': slot, 'name': name, 'tone_id': tone_id, 'level': level, 'params': params,
+                     'tone': tones[tone_id]['name'] if tone_id in tones else None})
+    return {'cues': cues, 'measured': [slot for (slot,) in db.conn.execute(
+                "SELECT slot FROM preset_levels WHERE method IN ('signal', 'played')")],
+            'artist': artist, 'artist_preset': {'slot': base[0], 'name': base[1], 'level': base_level,
+                                                'params': base_params} if base else None,
             'suggestion': suggestmod.suggestion(db.conn, song_id)}
 
 
@@ -605,12 +633,14 @@ def suggestion(song_id):
 
 @app.route('/api/amp/sounds/<category>', methods=['PUT'])
 def sound_preset(category):
-    '''The amp slot for a sound category: {slot: 1..100} or {slot: null} (switch nothing).'''
+    '''The amp slot for a sound category: {slot: 1..100, level} or {slot: null} (switch nothing).'''
     db = get_db()
-    slot = (request.get_json(silent=True) or {}).get('slot')
+    data = request.get_json(silent=True) or {}
+    slot = data.get('slot')
     if category not in [c for c, _ in suggestmod.CATEGORIES] or not (slot is None or type(slot) is int and 1 <= slot <= 100):
         abort(400)
-    db.conn.execute("UPDATE sound_presets SET slot = ? WHERE category = ?", (slot, category))
+    level, _ = sound_from(data)
+    db.conn.execute("UPDATE sound_presets SET slot = ?, level_db = ? WHERE category = ?", (slot, level, category))
     db.conn.commit()
     plan_changed(db.user)
     return jsonify(sounds=suggestmod.sound_presets(db.conn))
@@ -640,9 +670,11 @@ def cue(song_id, start):
                 abort(400)
             db.setSongTone(song_id, start, data['tone_id'], LIVE_SLOT, replace)
         elif type(data.get('slot')) is int and 1 <= data['slot'] <= 100:
+            level, params = sound_from(data)
             names = amp_names(db.user)
             name = names[data['slot'] - 1] if len(names) >= data['slot'] else data.get('name')
             db.setSongPreset(song_id, start, data['slot'], name or None, replace)
+            db.setCueSound(song_id, start, level, params)
         else:
             abort(400)
     plan_changed(db.user, song_id)
@@ -662,9 +694,11 @@ def artist_preset():
     else:
         if type(data.get('slot')) is not int or not 1 <= data['slot'] <= 100:
             abort(400)
+        level, params = sound_from(data)
         names = amp_names(db.user)
         db.setArtistPreset(artist, data['slot'],
                            names[data['slot'] - 1] if len(names) >= data['slot'] else data.get('name'))
+        db.setArtistSound(artist, level, params)
     plan_changed(db.user)
     return jsonify(ok=True)
 
@@ -696,7 +730,7 @@ def learn():
 
 @app.route('/api/amp/try', methods=['POST'])
 def try_preset():
-    '''Switch the amp now, without storing anything: {slot} or {tone_id}.'''
+    '''Switch the amp now, without storing anything: {slot}, {slot, level, params} or {tone_id}.'''
     db = get_db()
     data = request.get_json(silent=True) or {}
     if data.get('tone_id') is not None:
@@ -705,7 +739,14 @@ def try_preset():
             abort(400)
         command = {'tone': tone, 'level': db.getPresetLevel(tone['base_slot'])}
     elif type(data.get('slot')) is int and 1 <= data['slot'] <= 100:
-        command = {'slot': data['slot']}
+        level, params = sound_from(data)
+        if level is None and not params:
+            command = {'slot': data['slot']}
+        else:
+            names = amp_names(db.user)
+            name = names[data['slot'] - 1] if len(names) >= data['slot'] else None
+            command = {'tone': sound_tone(0, data['slot'], name, level, params),
+                       'level': db.getPresetLevel(data['slot'])}
     else:
         abort(400)
     hub.publish(db.user, dict(command, at=time.time()), 'cmd')
@@ -752,14 +793,36 @@ def bridge_song(token, song_id):
     info = db.getPlayInfo(song_id)
     if info is None:
         abort(404)
-    presets = db.getSongPresets(song_id)
-    tones = {tone_id: db.getTone(tone_id) for _, _, _, tone_id in presets if tone_id is not None}
-    levels = {tone['base_slot']: db.getPresetLevel(tone['base_slot']) for tone in tones.values() if tone}
+    # A cue with its own sound (level, knobs) goes to the bridge as a tone of its own
+    # (negative id): the bridge auditions it like a saved tone, with the slot's correction.
+    cues, tones = [], {}
+
+    def own_tone(slot, name, level, params):
+        tone_id = -(len(tones) + 1)
+        tones[tone_id] = sound_tone(tone_id, slot, name, level, params)
+        return tone_id
+
+    for start, slot, name, tone_id in db.getSongPresets(song_id):
+        if tone_id is None:
+            level, params = db.getCueSound(song_id, start)
+            if level is not None or params:
+                tone_id = own_tone(slot, name, level, params)
+        elif db.getTone(tone_id):
+            tones[tone_id] = db.getTone(tone_id)
+        cues.append([start, slot, name, tone_id])
     # the song's base: the artist's preset, else a suggestion the model is sure of
-    suggested = suggestmod.applied_slot(db.conn, song_id)
-    return jsonify(id=song_id, title=info[0], artist=info[1], cues=presets,
-                   artist_preset=db.getArtistPreset(info[1]) or ([suggested, None] if suggested else None),
-                   tones={str(k): v for k, v in tones.items() if v},
+    base = db.getArtistPreset(info[1])
+    level, params = db.getArtistSound(info[1]) if base else (None, None)
+    if base is None and suggestmod.applied(db.conn, song_id):
+        slot, level = suggestmod.applied(db.conn, song_id)
+        base = (slot, None)
+    if base and (level is not None or params) and not any(c[0] == 0 for c in cues):
+        cues.insert(0, [0, base[0], base[1], own_tone(base[0], base[1], level, params)])
+        base = None
+    levels = {t['base_slot']: db.getPresetLevel(t['base_slot']) for t in tones.values()}
+    return jsonify(id=song_id, title=info[0], artist=info[1], cues=cues,
+                   artist_preset=list(base) if base else None,
+                   tones={str(k): v for k, v in tones.items()},
                    levels={str(k): v for k, v in levels.items() if v})
 
 

@@ -515,9 +515,15 @@ function followAmp() {
 
 function presetNames() { return (amp?.state?.presets || []).map((p) => p.name || ''); }
 
+// a cue's level: null plays the preset as stored, a number level-matched plus that many dB
+function levelText(level) {
+  return level === null || level === undefined ? '' : level === 0 ? ' · matched' : ` · ${level > 0 ? '+' : ''}${level} dB`;
+}
+
 function chosen() {
   const slot = Number($('#amp-presets').value), tone = Number($('#amp-tones').value);
-  if (slot) return { slot };
+  const level = $('#amp-level').value === '' ? null : Number($('#amp-level').value);
+  if (slot) return { slot, level };
   if (tone) return { tone_id: tone };
   toast('Choose a preset or a tone first');
   return null;
@@ -533,7 +539,7 @@ function renderAmp() {
     'No amp bridge has reported yet: set one up with "Bridge link…". Cues can be edited without it.';
   const cues = cueList?.cues || [];
   $('#amp-cues').innerHTML = cues.length ? cues.map((c) => {
-    const what = c.tone_id ? `tone ${esc(c.tone || '(deleted)')}` : `${c.slot} ${esc(c.name || '')}`;
+    const what = c.tone_id ? `tone ${esc(c.tone || '(deleted)')}` : `${c.slot} ${esc(c.name || '')}${levelText(c.level)}`;
     const now = !c.tone_id && names[c.slot - 1] && c.name && names[c.slot - 1].trim() !== c.name.trim()
       ? ` <span class="err">slot is now "${esc(names[c.slot - 1])}": save it again</span>` : '';
     return `<tr><td class="t">${fmtMs(c.start)}</td><td>${what}${now}</td>` +
@@ -542,13 +548,13 @@ function renderAmp() {
   }).join('') : '<tr><td class="hint">No cues for this song yet.</td></tr>';
   const base = cueList?.artist_preset;
   $('#amp-artist').innerHTML = base
-    ? `Artist preset (${esc(cueList.artist)}): ${base.slot} ${esc(base.name || '')} ` +
+    ? `Artist preset (${esc(cueList.artist)}): ${base.slot} ${esc(base.name || '')}${levelText(base.level)} ` +
       '<button type="button" id="amp-artist-del" title="Delete the artist preset">✕</button>'
     : `No artist preset for ${esc(cueList?.artist || '')}.`;
   const sg = cueList?.suggestion;
   const slotName = (slot) => slot ? `${slot} ${names[slot - 1] || ''}`.trim() : 'no preset';
   $('#amp-suggest').innerHTML = !sg ? 'No suggestion yet (made in the background for new songs).' :
-    `Suggested sound: <b>${esc(sg.category.replace('_', ' '))}</b> → ${esc(slotName(sg.slot))} · ` +
+    `Suggested sound: <b>${esc(sg.category.replace('_', ' '))}</b> → ${esc(slotName(sg.slot))}${levelText(sg.level)} · ` +
     (sg.rejected ? 'rejected, not played' : sg.known ? 'the model knows the song: played when there is no other preset'
       : 'a guess: not played') +
     (sg.genres?.length ? ` <span class="none">(${esc(sg.genres.join(', '))})</span>` : '') +
@@ -558,7 +564,14 @@ function renderAmp() {
   if (!$('#amp-sounds').contains(document.activeElement)) $('#amp-sounds').innerHTML = ampSounds.map((s) => `<tr><td>${esc(s.category.replace('_', ' '))}</td><td>` +
     `<select data-sound="${s.category}"><option value="">no preset</option>` +
     Array.from({ length: 100 }, (_, i) => `<option value="${i + 1}" ${s.slot === i + 1 ? 'selected' : ''}>${i + 1} ${esc(names[i] || '')}</option>`).join('') +
-    '</select></td></tr>').join('');
+    '</select></td><td>' +
+    `<select data-sound-level="${s.category}"><option value="">original</option>` +
+    Array.from({ length: 13 }, (_, i) => i - 6).map((v) => `<option value="${v}" ${s.level === v ? 'selected' : ''}>` +
+      `${v === 0 ? 'matched' : (v > 0 ? '+' : '') + v + ' dB'}</option>`).join('') + '</select></td></tr>').join('');
+  // the level needs a measured preset; else it plays the preset's own volume plus the offset
+  const pick = Number($('#amp-presets').value);
+  $('#amp-level-hint').textContent = pick && $('#amp-level').value !== '' && !(cueList?.measured || []).includes(pick)
+    ? 'not measured: its own volume plus this' : '';
   const presets = $('#amp-presets');
   const keep = presets.value;
   presets.innerHTML = Array.from({ length: 100 }, (_, i) =>
@@ -601,7 +614,8 @@ async function saveCue(start) {
 }
 
 // one of the two lists: choosing in one clears the other
-$('#amp-presets').addEventListener('change', () => { $('#amp-tones').value = ''; });
+$('#amp-presets').addEventListener('change', () => { $('#amp-tones').value = ''; renderAmp(); });
+$('#amp-level').addEventListener('change', () => renderAmp());
 $('#amp-tones').addEventListener('change', () => { $('#amp-presets').value = ''; });
 $('#amp-presets').addEventListener('dblclick', () => $('#amp-try').click());
 $('#amp-tones').addEventListener('dblclick', () => $('#amp-try').click());
@@ -619,8 +633,9 @@ $('#amp-here').addEventListener('click', () => saveCue(Math.floor((player.curren
 $('#amp-artist-save').addEventListener('click', async () => {
   const slot = Number($('#amp-presets').value);
   if (!slot) { toast('Choose a preset (tones are per song)'); return; }
+  const level = $('#amp-level').value === '' ? null : Number($('#amp-level').value);
   try {
-    await api('artist-preset', { method: 'PUT', body: { artist: song.artist, slot } });
+    await api('artist-preset', { method: 'PUT', body: { artist: song.artist, slot, level } });
     cueList = await api(`song/${song.id}/cues`);
     renderAmp();
     toast(`Preset ${slot} for every song of ${song.artist}`);
@@ -647,7 +662,8 @@ $('#d-amp').addEventListener('click', async (e) => {
 $('#amp-suggest').addEventListener('click', async (e) => {
   try {
     if (e.target.id === 'amp-suggest-use') {
-      cueList = await api(`song/${song.id}/cues/0`, { method: 'PUT', body: { slot: cueList.suggestion.slot } });
+      cueList = await api(`song/${song.id}/cues/0`, { method: 'PUT', body: { slot: cueList.suggestion.slot,
+                                                                            level: cueList.suggestion.level } });
       toast('Stored as the start preset');
     } else if (e.target.id === 'amp-suggest-reject') {
       cueList = await api(`song/${song.id}/suggestion`, { method: 'POST', body: { rejected: !cueList.suggestion.rejected } });
@@ -657,10 +673,13 @@ $('#amp-suggest').addEventListener('click', async (e) => {
 });
 
 $('#amp-sounds').addEventListener('change', async (e) => {
-  const cat = e.target.dataset.sound;
+  const cat = e.target.dataset.sound || e.target.dataset.soundLevel;
   if (!cat) return;
+  const row = e.target.closest('tr');
+  const slot = row.querySelector('[data-sound]').value, level = row.querySelector('[data-sound-level]').value;
   try {
-    ampSounds = (await api('amp/sounds/' + cat, { method: 'PUT', body: { slot: e.target.value ? Number(e.target.value) : null } })).sounds;
+    ampSounds = (await api('amp/sounds/' + cat, { method: 'PUT', body: {
+      slot: slot ? Number(slot) : null, level: level === '' ? null : Number(level) } })).sounds;
     cueList = await api(`song/${song.id}/cues`);
     renderAmp();
   } catch (err) { toast('Saving failed: ' + err.message); }
