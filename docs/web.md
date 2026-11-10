@@ -60,8 +60,8 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
 * Several displays can follow the same controller.
 * The display follows the user, not the browser tab: whatever page of yours plays last
   is what the displays show.
-* Without a login on the display (a TV, a friend's TV) the link needs the Apache
-  exemption below; until then the display device has to log in to Authelia once.
+* The display needs no login (a TV, a friend's TV): the code in the link is the key.
+  Everything else under `/chordsplay/` still needs the Authelia login.
 
 ## How it works
 
@@ -100,7 +100,7 @@ browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/
 | Logs | `journalctl --user -u chordsplay-web` |
 | Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`, `CHORDSPLAY_SYNC_URL` + `CHORDSPLAY_SYNC_TOKEN` (push new chords to the old sync service, so the Tk apps get them) |
 | Apache | `/etc/apache2/public.d/locations/chordsplay.conf` (= `contrib/apache-chordsplay-web.conf`, with `flushpackets=on` for the event streams) and `<Location "/chordsplay/">` in `/etc/apache2/homeauth.conf` |
-| Displays without login | **not active yet, needs a decision:** add after the `/chordsplay/` block in `homeauth.conf`: `<Location "/chordsplay/d/">` `AuthType None` / `Require all granted` `</Location>`, then `apachectl -t && systemctl reload apache2`. Everything below `/d/` then needs only the pairing code. |
+| Displays without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs only the pairing code; the app serves nothing else there. |
 
 ## Tests
 
