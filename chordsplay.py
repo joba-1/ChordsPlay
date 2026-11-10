@@ -41,9 +41,9 @@ import ChordsPlay.ampdialog
 from tkinter import messagebox
 
 __all__ = []
-__version__ = '3.34'  # update also in setup.py
+__version__ = '3.35'  # update also in setup.py
 __date__ = '2016-02-18'
-__updated__ = '2026-11-09'
+__updated__ = '2026-11-10'
 
 DEBUG = 0
 TESTRUN = 0
@@ -182,6 +182,10 @@ def learnPreset():
         return
     state = amp.snapshot()['state']
     slot = state.get('preset')
+    if state.get('connected') and state.get('audition'):
+        messagebox.showinfo("Guitar tone", 'A tone is playing (an audition on slot {}), not a preset. '
+                            'Press g and use "Tone from here" in the tone panel to store it.'.format(slot))
+        return
     if not state.get('connected') or not slot:
         messagebox.showinfo("Guitar tone", 'The amp is not connected, so its current preset is '
                             'not known. Press g to choose a preset instead.')
@@ -209,7 +213,8 @@ def startAmp(config, section):
     if default_slot is not None and not ChordsPlay.amp.valid_slot(default_slot):
         log.warning("amp_default_slot %s ignored, must be 1..100", default_slot)
         default_slot = None
-    amp = ChordsPlay.amp.AmpClient(url, control=control).start()
+    live_slot = config.getint(section, 'amp_live_slot', fallback=100)
+    amp = ChordsPlay.amp.AmpClient(url, control=control, live_slot=live_slot).start()
     cues = ChordsPlay.amp.AmpCues(db, amp, lead_ms=config.getint(section, 'amp_lead_ms', fallback=300),
                                   default_slot=default_slot)
     log.info("amp agent %s%s", url, " (unit {})".format(unit) if unit else "")

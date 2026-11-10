@@ -89,6 +89,7 @@ artist_presets (artist PK, slot 1..100, slot_name)
 | `amp_sink` | `Mustang Micro Plus` | Text in the audio sink's description that means "amp is connected" |
 | `amp_default_slot` | (unset) | Slot for songs without cues and without an artist slot |
 | `amp_lead_ms` | `300` | Switch this many ms before a cue |
+| `amp_live_slot` | `100` | Reserved slot for tones (auditions); never offered as a normal preset |
 
 ## Security
 
@@ -97,11 +98,69 @@ artist_presets (artist PK, slot 1..100, slot_name)
 * ChordsPlay talks to `localhost` only and validates the replies.
 * Slot numbers are validated in the DB (`CHECK`) and in the client (1–100).
 
+## Tones: audition fiddling (added 2026-11-10)
+
+A **tone** is a base preset (a slot), a **level offset** in dB, and **knob settings**:
+amp gain/bass/mid/treble/presence, and per effect block on/off, mix, depth, decay
+and feedback.
+* **Stored in ChordsPlay** (table `tones`), not on the amp.
+* **A cue can play a tone** (`song_presets.tone_id`). ChordsPlay then builds the
+  preset JSON and sends it to the agent's audition endpoint, which plays it on the
+  live slot (100).
+* **Nothing is written to the amp's preset memory,** so there is no flash wear on an
+  everyday task. A power cycle forgets the audition.
+
+**Why audition instead of saving presets:**
+* Unlimited tones per song.
+* Your 100 slots and their names stay untouched.
+* Variants such as "80S Rock +3 dB" cost nothing.
+
+**Building the preset JSON** (`amp.build_tone`):
+1. Fetch the base preset from the agent (`GET /api/micro-plus/preset?slot=n`); it
+   is cached until the agent reconnects.
+2. Add a measured level correction for the base slot (table `preset_levels`, see
+   below) plus the tone's level offset to the amp volume.
+3. Apply the knob settings and name it after the tone.
+
+The cue logic waits for the base preset before it marks a tone cue as applied, so
+the first tone after start-up comes a moment later.
+
+**The client** (`AmpClient`) treats slots and tones alike:
+* The newest wish wins, and a superseded one is never sent.
+* A tone whose content is already playing is not sent again (key = hash of the JSON).
+* Selecting a real slot ends the audition.
+
+**The g dialog's tone panel:**
+* "Edit as tone (e)" takes the selected preset as the base.
+* A level slider from −12 to +12 dB, with quick buttons −6 −3 0 +3 +6.
+* The knobs; "Play while adjusting" auditions 300 ms after the last change.
+* "Save tone…", "Tone from start/here (B/H)" (stores a cue), and loading or deleting
+  saved tones.
+
+**Level matching across presets** (`preset_levels`, imported from maneline's
+`mmp_level.py survey`):
+* Only corrections measured with the **signal** method are used: a test tone at the
+  guitar input.
+* The **noise** method (guitar connected at volume zero, gate off) is exact for level
+  *changes* within a preset. But it is wrong across presets: on the 71 factory
+  presets it spans 59 dB, because noise doesn't drive distortion and compressors like
+  a guitar does. So noise corrections are stored but ignored.
+* Measuring with the signal method needs an adapter cable (3.5 mm plug to 6.35 mm
+  socket) from the computer's headphone output to the amp's plug. See maneline's
+  `docs/MUSTANG_MICRO_PLUS_LEVELS.md`.
+
+**Verified 2026-11-10 on the amp:**
+* Tones built by ChordsPlay from 80S Rock at +3/+6/−3/−6 dB measured +2.9/+5.8/−3.0/−5.8
+  dB at the amp's USB output (`tests/manual_tone_level_test.py`).
+* A tone cue at 14 s played in the real app as an audition on slot 100
+  (`tests/manual_e2e_amp.py`).
+
 ## Agent installation
 
 `contrib/install-amp-agent.sh` installs the agent:
-* clones maneline (fork branch with the Linux LE-bearer and idle-disconnect PRs) to
-  `~/.local/share/chordsplay/maneline`
+* clones maneline (fork branch `micro-plus-preset-backup`: Linux LE bearer, idle disconnect,
+  audition and stored-preset API) to `~/.local/share/chordsplay/maneline`; `MANELINE_REPO`
+  may be a local checkout
 * creates a venv with pinned `bleak` and `dbus-fast`
 * installs the user unit `chordsplay-amp-agent.service` (not enabled: ChordsPlay starts it)
 

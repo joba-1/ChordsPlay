@@ -4,12 +4,13 @@
 #
 # Defaults (override via environment):
 #   MANELINE_REPO    git URL       https://github.com/joba-1/maneline.git
-#   MANELINE_BRANCH  branch/commit micro-plus-idle-disconnect  (Linux LE bearer + idle disconnect,
-#                                  upstream PRs #139/#140; switch to main once merged)
+#   MANELINE_BRANCH  branch/commit micro-plus-preset-backup  (Linux LE bearer, idle disconnect,
+#                                  audition + preset API; based on upstream PRs #139/#140)
+#   MANELINE_REPO may also be a local checkout, e.g. ~/project/mustang-micro-test/maneline
 set -euo pipefail
 
 REPO=${MANELINE_REPO:-https://github.com/joba-1/maneline.git}
-BRANCH=${MANELINE_BRANCH:-micro-plus-idle-disconnect}
+BRANCH=${MANELINE_BRANCH:-micro-plus-preset-backup}
 BASE=$HOME/.local/share/chordsplay
 DEST=$BASE/maneline
 VENV=$BASE/maneline-venv
