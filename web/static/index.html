@@ -123,6 +123,15 @@
         <p class="code" id="display-code"></p>
       </div>
     </div>
+    <h3>Pair a TV</h3>
+    <p class="hint">For a TV you use often: open <code id="tv-url"></code> on it once and keep it as a bookmark. It shows a
+      code: enter it here. The TV then follows you without a new link (until you remove it below).</p>
+    <div class="pdf-assign">
+      <input id="tv-code" placeholder="Code shown on the TV" autocomplete="off" spellcheck="false">
+      <input id="tv-name" placeholder="Name, e.g. Living room TV">
+      <button type="button" id="tv-pair">Pair</button>
+    </div>
+    <table class="cues" id="tv-list"></table>
     <div class="dlg-buttons">
       <button type="button" id="display-end">End all display links</button>
       <span class="grow"></span><button value="close">Close</button>

@@ -66,6 +66,12 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
   is what the displays show.
 * The display needs no login (a TV, a friend's TV): the code in the link is the key.
   Everything else under `/chordsplay/` still needs the Authelia login.
+* **Your own TV, paired once:** open `https://example.org/chordsplay/d/tv/`
+  on it and keep it as a bookmark. It shows a code: enter it with `d` under *Pair a TV*.
+  The TV then keeps a token as a cookie and follows you whenever the bookmark is
+  opened, no new link needed. *Pair a TV* lists the paired TVs; ✕ removes one (it has
+  to pair again). A code is valid for 10 minutes and can only be approved by the
+  logged-in page.
 
 ## Takes: recording yourself
 

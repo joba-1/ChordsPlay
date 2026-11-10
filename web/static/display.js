@@ -11,6 +11,8 @@ let state = null;       // controller state: {id, t, playing, at}
 let clockOffset = 0;    // server time - local time, seconds
 let wakeLock = null;
 let expired = false;    // the pairing code is unknown or expired
+let pairCode = null;    // a TV (d/tv/) not paired yet: the code it shows
+let pairTimer = null;
 
 // the controller's view: the song text, or one of its PDFs from a page on
 let shownPdf = null;    // 'pdf/page' rendered last
@@ -62,8 +64,36 @@ function fail(text) {
   $('#title').textContent = '';
 }
 
+// a TV at d/tv/: shows a code until the controller enters it (key d, "Pair a TV"),
+// then it has its token as a cookie and follows like a display
+function showPairing(code) {
+  pairCode = code;
+  fail('Pair this TV with your ChordsPlay:<br>on the controller press <b>d</b> and enter under <i>Pair a TV</i>' +
+       `<p class="code">${esc(code)}</p><small>The code is valid for 10 minutes.</small>`);
+  clearTimeout(pairTimer);
+  let polls = 0;
+  const poll = async () => {
+    try {
+      if ((await (await fetch('pair?code=' + encodeURIComponent(code))).json()).paired) {
+        pairCode = null;
+        await loadState();
+        follow();
+        return;
+      }
+    } catch (e) { /* the server is back in a moment */ }
+    if (++polls % 30 === 0) { loadState().catch(() => {}); return; }    // a new code after 10 minutes
+    pairTimer = setTimeout(poll, 2000);
+  };
+  pairTimer = setTimeout(poll, 2000);
+}
+
 async function loadState() {
-  const res = await fetch('state');
+  const res = await fetch('state' + (pairCode ? '?code=' + encodeURIComponent(pairCode) : ''));
+  if (res.status === 401) {
+    events?.close();
+    showPairing((await res.json()).pair);
+    return;
+  }
   if (res.status === 404) {
     expired = true;
     fail('This display link has expired or was ended.<br>Make a new one on the controller: key <b>d</b>.');
@@ -95,7 +125,7 @@ function follow() {
     $('#bar').classList.add('offline');
     // a closed stream (expired code) is not retried by the browser: check why
     if (events.readyState === EventSource.CLOSED) {
-      setTimeout(() => loadState().then(() => { if (!expired) follow(); }).catch(() => setTimeout(follow, 5000)), 3000);
+      setTimeout(() => loadState().then(() => { if (!expired && !pairCode) follow(); }).catch(() => setTimeout(follow, 5000)), 3000);
     }
   };
 }
@@ -131,6 +161,6 @@ document.addEventListener('mousemove', () => {
   hideTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
 });
 
-loadState().then(() => { if (!expired) follow(); })
+loadState().then(() => { if (!expired && !pairCode) follow(); })
   .catch(() => { fail('Cannot reach the server.'); setTimeout(() => location.reload(), 10000); });
 keepAwake();

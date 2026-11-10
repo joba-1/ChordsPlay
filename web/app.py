@@ -43,7 +43,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '0.9'
+__version__ = '0.10'
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +123,17 @@ def get_db(user=None):
                 seconds  real,
                 file     text,
                 state    text not null default 'recording');
+            CREATE TABLE IF NOT EXISTS tv_devices (
+                id      integer primary key autoincrement,
+                hash    text not null unique,
+                user_id int not null references users(id) on delete cascade,
+                name    text,
+                created real not null,
+                seen    real);
+            CREATE TABLE IF NOT EXISTS tv_pairings (
+                code    text not null primary key,
+                created real not null,
+                token   text);
             CREATE TABLE IF NOT EXISTS bridge_tokens (
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
@@ -509,7 +520,10 @@ def display_pdfjs(name):
 @app.route('/d/<code>/state')
 def display_state(code):
     '''The followed controller's state and its song (text only, nothing to change).'''
-    db = get_db(display_user(code)[0])
+    return follow_state(get_db(display_user(code)[0]))
+
+
+def follow_state(db):
     state = current_state(db)
     song = song_data(db, state['id']) if state else None
     if song:
@@ -520,7 +534,10 @@ def display_state(code):
 @app.route('/d/<code>/pdf/<int:pdf_id>')
 def display_pdf(code, pdf_id):
     '''A PDF of the song the controller is on (a display gets nothing else).'''
-    db = get_db(display_user(code)[0])
+    return follow_pdf(get_db(display_user(code)[0]), pdf_id)
+
+
+def follow_pdf(db, pdf_id):
     state = current_state(db)
     if not state or pdf_id not in [p['id'] for p in pdfmod.song_pdfs(db.conn, state['id'])]:
         abort(404)
@@ -531,6 +548,123 @@ def display_pdf(code, pdf_id):
 def display_events(code):
     user, expires = display_user(code)
     return sse(get_db(user), expires=expires)
+
+
+# --- a paired TV: one bookmark, d/tv/, follows its user without a code in the URL ---
+#
+# The TV opens d/tv/ and shows a pairing code; the logged-in controller enters it
+# (POST api/tv). The TV then gets a long random token as a cookie (only its hash is
+# stored) and follows that user like a display, until the TV is removed.
+
+TV_COOKIE = 'chordsplay_tv'
+TV_PAIR_MINUTES = 10
+TV_CODE_LENGTH = 6
+TV_COOKIE_DAYS = 3 * 365
+
+
+def tv_user():
+    '''The user a TV's cookie belongs to, or None.'''
+    token = request.cookies.get(TV_COOKIE)
+    if not token:
+        return None
+    db = get_db(DEFAULT_USER)
+    row = db.conn.execute("""SELECT u.name, t.id FROM tv_devices t JOIN users u ON u.id = t.user_id
+                             WHERE t.hash = ?""", (token_hash(token),)).fetchone()
+    if row:
+        db.conn.execute("UPDATE tv_devices SET seen = ? WHERE id = ?", (time.time(), row[1]))
+        db.conn.commit()
+    return row[0] if row else None
+
+
+def tv_pairing(code=None):
+    '''A pairing code for a TV without a token: the one it has (if still open) or a new one.'''
+    db = get_db(DEFAULT_USER)
+    db.conn.execute("DELETE FROM tv_pairings WHERE created < ?", (time.time() - TV_PAIR_MINUTES * 60,))
+    if code and db.conn.execute("SELECT 1 FROM tv_pairings WHERE code = ?", (code,)).fetchone():
+        db.conn.commit()
+        return code
+    code = ''.join(secrets.choice(CODE_ALPHABET) for _ in range(TV_CODE_LENGTH))
+    db.conn.execute("INSERT INTO tv_pairings (code, created) VALUES (?, ?)", (code, time.time()))
+    db.conn.commit()
+    return code
+
+
+@app.route('/d/tv')
+def tv_redirect():
+    return redirect('tv/')
+
+
+@app.route('/d/tv/state')
+def tv_state():
+    user = tv_user()
+    if user is None:
+        # not paired: show a code to enter on the controller
+        return jsonify(pair=tv_pairing(request.args.get('code'))), 401
+    return follow_state(get_db(user))
+
+
+@app.route('/d/tv/pair')
+def tv_pair_poll():
+    '''The TV asks whether its code was entered; then it gets its token as a cookie.'''
+    code = (request.args.get('code') or '').lower()
+    db = get_db(DEFAULT_USER)
+    row = db.conn.execute("SELECT token FROM tv_pairings WHERE code = ? AND token IS NOT NULL", (code,)).fetchone()
+    if row is None:
+        return jsonify(paired=False)
+    db.conn.execute("DELETE FROM tv_pairings WHERE code = ?", (code,))
+    db.conn.commit()
+    response = jsonify(paired=True)
+    # no Path: the browser takes this page's folder (/chordsplay/d/tv behind Apache)
+    response.set_cookie(TV_COOKIE, row[0], max_age=TV_COOKIE_DAYS * 86400, httponly=True,
+                        secure=request.headers.get(PROXY_HEADER) is not None, samesite='Lax')
+    return response
+
+
+@app.route('/d/tv/events')
+def tv_events():
+    user = tv_user()
+    if user is None:
+        abort(401)
+    return sse(get_db(user))
+
+
+@app.route('/d/tv/pdf/<int:pdf_id>')
+def tv_pdf(pdf_id):
+    user = tv_user()
+    if user is None:
+        abort(401)
+    return follow_pdf(get_db(user), pdf_id)
+
+
+@app.route('/api/tv', methods=['GET', 'POST'])
+def tvs():
+    '''GET: this user's paired TVs. POST {code, name}: pair the TV that shows this code.'''
+    db = get_db()
+    uid = user_id(db)
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        code = (data.get('code') or '').strip().lower().replace('-', '').replace(' ', '')
+        name = (data.get('name') or '').strip()[:40] or 'TV'
+        db.conn.execute("DELETE FROM tv_pairings WHERE created < ?", (time.time() - TV_PAIR_MINUTES * 60,))
+        if db.conn.execute("SELECT 1 FROM tv_pairings WHERE code = ? AND token IS NULL", (code,)).fetchone() is None:
+            time.sleep(1)   # slows down guessing
+            return jsonify(error='No TV shows this code (codes are valid for {} minutes).'.format(TV_PAIR_MINUTES)), 404
+        token = secrets.token_urlsafe(32)
+        db.conn.execute("INSERT INTO tv_devices (hash, user_id, name, created) VALUES (?, ?, ?, ?)",
+                        (token_hash(token), uid, name, time.time()))
+        db.conn.execute("UPDATE tv_pairings SET token = ? WHERE code = ?", (token, code))
+        db.conn.commit()
+    rows = db.conn.execute("SELECT id, name, created, seen FROM tv_devices WHERE user_id = ? ORDER BY created", (uid,))
+    return jsonify(tvs=[{'id': i, 'name': n, 'created': c, 'seen': s} for i, n, c, s in rows])
+
+
+@app.route('/api/tv/<int:tv_id>', methods=['DELETE'])
+def tv_remove(tv_id):
+    '''Remove a TV: it has to be paired again.'''
+    db = get_db()
+    db.conn.execute("DELETE FROM tv_devices WHERE id = ? AND user_id = ?", (tv_id, user_id(db)))
+    db.conn.commit()
+    return jsonify(ok=True)
 
 
 @app.route('/api/song/<int:song_id>/tags', methods=['GET', 'POST'])

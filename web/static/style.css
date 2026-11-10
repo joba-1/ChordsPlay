@@ -148,6 +148,7 @@ dialog h2 { margin: 0 0 8px; font-size: 17px; }
 
 /* display page (display.html): chords only, follows the controller */
 body.display #bar { padding: 4px 12px; }
+body.display .empty .code { font: 600 clamp(32px, 8vw, 96px) var(--sheet-font); letter-spacing: 0.15em; margin: 0.4em 0; }
 body.display #bar.offline .time::after { content: " · offline"; color: var(--error); }
 body.display.idle, body.display.idle * { cursor: none; }
 #display-qr { width: 220px; height: 220px; background: #fff; padding: 6px; border-radius: 6px; }

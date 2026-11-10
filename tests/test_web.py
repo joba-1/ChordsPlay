@@ -168,6 +168,29 @@ class Display(Api):
         self.assertEqual(self.client.get('/api/state', headers={'X-ChordsPlay-Proxy': '1'}).status_code, 401)
         self.assertEqual(self.client.get('/d/static/app.js').status_code, 404)
 
+    def test_tv_pairs_once_then_follows(self):
+        sid = self.client.get('/api/state').get_json()['playlist'][1]['id']
+        tv = self.app.app.test_client()             # the TV: its own cookies
+        r = tv.get('/d/tv/state')
+        self.assertEqual(r.status_code, 401)
+        code = r.get_json()['pair']
+        self.assertEqual(tv.get('/d/tv/state', query_string={'code': code}).get_json()['pair'], code)   # kept
+        self.assertFalse(tv.get('/d/tv/pair', query_string={'code': code}).get_json()['paired'])
+        self.assertEqual(self.client.post('/api/tv', json={'code': 'wrong1'}).status_code, 404)
+        tvs = self.client.post('/api/tv', json={'code': code.upper(), 'name': 'Living room'}).get_json()['tvs']
+        self.assertEqual([t['name'] for t in tvs], ['Living room'])
+        r = tv.get('/d/tv/pair', query_string={'code': code})
+        self.assertTrue(r.get_json()['paired'])
+        self.assertIn('chordsplay_tv=', r.headers['Set-Cookie'])
+        self.assertIn('HttpOnly', r.headers['Set-Cookie'])
+        self.client.put('/api/now', json={'id': sid, 't': 3, 'playing': True})
+        self.assertEqual(tv.get('/d/tv/state').get_json()['song']['title'], 'Beta')
+        self.assertEqual(self.client.post('/api/tv', json={'code': code}).status_code, 404)    # used up
+        # removed: it has to pair again
+        self.client.delete('/api/tv/{}'.format(tvs[0]['id']))
+        self.assertEqual(tv.get('/d/tv/state').status_code, 401)
+        self.assertEqual(tv.get('/d/tv/events').status_code, 401)
+
     def test_qr(self):
         r = self.client.get('/api/qr.svg', query_string={'text': 'https://example.org/d/abc/'})
         self.assertEqual(r.mimetype, 'image/svg+xml')

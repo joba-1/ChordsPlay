@@ -453,8 +453,31 @@ async function openDisplay() {
   $('#display-code').textContent = r.code;
   $('#display-expires').textContent = new Date(r.expires * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
   $('#display-qr').src = 'api/qr.svg?text=' + encodeURIComponent(url);
+  $('#tv-url').textContent = new URL('d/tv/', location.href).href;
+  renderTvs((await api('tv').catch(() => ({ tvs: [] }))).tvs);
   $('#d-display').showModal();
 }
+
+function renderTvs(tvs) {
+  const when = (t) => t ? new Date(t * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'not yet';
+  $('#tv-list').innerHTML = tvs.map((t) => `<tr><td>${esc(t.name)}</td><td class="none">paired ${when(t.created)},` +
+    ` last seen ${when(t.seen)}</td><td><button type="button" data-tv="${t.id}" title="Remove: it has to pair again">✕</button></td></tr>`).join('');
+}
+
+$('#tv-pair').addEventListener('click', async () => {
+  try {
+    renderTvs((await api('tv', { method: 'POST', body: { code: $('#tv-code').value, name: $('#tv-name').value } })).tvs);
+    $('#tv-code').value = '';
+    toast('TV paired: it shows the song in a moment');
+  } catch (e) { toast(e.message, 5000); }
+});
+$('#tv-list').addEventListener('click', async (e) => {
+  if (!e.target.dataset.tv) return;
+  try {
+    await api('tv/' + e.target.dataset.tv, { method: 'DELETE' });
+    renderTvs((await api('tv')).tvs);
+  } catch (err) { toast('Failed: ' + err.message); }
+});
 
 $('#display-end').addEventListener('click', async () => {
   try {
