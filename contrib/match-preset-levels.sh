@@ -6,9 +6,13 @@
 #
 # Needs (see docs/spec-amp.md, "Tones"):
 #   * the amp on, connected by Bluetooth and USB, the amp agent installed;
-#   * an adapter cable (3.5 mm stereo plug -> 6.35 mm socket) from the computer's
-#     headphone output into the amp's plug, instead of the guitar;
-#   * ChordsPlay closed (only one program may hold the amp's connection).
+#   * ChordsPlay closed (only one program may hold the amp's connection);
+#   * a playing-level signal at the guitar input, one of:
+#     - signal method (default): an adapter cable (3.5 mm stereo plug -> 6.35 mm
+#       socket) from the computer's headphone output into the amp's plug;
+#     - played method (PLAYED=1): the guitar, and you play the same short riff for
+#       every preset when prompted (4 s each, about +-1 dB). Tip: --slots in
+#       MEASURE_SLOTS to do it in parts, e.g. MEASURE_SLOTS=1-20.
 #
 # Usage: contrib/match-preset-levels.sh [output dir]
 #   SIGNAL_SINK=<PipeWire sink> if the headphone output isn't found automatically.
@@ -30,8 +34,15 @@ BACKUP=$OUT/backup-$(date +%Y%m%d-%H%M%S)
 cd "$AGENT/scripts"
 echo "== Reading the presets as they are now"
 "$PYTHON" mmp_backup.py --out "$BACKUP"
-echo "== Measuring every preset with the test tone (about 5 s each)"
-"$PYTHON" mmp_level.py --signal-sink "${SIGNAL_SINK:-auto}" survey "$BACKUP" --slots 1-99
+if [ -n "${PLAYED:-}" ]; then
+    echo "== Measuring every preset while you play the same riff (4 s each, prompted)"
+    "$PYTHON" mmp_level.py --played survey "$BACKUP" --slots "${MEASURE_SLOTS:-1-99}"
+    METHOD=played
+else
+    echo "== Measuring every preset with the test tone (about 5 s each)"
+    "$PYTHON" mmp_level.py --signal-sink "${SIGNAL_SINK:-auto}" survey "$BACKUP" --slots "${MEASURE_SLOTS:-1-99}"
+    METHOD=signal
+fi
 echo "== Importing the corrections into ChordsPlay"
-"$HERE/venv/bin/python" "$HERE/chordsplay.py" --import-levels "$BACKUP/levels-signal.json"
+"$HERE/venv/bin/python" "$HERE/chordsplay.py" --import-levels "$BACKUP/levels-$METHOD.json"
 echo "Done. Backup and measurements: $BACKUP"

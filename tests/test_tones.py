@@ -96,6 +96,8 @@ class ToneDb(TempDb):
         self.assertIsNone(db.getPresetLevel(4))
         db.importPresetLevels({'method': 'signal', 'presets': [{'slot': 4, 'name': 'Metal 2000', 'correction_db': -2.5}]})
         self.assertEqual(db.getPresetLevel(4), (-2.5, 'Metal 2000'))
+        db.importPresetLevels({'method': 'played', 'presets': [{'slot': 5, 'name': 'BB15 Solo', 'correction_db': 1.5}]})
+        self.assertEqual(db.getPresetLevel(5), (1.5, 'BB15 Solo'))
         with self.assertRaises(ValueError):
             db.importPresetLevels({'method': 'guess', 'presets': []})
 

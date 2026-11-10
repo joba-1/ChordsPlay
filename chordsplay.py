@@ -391,10 +391,10 @@ def main(argv=None):
                 log.error("cannot import levels from {}: {}".format(opts.import_levels, e))
                 return 2
             log.info("imported level corrections for {} presets ({} method)".format(count, report['method']))
-            if report['method'] != 'signal':
+            if report['method'] not in ('signal', 'played'):
                 log.warning("these were measured with the {} method: stored, but not used for "
-                            "tones - only signal-method corrections match presets as played "
-                            "(see docs/spec-amp.md, Tones)".format(report['method']))
+                            "tones - only signal- or played-method corrections match presets "
+                            "as played (see docs/spec-amp.md, Tones)".format(report['method']))
             return 0
         if opts.sync_seed:
             # one-time: publish all local chord data to central, then exit

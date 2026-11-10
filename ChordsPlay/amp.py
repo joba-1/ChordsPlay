@@ -508,9 +508,9 @@ class AgentControl(object):
 def tone_document(db, client, tone):
     '''
     The preset JSON for a saved tone, or None while its base preset is still being
-    fetched. Measured level corrections are used only if measured with the signal
-    method: the noise method is not valid across presets (see maneline's
-    docs/MUSTANG_MICRO_PLUS_LEVELS.md).
+    fetched. Measured level corrections are used only if measured with a real playing
+    signal (signal or played method): the noise method is not valid across presets
+    (see maneline's docs/MUSTANG_MICRO_PLUS_LEVELS.md).
     '''
     base = client.preset(tone['base_slot'])
     if base is None:

@@ -174,11 +174,15 @@ less reverb" for a solo.
     of the song.
   * *Save tone…* keeps it under a name; *Load* and *Delete* manage saved tones.
   * In the cue list a tone shows as `tone`.
-* **The same level for every preset:** connect the computer's headphone output to the
-  amp's plug with an adapter cable (3.5 mm stereo plug to 6.35 mm socket) and run
-  `contrib/match-preset-levels.sh`, with ChordsPlay closed.
-  * It measures every preset with a test tone (about 5 s each) and imports the
-    corrections.
+* **The same level for every preset:** with ChordsPlay closed, run
+  `contrib/match-preset-levels.sh` in one of two ways:
+  * **With a cable:** connect the computer's headphone output to the amp's plug with an
+    adapter cable (3.5 mm stereo plug to 6.35 mm socket). The script measures every
+    preset with a test tone (about 5 s each).
+  * **Without a cable:** `PLAYED=1 contrib/match-preset-levels.sh`. You play the same
+    short riff for every preset when prompted (4 s each, about ±1 dB). Use
+    `MEASURE_SLOTS=1-20` and so on to do it in parts.
+  * Either way, the script imports the corrections at the end.
   * After that, every tone starts at the same measured level, and −6/−3/+3/+6 are exact
     variants of it.
   * Without that measurement, tones start at Fender's own factory levels.

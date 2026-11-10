@@ -654,7 +654,7 @@ WHERE s.lyrics_chords IS NOT NULL
     def importPresetLevels(self, report):
         '''Store the corrections of a level survey; returns the number of presets.'''
         method = report.get('method')
-        if method not in ('signal', 'noise'):
+        if method not in ('signal', 'played', 'noise'):
             raise ValueError('unknown measuring method {!r}'.format(method))
         rows = [(p['slot'], p.get('name'), float(p['correction_db']), method, report.get('measured_at'))
                 for p in report.get('presets', [])]
@@ -663,7 +663,7 @@ WHERE s.lyrics_chords IS NOT NULL
         self.conn.commit()
         return len(rows)
 
-    def getPresetLevel(self, slot, methods=('signal',)):
+    def getPresetLevel(self, slot, methods=('signal', 'played')):
         '''(correction_db, name) for slot if measured with one of methods, else None.'''
         row = self.conn.execute("SELECT correction_db, name, method FROM preset_levels WHERE slot = ?",
                                 (slot,)).fetchone()
