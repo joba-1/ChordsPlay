@@ -1,18 +1,17 @@
 # ChordsPlay web app (web/app.py): central database, audio files and the page.
-# Installed by contrib/install-web.sh; Apache publishes it at /chordsplay/
-# (contrib/apache-chordsplay-web.conf). See docs/web.md.
+# Installed by contrib/install-web.sh as a user unit; a reverse proxy can publish it
+# (example: contrib/apache-chordsplay-web.conf). See docs/web.md.
 [Unit]
 Description=ChordsPlay web app
 After=network-online.target
 
 [Service]
 Type=simple
-# The music share: the fstab entry has "users", so it can be mounted without
-# root. At boot it is sometimes not mounted (network not up yet).
-Environment=CHORDSPLAY_MUSIC_MOUNT=/srv/music
-# Settings (CHORDSPLAY_MUSIC_DIRS, CHORDSPLAY_USER_MAP, ...): see web/app.py
+# Settings (CHORDSPLAY_MUSIC_DIRS, ...): template contrib/chordsplay.env.example
 EnvironmentFile=-%h/.config/chordsplay/web.env
-ExecStartPre=-/bin/sh -c 'mountpoint -q "$CHORDSPLAY_MUSIC_MOUNT" || mount "$CHORDSPLAY_MUSIC_MOUNT"'
+# Optional CHORDSPLAY_MUSIC_MOUNT: a network share that is sometimes not mounted at
+# boot (network not up yet). Its fstab entry needs "users" to be mounted without root.
+ExecStartPre=-/bin/sh -c '[ -z "$CHORDSPLAY_MUSIC_MOUNT" ] || mountpoint -q "$CHORDSPLAY_MUSIC_MOUNT" || mount "$CHORDSPLAY_MUSIC_MOUNT"'
 WorkingDirectory=%h/.local/share/chordsplay-web/app
 ExecStart=%h/.local/share/chordsplay-web/venv/bin/python -m web.app
 Restart=on-failure

@@ -1,10 +1,10 @@
 '''
 Suggested amp presets: a default sound for songs without their own preset.
 
-The local LLM (Ollama on host6, through ollama-gate at background priority) puts each
+A local LLM (Ollama, CHORDSPLAY_OLLAMA_URL) puts each
 song into one of a few sound categories and says whether it knows the song or
-guesses. A table maps each category to an amp slot, set once by ear (draft from
-the slot names on the Trac page ChordsPlay, "Suggested presets as a default").
+guesses. A table maps each category to an amp slot, set once by ear (the draft
+below goes by the names of the factory presets).
 The artist's genres from MusicBrainz go into the question as context.
 
 Precedence when a song plays: its own cues > artist preset > suggestion (only one
@@ -24,7 +24,7 @@ import urllib.request
 
 log = logging.getLogger(__name__)
 
-OLLAMA_URL = os.environ.get('CHORDSPLAY_OLLAMA_URL', 'http://127.0.0.1:11434')   # ollama-gate
+OLLAMA_URL = os.environ.get('CHORDSPLAY_OLLAMA_URL', 'http://127.0.0.1:11434')
 MODEL = os.environ.get('CHORDSPLAY_SUGGEST_MODEL', 'qwen3.6:latest')
 MB_URL = 'https://musicbrainz.org/ws/2/'
 MB_AGENT = 'ChordsPlayWeb/0.5'      # generic: no personal data (MusicBrainz asks for a name)

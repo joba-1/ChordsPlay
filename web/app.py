@@ -1,6 +1,6 @@
 '''
-ChordsPlay web app: one server (host6) with the central database, any browser
-as the player. Design: Trac page ChordsPlay, docs/web.md.
+ChordsPlay web app: one server with the central database, any browser
+as the player. See docs/web.md.
 
 The server keeps the songs, chords, tags, filters and play history, serves the
 audio files and the page. The browser plays the audio (it is the device paired
@@ -17,10 +17,12 @@ Config via env:
   CHORDSPLAY_MUSIC_DIRS  folders with the songs, ":"-separated; added to the library at start
                          (a folder once added stays in the database)
   CHORDSPLAY_USER        database user for requests without a proxy login (default $USER)
-  CHORDSPLAY_USER_MAP    proxy name -> database user, e.g. "jo=user,caro=florence"
+  CHORDSPLAY_USER_MAP    proxy name -> database user, e.g. "jo=joe,flo=florence"
   CHORDSPLAY_SCAN_HOURS  rescan the library and fetch new chords every N hours (0: never; default 24)
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
   CHORDSPLAY_OLLAMA_URL, CHORDSPLAY_SUGGEST_MODEL   suggested presets (web/suggest.py)
+
+A template with all settings: contrib/chordsplay.env.example
   CHORDSPLAY_TAKES_DIR   where takes are kept (default ~/.local/share/chordsplay-web/takes)
   CHORDSPLAY_PDF_DIRS    more folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf);
                          the library's folders are always scanned (tabs next to their songs); see web/pdfs.py
@@ -50,15 +52,15 @@ __version__ = '1.0'
 
 log = logging.getLogger(__name__)
 
-DB_PATH = os.environ.get('CHORDSPLAY_WEB_DB',
-                         os.path.expanduser('~/.local/share/chordsplay-web/chordsplay.db'))
+DB_PATH = os.path.expanduser(os.environ.get('CHORDSPLAY_WEB_DB',
+                                            '~/.local/share/chordsplay-web/chordsplay.db'))
 TAKES_DIR = os.path.expanduser(os.environ.get('CHORDSPLAY_TAKES_DIR', '~/.local/share/chordsplay-web/takes'))
 PDF_DIRS = [os.path.expanduser(d) for d in os.environ.get(
     'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf').split(':') if d]
 DEFAULT_USER = os.environ.get('CHORDSPLAY_USER', os.environ.get('USER', 'anonymous'))
 USER_MAP = dict(pair.split('=', 1) for pair in
                 os.environ.get('CHORDSPLAY_USER_MAP', '').split(',') if '=' in pair)
-# Apache sets this after the Authelia login and removes what a client sends itself
+# the reverse proxy sets this after its login and removes what a client sends itself
 USER_HEADER = 'X-Remote-User'
 PROXY_HEADER = 'X-ChordsPlay-Proxy'
 
@@ -1280,7 +1282,7 @@ def scan_loop(hours):
 
 
 def suggest_sounds():
-    '''Suggested presets for new songs (local LLM, background priority at ollama-gate).'''
+    '''Suggested presets for new songs (local LLM).'''
     db = ChordsPlay.db.Db(DB_PATH, DEFAULT_USER)
     try:
         log.info('suggested sounds for %d songs', suggestmod.run(db.conn))

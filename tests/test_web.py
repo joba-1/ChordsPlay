@@ -117,11 +117,11 @@ class Api(unittest.TestCase):
         self.assertEqual(self.client.get('/api/state').get_json()['now']['id'], sid)
 
     def test_proxy_user(self):
-        self.app.USER_MAP['user'] = 'jo'
-        r = self.client.get('/api/state', headers={'X-Remote-User': 'user'}).get_json()
+        self.app.USER_MAP['joseph'] = 'jo'
+        r = self.client.get('/api/state', headers={'X-Remote-User': 'joseph'}).get_json()
         self.assertEqual(r['user'], 'jo')
-        r = self.client.get('/api/state', headers={'X-Remote-User': 'caro'}).get_json()
-        self.assertEqual(r['user'], 'caro')
+        r = self.client.get('/api/state', headers={'X-Remote-User': 'flo'}).get_json()
+        self.assertEqual(r['user'], 'flo')
         self.app.USER_MAP.clear()
         # over the proxy only with a login
         self.assertEqual(self.client.get('/api/state', headers={'X-ChordsPlay-Proxy': '1'}).status_code, 401)

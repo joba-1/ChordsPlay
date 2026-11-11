@@ -1,11 +1,11 @@
 #!/bin/bash
-# Install or update the ChordsPlay web app as a systemd user unit (on host6).
+# Install or update the ChordsPlay web app as a systemd user unit.
 # Copies this checkout's ChordsPlay/ and web/ to ~/.local/share/chordsplay-web/app,
 # so later edits in the checkout don't reach the running service until the next
 # install. See docs/web.md.
 #
-# First install: put CHORDSPLAY_MUSIC_DIRS=/path/to/music into
-# ~/.config/chordsplay/web.env; the database is created at the first start.
+# First install: copy contrib/chordsplay.env.example to ~/.config/chordsplay/web.env
+# and set CHORDSPLAY_MUSIC_DIRS there; the database is created at the first start.
 set -euo pipefail
 
 BASE=$HOME/.local/share/chordsplay-web

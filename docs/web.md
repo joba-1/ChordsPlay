@@ -1,8 +1,9 @@
 # ChordsPlay web app (version 1.0)
 
-ChordsPlay in the browser: <https://example.org/chordsplay/> (Authelia login).
-The page's own help (`?`)
-says the same as the first sections here, in short.
+ChordsPlay in the browser. The examples assume it is published by a reverse proxy at
+`https://example.org/chordsplay/`, behind a login (see "Operating it"); on the server
+itself it is `http://127.0.0.1:8616/`. The page's own help (`?`) says the same as the
+first sections here, in short.
 
 ## What you need for what
 
@@ -112,7 +113,7 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
 * The display follows the user, not the browser tab: whatever page of yours plays last
   is what the displays show.
 * The display needs no login (a TV, a friend's TV): the code in the link is the key.
-  Everything else under `/chordsplay/` still needs the Authelia login.
+  Everything else under `/chordsplay/` still needs the login.
 * **Your own TV, paired once:** open `https://example.org/chordsplay/d/tv/`
   on it and keep it as a bookmark. It shows a code: enter it with `d` under *Pair a TV*.
   The TV then keeps a token as a cookie and follows you whenever the bookmark is
@@ -144,7 +145,7 @@ as large as one alone.
 * **Where a tab belongs: next to its song**, like a hand-saved song text, with the song
   file's name and `.pdf`: `13 Cruz.mp3` → `13 Cruz.pdf`. A part goes after ` - `:
   `13 Cruz - Solo.pdf`. The library folders are always scanned for these.
-* Other folders on host6 (`CHORDSPLAY_PDF_DIRS`, default `~/.local/share/chordsplay-web/pdf`):
+* Other folders on the server (`CHORDSPLAY_PDF_DIRS`, default `~/.local/share/chordsplay-web/pdf`):
   there a file named `Artist - Title.pdf` or
   `Artist - Title - Part.pdf` (`Queen - Hammer To Fall - Solo 1.pdf`) links itself to its
   song; case, punctuation and a leading "The" don't matter. `V` (or *PDF*) lists all PDFs: choose the song for one that didn't link
@@ -202,7 +203,8 @@ every device plays them.
   up, so switches within a song are not delayed. With the song on USB instead, the
   agent sees no stream and can go idle during a long song.
 * **Suggested presets** for songs with no preset of their own and none for their artist:
-  the local LLM on host6 puts each song into a sound (clean, crunch, hard rock, …; with
+  a local LLM (Ollama, `CHORDSPLAY_OLLAMA_URL`; without one there are no suggestions)
+  puts each song into a sound (clean, crunch, hard rock, …; with
   the artist's genres from MusicBrainz as a hint) and says whether it knows the song.
   Suggestions are **only shown** until you tick *Play suggestions automatically* (under
   *Preset per sound*): the model claims to know nearly every song (98 % on 2026-11-10,
@@ -238,17 +240,17 @@ every device plays them.
 
 ```mermaid
 flowchart LR
-  subgraph nas[NAS]
+  subgraph nas["file server (optional)"]
     share[("music share<br>songs, PDF tabs")]
   end
   ug(["Ultimate Guitar"])
-  subgraph host6["host6: the server"]
-    apache["Apache + Authelia<br>/chordsplay/d/ without login"]
+  subgraph server["the server"]
+    apache["reverse proxy with login<br>/chordsplay/d/ without login"]
     web["ChordsPlay web server<br>page, songs, events, takes<br>library scan"]
     db[("one database")]
     llm["local LLM (Ollama)<br>suggested sounds"]
   end
-  subgraph host7["amp computer (host7)"]
+  subgraph ampc["amp computer"]
     ctl["browser: controller<br>plays the song"]
     bridge["amp control 1: bridge<br>(mmp/bridge.py)"]
     agent["amp control 2: amp agent<br>(maneline mmp_web.py)"]
@@ -269,7 +271,7 @@ flowchart LR
   mmp == "USB: recording<br>(song + guitar)" ==> bridge
 ```
 
-* **Server (host6):** one database for every device; scans the library, fetches chords,
+* **Server:** one database for every device; scans the library, fetches chords,
   serves the page, the audio and the PDFs.
 * **Controller:** any browser; with the Mustang it is the device paired with it, because
   the device that plays must send the sound to the Mustang.
@@ -283,10 +285,11 @@ flowchart LR
   from the server and tells the agent what to play, without an open port (it connects
   out, like a display), and records takes from the Mustang's USB.
 
-Addresses: the browser talks to Apache on port 443 under `/chordsplay/` (Authelia
-login, except `/chordsplay/d/`), Apache passes it on to `web/app.py` on
-`127.0.0.1:8616`. The database is `~/.local/share/chordsplay-web/chordsplay.db`, the
-music comes from `/srv/music` (NFS).
+Addresses: the browser talks to the reverse proxy (Apache in the example) on port 443
+under `/chordsplay/` (with a login, except `/chordsplay/d/`), which passes it on to
+`web/app.py` on `127.0.0.1:8616`. The database is
+`~/.local/share/chordsplay-web/chordsplay.db`; the music is in the folders of
+`CHORDSPLAY_MUSIC_DIRS`, local or a network share.
 
 * `web/app.py` (Flask, served by waitress): JSON API, the page (`web/static/`), the audio
   files with range requests. All queries go through `ChordsPlay/db.py`, unchanged.
@@ -298,8 +301,8 @@ music comes from `/srv/music` (NFS).
   (`web/suggest.py`).
 * The library scan and the Ultimate Guitar fetch run in the server (`ChordsPlay/scan.py`),
   at start and every 24 hours.
-* User: Apache passes the Authelia name as `X-Remote-User` (and drops what a client
-  sends). Requests through Apache without a login are refused. Direct requests on host6
+* User: the proxy passes the login name as `X-Remote-User` (and drops what a client
+  sends). Requests through the proxy without a login are refused. Direct requests on the server
   (`curl 127.0.0.1:8616`) use `CHORDSPLAY_USER`.
 * Following: the controller reports song, position and play/pause (`PUT api/now`, at
   every change and every 15 s while playing). The server keeps the latest state per user
@@ -319,9 +322,10 @@ music comes from `/srv/music` (NFS).
   6-character code for 10 minutes; once the logged-in page approves it, the TV gets a
   random token as an HttpOnly cookie for `/chordsplay/d/tv` (kept 3 years, only its
   hash stored in `tv_devices`).
-* Audio comes from the NFS mount, not from media-find as the plan suggested: the scanner
-  needs the files anyway (tags), and no media-find service account is needed. The unit
-  mounts the share if it is missing (the fstab entry has `users`).
+* Audio is read from the music folders directly: the scanner needs the files anyway
+  (tags). For a network share that isn't always mounted at boot, set
+  `CHORDSPLAY_MUSIC_MOUNT` to its mount point: the unit then mounts it if it is missing
+  (the fstab entry needs `users`, since the unit doesn't run as root).
 
 ## Possible, not built: the sound on the TV
 
@@ -333,7 +337,7 @@ controller (*Sound: here / on the TV*):
 
 ```mermaid
 flowchart LR
-  subgraph host6
+  subgraph server
     srv["ChordsPlay server<br>songs, state, events"]
     files[("music share<br>audio files")]
   end
@@ -365,7 +369,7 @@ flowchart LR
   tied to the guitar's timing. Good for playing to the room or with friends; for
   practising with headphones the song through the Mustang stays better.
 
-## Operating it (host6)
+## Operating it
 
 | What | How |
 |---|---|
@@ -373,10 +377,10 @@ flowchart LR
 | Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two` in the settings: the folders are added to the library at start and scanned at start and every 24 hours. The database is created at the first start |
 | Data of the former desktop app | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db` instead of a new database, and `../venv/bin/python -m web.migrate merge <file>` for another computer's database (desktop app closed): plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins). Songs locked there (tag x) bring their text, which replaces ours |
 | Logs | `journalctl --user -u chordsplay-web` |
-| Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`; more settings: the head of `web/app.py` |
-| Apache | `/etc/apache2/public.d/locations/chordsplay.conf` (= `contrib/apache-chordsplay-web.conf`, with `flushpackets=on` for the event streams) and `<Location "/chordsplay/">` in `/etc/apache2/homeauth.conf` |
-| Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets and takes); the app serves nothing else there. |
-| After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-20261110-221319 --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
+| Settings | `~/.config/chordsplay/web.env`, from the template `contrib/chordsplay.env.example` (all settings with their defaults): `CHORDSPLAY_MUSIC_DIRS`, `CHORDSPLAY_USER_MAP=loginname=dbuser,...`, `CHORDSPLAY_SCAN_HOURS` … The file is yours: it is not in the repo, and a copy in a checkout (`*.env`) is ignored by git |
+| Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User` |
+| Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets and takes); the app serves nothing else there. |
+| After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-<date> --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
 | Amp bridge (amp computer) | `mmp/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `mmp/match-preset-levels.sh` |
 
 ## Tests
