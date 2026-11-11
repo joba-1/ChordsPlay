@@ -8,7 +8,7 @@ path tables (song_lists / list_songs) are never touched.
 
 Enabled only when sync_url is configured; otherwise the app runs stand-alone.
 '''
-from curl_cffi import requests as curl_requests
+import ChordsPlay.http
 import logging
 
 log = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class Sync(object):
         # host gives up in seconds instead of hanging; the longer read timeout
         # still allows a big initial pull to complete
         self.timeout = (connect_timeout, read_timeout)
-        self.session = curl_requests.Session()
+        self.session = ChordsPlay.http.Session()
 
     def _headers(self):
         h = {"Content-Type": "application/json"}

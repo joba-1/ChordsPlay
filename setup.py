@@ -12,7 +12,7 @@ config = {
     # 'download_url': 'https://example.org/hg/chordsplay/archive/{}.tar.gz'.format(version),
     'author_email': 'joba-1@users.noreply.github.com',
     'version': version,
-    'install_requires': ['mutagen', 'python-vlc', 'curl_cffi'],
+    'install_requires': ['mutagen', 'python-vlc'],
     'packages': ['ChordsPlay'],
     # Fenstersymbol muss mitinstalliert werden, sonst startet die GUI ohne
     # Icon: gui.py laedt es relativ zum Paketverzeichnis.

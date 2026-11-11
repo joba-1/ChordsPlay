@@ -12,7 +12,7 @@ pip install git+ssh://git@github.com/joba-1/ChordsPlay.git
 chordsplay.py /path/to/your/music
 ```
 
-Dependencies are pulled automatically: `mutagen`, `python-vlc`, `curl_cffi`.
+Dependencies are pulled automatically: `mutagen`, `python-vlc`. (`curl_cffi` is no longer needed; if it is installed, the Ultimate Guitar fetch uses it.)
 
 The first run creates `~/.chordsplay.py.db` (a SQLite database) and starts
 scanning. Each new song is matched against Ultimate Guitar in the

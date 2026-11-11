@@ -4,7 +4,7 @@ Created on 21.02.2016
 @author: joba1
 '''
 
-from curl_cffi import requests as curl_requests
+import ChordsPlay.http
 import re
 import logging
 import json
@@ -37,7 +37,7 @@ class Chords(object):
         self.capo = None
         self.request_time = datetime.now()
         self.request_interval = 2
-        self.session = curl_requests.Session(impersonate="chrome")
+        self.session = ChordsPlay.http.session(browser=True)
 
     def wait(self):
         now = datetime.now()
