@@ -7,12 +7,12 @@ and the amp's USB output is measured (maneline's mmp_level).
 Needs:
 * the amp on, connected by Bluetooth and USB;
 * the amp plugged into an instrument with its volume at zero (the noise method);
-* the agent installed (contrib/install-amp-agent.sh).
+* the agent installed (mmp/install-amp-agent.sh).
 
 Nothing is saved on the amp; at the end it selects the preset it started on.
 Run it with the agent's venv, which has numpy:
 
-  ~/.local/share/chordsplay/maneline-venv/bin/python tests/manual_tone_level_test.py [slot]
+  ~/.local/share/chordsplay/maneline-venv/bin/python mmp/manual_tone_level_test.py [slot]
 
 Expected: every level offset measures within 1 dB of what was set.
 '''

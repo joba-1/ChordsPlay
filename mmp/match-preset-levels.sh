@@ -1,12 +1,13 @@
 #!/bin/bash
 # Measure every Mustang Micro Plus preset with a test tone at the guitar input and
-# import the level corrections into ChordsPlay. Afterwards a tone built on any preset
+# send the level corrections to the ChordsPlay server (through the amp bridge's link). Afterwards a tone built on any preset
 # starts at the same measured output level; the tone panel's level slider and its
 # -6 -3 0 +3 +6 buttons then give exact variants.
 #
 # Needs (see docs/spec-amp.md, "Tones"):
 #   * the amp on, connected by Bluetooth and USB, the amp agent installed;
-#   * ChordsPlay closed (only one program may hold the amp's connection);
+#   * the amp bridge stopped (only one program may hold the amp's connection);
+#   * the bridge's link in ~/.config/chordsplay/bridge.env (CHORDSPLAY_BRIDGE_URL);
 #   * a playing-level signal at the guitar input, one of:
 #     - signal method (default): an adapter cable (3.5 mm stereo plug -> 6.35 mm
 #       socket) from the computer's headphone output into the amp's plug;
@@ -21,7 +22,7 @@
 # your playing off the new levels. The corrections are imported once every preset is measured.
 # FRESH=1 starts over with a new backup.
 #
-# Usage: contrib/match-preset-levels.sh [output dir]
+# Usage: mmp/match-preset-levels.sh [output dir]
 #   SIGNAL_SINK=<PipeWire sink> if the headphone output isn't found automatically.
 #   MEASURE_SLOTS=1-20 measures only these slots.
 # Nothing is written to the amp: presets are read and auditioned on slot 100 only.
@@ -31,6 +32,12 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 AGENT=$HOME/.local/share/chordsplay/maneline
 PYTHON=$AGENT-venv/bin/python
 OUT=${1:-$HOME/.local/share/chordsplay/levels}
+BRIDGE_ENV=$HOME/.config/chordsplay/bridge.env
+
+if ! grep -q '^CHORDSPLAY_BRIDGE_URL=' "$BRIDGE_ENV" 2>/dev/null; then
+    echo "No CHORDSPLAY_BRIDGE_URL in $BRIDGE_ENV: set up amp control first (docs/web.md)." >&2
+    exit 1
+fi
 
 if systemctl --user is-active --quiet chordsplay-amp-bridge.service; then
     # it would start the agent again as soon as the amp's audio sink is there
@@ -39,7 +46,7 @@ if systemctl --user is-active --quiet chordsplay-amp-bridge.service; then
     exit 1
 fi
 if systemctl --user is-active --quiet chordsplay-amp-agent.service; then
-    echo "ChordsPlay's amp agent is running: close ChordsPlay first." >&2
+    echo "The amp agent is running: systemctl --user stop chordsplay-amp-agent first." >&2
     exit 1
 fi
 mkdir -p "$OUT"
@@ -80,8 +87,13 @@ if [ $status -eq 3 ]; then
 elif [ ! -f "$BACKUP/levels-$METHOD.json" ]; then
     exit $status
 fi
-echo "== Importing the corrections into ChordsPlay"
-"$HERE/venv/bin/python" "$HERE/chordsplay.py" --import-levels "$BACKUP/levels-$METHOD.json"
-rm -f "$CURRENT"
+echo "== Sending the corrections to the ChordsPlay server"
+# On the server itself, without a bridge: python -m web.presets levels FILE
+if (set -a; . "$BRIDGE_ENV"; cd "$HERE" && python3 -m mmp.bridge levels "$BACKUP/levels-$METHOD.json"); then
+    rm -f "$CURRENT"
+else
+    echo "Not sent; the measurement is kept. Run $0 again to send it." >&2
+    status=1
+fi
 echo "Done. Backup and measurements: $BACKUP"
 exit $status

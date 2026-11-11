@@ -171,7 +171,7 @@ function seek(seconds) {
   player.currentTime = Math.max(0, Math.min((player.duration || 0) - 0.1, player.currentTime + seconds));
 }
 
-// like the desktop app: a song repeats until you go on, every end counts as played
+// a song repeats until you go on, every end counts as played
 player.addEventListener('ended', async () => {
   const id = song?.id;
   player.currentTime = 0;
@@ -510,7 +510,7 @@ function plainAmpError(e) {
   return e;
 }
 
-// like the window title of the desktop app (ChordsPlay/amp.py describe()), in plain words
+// the amp's state in plain words (compare ChordsPlay/amp.py describe())
 function ampText() {
   if (!amp) return '';
   if (!ampOnline()) return 'amp control off';

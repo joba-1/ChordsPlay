@@ -4,19 +4,23 @@ Amp bridge: plays the web app's cues on the Mustang Micro Plus.
 Runs next to the amp agent (maneline's mmp_web.py) on the machine the amp is
 paired with, as a systemd user unit. It follows the user's web session over an
 outbound event stream, like a display, picks the cue for the playing position
-with the Tk app's own logic (ChordsPlay.amp.AmpCues) and switches through the
-agent (ChordsPlay.amp.AmpClient). The amp's state goes back to the server, so the
+(ChordsPlay.amp.AmpCues) and switches through the agent (ChordsPlay.amp.AmpClient). The amp's state goes back to the server, so the
 controller page can show it and learn from it (key G).
 
 Standard library only, plus ChordsPlay/amp.py.
 
+  python3 -m mmp.bridge                 run the bridge
+  python3 -m mmp.bridge levels FILE     send a level survey (maneline's mmp_level.py survey)
+                                        to the server; used by mmp/match-preset-levels.sh
+
 Config via env:
   CHORDSPLAY_BRIDGE_URL  https://.../chordsplay/d/bridge/<token>/ (from the page's tone dialog, key g, "Set up amp control…")
-  AMP_URL                the agent (default http://localhost:8081)
+  AMP_URL                the agent (default http://localhost:$AMP_AGENT_PORT, port 8081 if unset)
   AMP_UNIT               start the agent's user unit while the amp's audio sink exists
                          (default chordsplay-amp-agent.service; empty: never)
   AMP_SINK               the amp's audio sink name (default "Mustang Micro Plus")
-  AMP_DEFAULT_SLOT, AMP_LEAD_MS   as amp_default_slot / amp_lead_ms in the Tk app
+  AMP_DEFAULT_SLOT       preset for songs without one (default: leave the amp alone)
+  AMP_LEAD_MS            switch this much before a cue (default 300)
 '''
 
 import json
@@ -35,7 +39,7 @@ from ChordsPlay import amp as ampmod
 
 log = logging.getLogger('bridge')
 
-TICK_S = 0.2            # as often as the Tk app checks the cue
+TICK_S = 0.2            # how often the cue for the playing position is checked
 REPORT_S = 10           # report the amp's state at least this often (server: BRIDGE_SEEN_S 30)
 COMMAND_MAX_AGE_S = 10  # a "try now" older than this (e.g. from before a reconnect) is ignored
 RECONNECT_S = (3, 60)   # wait before reconnecting the event stream, growing to the max
@@ -418,19 +422,41 @@ class Bridge(object):
             self.quit.wait(TICK_S)
 
 
-def main():
+def send_levels(url, path, opener=urllib.request.urlopen):
+    '''Send a level survey to the server; returns the number of presets it stored.'''
+    with open(path, 'rb') as f:
+        data = f.read()
+    json.loads(data)        # a broken file fails here, not at the server
+    request = urllib.request.Request(url.rstrip('/') + '/levels', data=data, method='PUT',
+                                     headers={'Content-Type': 'application/json'})
+    with opener(request, timeout=30) as response:
+        return json.loads(response.read())['presets']
+
+
+def main(argv=None):
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
+    argv = sys.argv[1:] if argv is None else argv
     url = os.environ.get('CHORDSPLAY_BRIDGE_URL')
     if not url or '/d/bridge/' not in url:
         log.error('CHORDSPLAY_BRIDGE_URL missing: make the line in the web app\'s tone dialog (key g, "Set up amp control…")')
         return 1
+    if argv:
+        if len(argv) != 2 or argv[0] != 'levels':
+            print('usage: python3 -m mmp.bridge [levels FILE]', file=sys.stderr)
+            return 2
+        try:
+            print('level corrections stored on the server:', send_levels(url, argv[1]))
+        except (OSError, ValueError, KeyError) as e:
+            log.error('sending %s failed: %s', argv[1], e)
+            return 1
+        return 0
     unit = os.environ.get('AMP_UNIT', 'chordsplay-amp-agent.service')
     control = ampmod.AgentControl(unit, os.environ.get('AMP_SINK', 'Mustang Micro Plus')) if unit else None
-    client = ampmod.AmpClient(os.environ.get('AMP_URL', 'http://localhost:8081'), control=control).start()
+    agent = os.environ.get('AMP_URL') or 'http://localhost:{}'.format(os.environ.get('AMP_AGENT_PORT') or '8081')
+    client = ampmod.AmpClient(agent, control=control).start()
     default = os.environ.get('AMP_DEFAULT_SLOT')
     bridge = Bridge(url, client, lead_ms=int(os.environ.get('AMP_LEAD_MS', '300')),
                     default_slot=int(default) if default else None)
-    import signal
     signal.signal(signal.SIGTERM, lambda *_: bridge.quit.set())
     try:
         bridge.run()

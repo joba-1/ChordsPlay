@@ -55,12 +55,10 @@ if systemctl --user is-active --quiet "$UNIT"; then
 fi
 
 cat <<MSG
-Installed $UNIT (not enabled: ChordsPlay starts it while the amp is connected).
+Installed $UNIT (not enabled: the amp bridge starts it while the amp is connected).
 
 One-time BlueZ setup (Experimental = true, pairing over LE as well):
   $DEST/docs/MUSTANG_MICRO_PLUS_LINUX.md
 
-Add to ~/.chordsplay.py.cfg, section [chordsplay.py]:
-  amp_url  = http://localhost:$PORT
-  amp_unit = $UNIT
+Next: the amp bridge, $HERE/install-amp-bridge.sh (see docs/web.md, "Guitar tone").
 MSG

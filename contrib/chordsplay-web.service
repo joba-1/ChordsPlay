@@ -10,7 +10,7 @@ Type=simple
 # The music share: the fstab entry has "users", so it can be mounted without
 # root. At boot it is sometimes not mounted (network not up yet).
 Environment=CHORDSPLAY_MUSIC_MOUNT=/srv/music
-# Optional settings (CHORDSPLAY_USER_MAP, CHORDSPLAY_SYNC_URL/_TOKEN, ...): see web/app.py
+# Settings (CHORDSPLAY_MUSIC_DIRS, CHORDSPLAY_USER_MAP, ...): see web/app.py
 EnvironmentFile=-%h/.config/chordsplay/web.env
 ExecStartPre=-/bin/sh -c 'mountpoint -q "$CHORDSPLAY_MUSIC_MOUNT" || mount "$CHORDSPLAY_MUSIC_MOUNT"'
 WorkingDirectory=%h/.local/share/chordsplay-web/app

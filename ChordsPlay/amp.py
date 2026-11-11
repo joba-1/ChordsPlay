@@ -3,13 +3,15 @@ Mustang Micro Plus preset switching (see docs/spec-amp.md).
 
 ChordsPlay never speaks Bluetooth itself. The amp agent (maneline's mmp_web.py,
 run as a systemd user unit) owns the single LE connection to the amp; this module
-talks to it over HTTP on localhost:
+talks to it over HTTP on localhost. It is used by the amp bridge (mmp/bridge.py)
+on the computer the amp is paired with; the web server uses only the pure
+functions (tone_knobs):
 
   AmpClient     worker thread: POST the newest wanted slot, poll the agent's state
   AgentControl  start/stop the agent's unit while the amp's audio sink exists
-  AmpCues       runs in the Tk thread: picks the cue for the playing position
+  AmpCues       picks the cue for the playing position
 
-Nothing here touches Tk, so it can be tested without a display.
+Standard library only.
 '''
 
 import hashlib
@@ -177,7 +179,7 @@ class AmpClient(object):
     '''
     Talks to the amp agent in a worker thread. request(slot) and audition(doc) never
     block: only the newest wish (a slot or a tone) is sent, and a failed one is
-    retried a few times. snapshot() returns the last known agent state for the Tk
+    retried a few times. snapshot() returns the last known agent state for the caller's
     thread; preset(slot) returns a stored preset once the worker has fetched it.
     '''
 
@@ -503,7 +505,7 @@ class AgentControl(object):
             self.started = False
 
 
-# ---------------------------------------------------------------- Tk side
+# ---------------------------------------------------------------- playing cues
 
 def tone_document(db, client, tone):
     '''
@@ -523,7 +525,7 @@ def tone_document(db, client, tone):
 class AmpCues(object):
     '''
     Decides which slot or tone the playing song wants at its current position and
-    asks the client for it when that changes. Call tick() regularly from the Tk thread.
+    asks the client for it when that changes. Call tick() regularly (the bridge: every 0.2 s).
     '''
 
     def __init__(self, db, client, lead_ms=300, default_slot=None):

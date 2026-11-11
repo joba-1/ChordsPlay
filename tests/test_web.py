@@ -321,8 +321,21 @@ class Amp(Api):
         self.assertEqual(self.client.put(newer + 'amp', json={'state': {}}, headers={'X-ChordsPlay-Proxy': '1'}).status_code, 200)
         self.assertEqual(self.client.post('/api/bridge', headers={'X-ChordsPlay-Proxy': '1'}).status_code, 401)
 
+    def test_levels_sent_through_the_bridge_link(self):
+        from mmp import bridge as bridgemod
+        path, opener = self.bridge()
+        report = os.path.join(self.tmp.name, 'levels-played.json')
+        with open(report, 'w') as f:
+            json.dump({'method': 'played', 'presets': [{'slot': 7, 'name': 'Twin Trem', 'correction_db': 2.5}]}, f)
+        self.assertEqual(bridgemod.send_levels('http://localhost' + path, report, opener=opener), 1)
+        self.assertEqual(self.app.get_db('jo').getPresetLevel(7), (2.5, 'Twin Trem'))
+        # not without the token, not with something that is no survey
+        self.assertEqual(self.client.put('/d/bridge/nope/levels', json={'method': 'played', 'presets': []}).status_code, 404)
+        self.assertEqual(self.client.put(path + 'levels', json={'method': 'guess', 'presets': []}).status_code, 400)
+        self.assertEqual(self.client.put(path + 'levels', json=[1]).status_code, 400)
+
     def test_bridge_plays_the_cues(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha, beta = self.song_ids()
         self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
         self.client.put('/api/song/{}/cues/30000'.format(alpha), json={'slot': 19})
@@ -363,7 +376,7 @@ class Amp(Api):
         self.assertEqual(agent.requests[-1], ('tone', 'Soft', -8.0))
 
     def test_try_wins_over_a_cue_edit_in_the_same_tick(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha = self.song_ids()[0]
         self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
         path, opener = self.bridge()
@@ -382,7 +395,7 @@ class Amp(Api):
     def test_levels_play_level_matched(self):
         '''A cue, an artist preset or "try now" with a level plays the slot by audition,
         with the slot's measured correction plus the level; without one, the slot as stored.'''
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha, beta = self.song_ids()
         db = self.app.get_db('jo')
         db.importPresetLevels({'method': 'played', 'presets': [{'slot': 7, 'correction_db': 5.5},
@@ -417,7 +430,7 @@ class Amp(Api):
         self.assertEqual(self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'level': 40}).status_code, 400)
 
     def test_knobs_fetched_through_the_bridge(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         path, opener = self.bridge()
         agent = FakeAgentClient()
         agent.base = {'info': {'displayName': 'Twin'}, 'audioGraph': {'nodes': [
@@ -439,7 +452,7 @@ class Amp(Api):
         self.assertEqual(self.client.get('/api/amp/preset/7').status_code, 202)
 
     def test_original_with_knobs_keeps_the_presets_volume(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha = self.song_ids()[0]
         self.app.get_db('jo').importPresetLevels({'method': 'played', 'presets': [{'slot': 7, 'correction_db': 5.5}]})
         self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'params': {'reverb.wetlvl': 0.8}})
@@ -457,7 +470,7 @@ class Amp(Api):
         self.assertEqual(agent.requests[-1], ('tone', 'slot 7 matched tuned', -5 + 5.5))
 
     def test_take_recorded_uploaded_and_played(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha = self.song_ids()[0]
         self.app.TAKES_DIR = os.path.join(self.tmp.name, 'takes')
         self.assertEqual(self.client.post('/api/takes', json={'song_id': alpha, 't': 12}).status_code, 409)   # no bridge
@@ -499,14 +512,14 @@ class Amp(Api):
         self.assertEqual(os.listdir(self.app.TAKES_DIR), [])
 
     def test_take_without_amp_usb(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         rec = bridgemod.Recorder(lambda *a: None, find_source=lambda: None)
         self.assertFalse(rec.start(1))
         self.assertIn('USB', rec.error)
         self.assertIsNone(rec.state())
 
     def test_save_tone_and_write_slot(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         self.app.get_db('jo').importPresetLevels({'method': 'played', 'presets': [{'slot': 19, 'correction_db': -1.4}]})
         r = self.client.post('/api/tones', json={'name': 'Carnies verse', 'slot': 19, 'level': 3,
                                                  'params': {'reverb.wetlvl': 0.6}}).get_json()
@@ -535,7 +548,7 @@ class Amp(Api):
                                                                                  round(-5 - 1.4 + 3, 3)))
 
     def test_paused_controller_switches_nothing(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha = self.song_ids()[0]
         self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7})
         path, opener = self.bridge()
@@ -546,14 +559,14 @@ class Amp(Api):
         self.assertEqual(agent.requests, [])
 
     def test_event_stream_parsing(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         seen = []
         bridgemod.read_events([b'retry: 3000\n', b'\n', b'data: {"id": 1}\n', b'\n', b': keepalive\n', b'\n',
                                b'event: plan\n', b'data: {"rev": 4}\n', b'\n'], lambda c, d: seen.append((c, d)))
         self.assertEqual(seen, [('now', {'id': 1}), ('plan', {'rev': 4})])
 
     def test_position_runs_on_while_playing(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         session = bridgemod.Session()
         session.update('now', {'id': 3, 't': 10.0, 'playing': True, 'at': 50.0, 'server_time': 51.5})
         song_id, ms, playing = session.position()
@@ -680,7 +693,7 @@ class Suggest(Amp):
         self.assertEqual((r['category'], r['known'], r['slot']), ('jazz', False, 41))
 
     def test_precedence_cue_artist_suggestion(self):
-        from web import bridge as bridgemod
+        from mmp import bridge as bridgemod
         alpha, beta = self.song_ids()
         self.suggest({'Alpha': ('hard_rock', True), 'Beta': ('metal', True)})
         self.assertFalse(self.client.get('/api/amp').get_json()['suggest_auto'])     # off until chosen
@@ -716,6 +729,20 @@ class Suggest(Amp):
         self.assertEqual(suggest.applied(conn, alpha), (19, 3.0))
         self.assertEqual(self.client.put('/api/amp/sounds/polka', json={'slot': 3}).status_code, 400)
         self.assertEqual(len(self.client.get('/api/amp').get_json()['sounds']), 16)
+
+
+@unittest.skipIf(flask is None, 'flask not installed')
+class NewInstall(unittest.TestCase):
+
+    def test_music_folders_from_the_config(self):
+        import web.app
+        with tempfile.TemporaryDirectory() as tmp:
+            db = ChordsPlay.db.Db(os.path.join(tmp, 'new.db'), 'jo')    # no database before
+            self.assertEqual(web.app.add_music_dirs(db, ''), 0)
+            self.assertEqual(web.app.add_music_dirs(db, tmp + ':' + os.path.join(tmp, 'more') + ':'), 2)
+            self.assertEqual(web.app.add_music_dirs(db, tmp), 2)        # once added, kept; nothing twice
+            self.assertEqual({name for (name,) in db.getSongLists()}, {'', tmp, os.path.join(tmp, 'more')})
+            db.close()
 
 
 class Migrate(unittest.TestCase):
@@ -757,7 +784,7 @@ class Migrate(unittest.TestCase):
     def test_locked_text_taken_over(self):
         from web import migrate
         with tempfile.TemporaryDirectory() as tmp:
-            target, other = os.path.join(tmp, 'web.db'), os.path.join(tmp, 'host4.db')
+            target, other = os.path.join(tmp, 'web.db'), os.path.join(tmp, 'other.db')
             make_db(target).close()
             db = make_db(other)
             beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
@@ -771,37 +798,14 @@ class Migrate(unittest.TestCase):
             db = ChordsPlay.db.Db(target, 'jo')
             self.assertEqual(migrate.merge(db, other)['locked texts'], 1)
             sid = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
-            self.assertEqual(db.conn.execute("SELECT lyrics_chords, dirty FROM songs WHERE id = ?", (sid,)).fetchone(),
-                             ('Em  C\nmy fixed beta', 1))
+            self.assertEqual(db.conn.execute("SELECT lyrics_chords FROM songs WHERE id = ?", (sid,)).fetchone()[0],
+                             'Em  C\nmy fixed beta')
             self.assertTrue(db.isLocked(sid))
             self.assertEqual([c for (c,) in db.conn.execute(
                 "SELECT c.name FROM song_chords sc JOIN chords c ON c.id = sc.chord_id WHERE sc.song_id = ?", (sid,))],
                 ['Em'])
             self.assertEqual(migrate.merge(db, other)['locked texts'], 0)    # once
             db.close()
-
-    def test_central_newer_wins(self):
-        from web import migrate
-        with tempfile.TemporaryDirectory() as tmp:
-            local = os.path.join(tmp, 'local.db')
-            central = os.path.join(tmp, 'central.db')
-            target = os.path.join(tmp, 'web.db')
-            make_db(local).close()
-            con = sqlite3.connect(central)
-            con.executescript("""
-                CREATE TABLE songs (id integer primary key, title text, artist text, album text,
-                    lyrics_chords text, lyrics_url text, capo int, chord_update text, modified text);
-                CREATE TABLE song_chords (song_id int, name text);
-                CREATE TABLE song_tags (song_id int, user text, name text);
-                INSERT INTO songs VALUES (1, 'Gamma', 'Other', 'LP', 'E A\nnew words', 'u', 0, '2026-03-03', '2026-03-03');
-                INSERT INTO song_chords VALUES (1, 'E'), (1, 'A');""")
-            con.commit()
-            con.close()
-            migrate.init(target, local, central, user='jo')
-            con = sqlite3.connect(target)
-            self.assertEqual(con.execute("SELECT lyrics_chords FROM songs WHERE title='Gamma'").fetchone()[0],
-                             'E A\nnew words')
-            con.close()
 
 
 if __name__ == '__main__':

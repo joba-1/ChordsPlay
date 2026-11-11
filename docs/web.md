@@ -1,7 +1,7 @@
 # ChordsPlay web app (version 1.0)
 
 ChordsPlay in the browser: <https://example.org/chordsplay/> (Authelia login).
-Plan and reasons: Trac page `ChordsPlay`. The Tk app stays usable. The page's own help (`?`)
+The page's own help (`?`)
 says the same as the first sections here, in short.
 
 ## What you need for what
@@ -22,11 +22,11 @@ says the same as the first sections here, in short.
 
 ## Using it
 
-The page looks like the desktop app: the playlist on the left, the song's chords and
+The page shows the playlist on the left, the song's chords and
 lyrics on the right, as large as the window allows (1–4 columns). The browser plays the
 song, so connect the Mustang (or any output) to the device the browser runs on.
 
-Most keys work as in the desktop app:
+Most of it is keyboard-driven:
 
 | Key | Action |
 |---|---|
@@ -36,7 +36,7 @@ Most keys work as in the desktop app:
 | 0 | back to the start of the song |
 | + / −, → / ← | 1 s / 5 s forward or back |
 | s | shuffle the playlist |
-| f | filter dialog: same fields, saved filters and live count as in the desktop app |
+| f | filter dialog: choose what to play (see below) |
 | t | tags of the song; press a tag's key to switch it |
 | l | show or hide the playlist |
 | a / A | choose / switch the audio output (Chrome only) |
@@ -50,8 +50,7 @@ Most keys work as in the desktop app:
 | ? | key overview |
 
 Double-click a song in the list to play it; click a column heading to sort.
-A song repeats until you go on, and each time it ends it counts as played (as in the
-desktop app). The page remembers the song you were at, on every device: after a reload
+A song repeats until you go on, and each time it ends it counts as played. The page remembers the song you were at, on every device: after a reload
 press Space to go on. Hardware media keys and Bluetooth headset buttons work too
 (play/pause, next, previous).
 
@@ -65,10 +64,38 @@ text larger. Chord lines, the lines under them and tab lines are never changed, 
 lines no longer than 90 % of the song's lines stay whole. Heuristic:
 `ChordsPlay/textfit.py`.
 
-**Only in the desktop app:** filter import/export to files, and changing a cue's time
-(here: delete the cue and save it again at the new position). Cues, artist presets and
-tones made in the desktop app reach the web app through `web.migrate merge` (see
-"Operating it"); nothing flows back from the web app to a desktop app's database.
+## Filter and tags
+
+**Filter (`f`).** Every field is a Python regular expression (empty matches anything);
+the dialog shows how many songs match while you type.
+
+| Field | Matches against |
+|---|---|
+| Titles, Artists, Albums | the song's title, artist, album |
+| Capos | the capo fret as text (`0` for no capo, `3` for capo 3) |
+| Required Chords | every chord listed here must be in the song |
+| Accepted Chords | the song may use only these chords (with Required: only required + accepted) |
+| Tag Keys | a tag's key (`f` for favourites, `[fl]` for favourite or easy) |
+
+Example, songs without a capo that use only easy chords: Capos `^0$`, Accepted Chords
+`^(C|D|E|G|Am|Em)$`. A filter can be saved under a name and loaded again; the one last
+applied is kept as `__previous`.
+
+**Tags (`t`).** Each tag has a key; pressing it switches the tag for the playing song.
+The tags are per user:
+
+| Key | Name | Meaning |
+|---|---|---|
+| `f` | Favorit | favourite |
+| `s` | Schwer | hard to play |
+| `l` | Leicht | easy to play |
+| `u` | Unfertig | incomplete tab |
+| `c` | Capo | needs a capo |
+| `x` | Fixiert | **locked**: the scanner never fetches this song's text again |
+
+Without the lock, the scanner looks a song up again about once a month. Lock a song once
+its text is the one you want to keep, or to stop the scanner asking for a song Ultimate
+Guitar doesn't have.
 
 ## A TV or tablet as display
 
@@ -126,17 +153,18 @@ as large as one alone.
 
 ## Guitar tone (Mustang Micro Plus)
 
-As in the desktop app, a song can switch the amp's preset at set times (cues): a quiet
+A song can switch the amp's preset at set times (cues): a quiet
 intro, a loud chorus. Cues, artist presets and tones are in the central database, so
 every device plays them.
 
 * `g` (or *Tone*, or the amp status at the top right): the song's cues, the amp's 100
   presets (◀ = the current one) and the saved tones. *Try now* switches the amp without
   storing anything; *Save from start*, *Save from m:ss* (where the song is) and *Save for
-  artist* store it. ▶ plays a cue from 2 s before, ✕ deletes it.
+  artist* store it. ▶ plays a cue from 2 s before, ✕ deletes it. A cue's time can't be changed: delete
+  it and save it again at the new position.
 * **Level** (next to the presets): *original* plays the preset as stored in the amp. A
   number plays it **level-matched**: with the correction from your level measurement
-  (`contrib/match-preset-levels.sh`), so every preset at *matched* (0 dB) is equally
+  (`mmp/match-preset-levels.sh`, see below), so every preset at *matched* (0 dB) is equally
   loud, plus −6 … +6 dB (e.g. +3 for a solo). It is stored with the cue, the artist
   preset and the preset per sound, and used by *Try now*. Level-matched presets play
   by audition on slot 100 (nothing is written to the amp); a preset that wasn't
@@ -157,12 +185,14 @@ every device plays them.
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.
-  Set it up once on that computer (next to the amp agent of the desktop app):
+  Set it up once on that computer:
+  0. `mmp/install-amp-agent.sh` installs the amp agent (maneline's `mmp_web.py`); the
+     one-time Bluetooth setup is in [spec-amp.md](spec-amp.md), "Agent installation".
   1. `g` → *Set up amp control…*: copy the line it shows into
      `~/.config/chordsplay/bridge.env`.
-  2. `contrib/install-amp-bridge.sh` (from a checkout of this repo).
-  It starts the amp agent while the amp is connected as an audio device, like the
-  desktop app does. Making a new line ends the previous one.
+  2. `mmp/install-amp-bridge.sh` (from a checkout of this repo).
+  It starts the amp agent while the amp is connected as an audio device. Making a new
+  line ends the previous one.
 * The top right shows what the bridge reports: `Mustang 19 80S Rock`, `Mustang ▶ <tone>`,
   `Mustang idle · 19 80S Rock`, `Mustang not connected`, or `amp control off` (nothing
   heard from the bridge for 30 s). *Idle*: after 5 minutes without a switch **and with no
@@ -183,8 +213,24 @@ every device plays them.
   names and is meant to be set by ear. New songs get a suggestion after each library
   scan (`python -m web.suggest` runs it by hand). Order when a song plays: its own cues,
   the artist's preset, the suggestion, `AMP_DEFAULT_SLOT` of the bridge.
-* The bridge switches only while a song plays. While the desktop app runs as well,
-  both can switch the amp; use one at a time.
+* The bridge switches only while a song plays.
+* **The same level for every preset:** on the amp computer, with the bridge stopped
+  (`systemctl --user stop chordsplay-amp-bridge`; the script says so), run
+  `mmp/match-preset-levels.sh` in one of two ways:
+  * **With a cable:** connect the computer's headphone output to the amp's plug with an
+    adapter cable (3.5 mm stereo plug to 6.35 mm socket). The script measures every
+    preset with a test tone (about 5 s each).
+  * **Without a cable:** `PLAYED=1 mmp/match-preset-levels.sh`. You play the same short
+    riff for every preset when prompted (4 s each, about ±1 dB).
+  * **Pause any time** with Enter (after the current preset); Enter again goes on, with
+    the practice takes first. **Stop** with Ctrl+C and run the same command again later:
+    it goes on where it stopped. After a pause or a stop it first has you play the last
+    2 presets of last time again (`OVERLAP=1` for one) and takes the difference in your
+    playing off the new levels. `FRESH=1` starts over.
+  * Once every preset is measured, the script sends the corrections to the server over
+    the bridge's link. Start the bridge again afterwards.
+  * Without that measurement, level-matched presets play at Fender's own factory levels
+    plus the offset.
 
 ## How it works
 
@@ -201,13 +247,11 @@ flowchart LR
     web["ChordsPlay web server<br>page, songs, events, takes<br>library scan"]
     db[("one database")]
     llm["local LLM (Ollama)<br>suggested sounds"]
-    sync["old sync service<br>for the desktop apps"]
   end
   subgraph host7["amp computer (host7)"]
     ctl["browser: controller<br>plays the song"]
-    bridge["amp control 1: bridge<br>(web/bridge.py)"]
+    bridge["amp control 1: bridge<br>(mmp/bridge.py)"]
     agent["amp control 2: amp agent<br>(maneline mmp_web.py)"]
-    tk["desktop app (Tk)<br>optional, own database"]
   end
   mmp["Mustang Micro Plus"]
   disp["browser: display<br>TV, tablet, phone"]
@@ -215,9 +259,6 @@ flowchart LR
   web <--> db
   web -- "chords, once per song" --> ug
   web --> llm
-  web <-- chords --> sync
-  tk <-- chords --> sync
-  tk -. localhost .-> agent
   apache <--> web
   ctl <-- "page, audio, now playing" --> apache
   disp -- follows --> apache
@@ -237,7 +278,7 @@ flowchart LR
 * **Amp control** is two programs on the amp computer. The **amp agent** (maneline) holds
   the Mustang's single control connection, which needs a heartbeat at least every 0.5 s
   (the agent sends one every 0.25 s): only a program that always runs can do that, not
-  a browser tab; the desktop app uses it too.
+  a browser tab.
   The **bridge** (ChordsPlay) connects the agent with the web app: it follows your song
   from the server and tells the agent what to play, without an open port (it connects
   out, like a display), and records takes from the Mustang's USB.
@@ -250,7 +291,7 @@ music comes from `/srv/music` (NFS).
 * `web/app.py` (Flask, served by waitress): JSON API, the page (`web/static/`), the audio
   files with range requests. All queries go through `ChordsPlay/db.py`, unchanged.
 * One database for all devices: play history, tags, filters and the playlist order
-  are no longer per device. It has the Tk app's schema plus the web app's own tables:
+  are the same everywhere. Besides the tables of `ChordsPlay/db.py` it has the web app's own:
   `web_state` (per user: the current song, *Play suggestions automatically*),
   `display_codes`, `tv_devices`/`tv_pairings`, `bridge_tokens`, `takes`, the PDF tables
   (`web/pdfs.py`), `amp_presets` (`web/presets.py`) and the suggestion tables
@@ -264,11 +305,11 @@ music comes from `/srv/music` (NFS).
   every change and every 15 s while playing). The server keeps the latest state per user
   in memory (and the song in `web_state`) and pushes it as server-sent events to
   `api/events` and `d/<code>/events`.
-* Amp bridge (`web/bridge.py`, standard library plus `ChordsPlay/amp.py`): follows
+* Amp bridge (`mmp/bridge.py`, standard library plus `ChordsPlay/amp.py`): follows
   `d/bridge/<token>/events` (song and position; `plan` when cues were edited; `cmd` for
   *Try now*, reading a slot for the knobs, writing an amp slot, starting and stopping a
-  take), fetches the song's cues (`d/bridge/<token>/song/<id>`), picks the cue with
-  the desktop app's own logic (`AmpCues`, 0.3 s early) and switches or auditions through
+  take), fetches the song's cues (`d/bridge/<token>/song/<id>`), picks the cue
+  (`AmpCues`, 0.3 s early) and switches or auditions through
   the agent (`AmpClient`). It reports the amp's state every 10 s or on a change
   (`PUT d/bridge/<token>/amp`), which the controller pages get as `amp` events, and
   uploads what the server asked for (`PUT …/preset/<slot>`, `PUT …/take/<id>`). The
@@ -329,14 +370,14 @@ flowchart LR
 | What | How |
 |---|---|
 | Install / update | `contrib/install-web.sh` (copies the checkout to `~/.local/share/chordsplay-web/app`, venv, restarts the user unit `chordsplay-web.service`) |
-| First database | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db --central /opt/chordsplay-sync/chordsplay-central.db` |
-| Add another host's history | copy its `~/.chordsplay.py.db` over (Tk app closed), then `../venv/bin/python -m web.migrate merge <file>`; plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins). Songs locked there (tag x) bring their text: it replaces ours and goes to the sync service with its lock |
+| Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two` in the settings: the folders are added to the library at start and scanned at start and every 24 hours. The database is created at the first start |
+| Data of the former desktop app | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db` instead of a new database, and `../venv/bin/python -m web.migrate merge <file>` for another computer's database (desktop app closed): plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins). Songs locked there (tag x) bring their text, which replaces ours |
 | Logs | `journalctl --user -u chordsplay-web` |
-| Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`, `CHORDSPLAY_SYNC_URL` + `CHORDSPLAY_SYNC_TOKEN` (the server's scanner pulls from and pushes to the old sync service, so the desktop apps and the web app share their chords); more settings: the head of `web/app.py` |
+| Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`; more settings: the head of `web/app.py` |
 | Apache | `/etc/apache2/public.d/locations/chordsplay.conf` (= `contrib/apache-chordsplay-web.conf`, with `flushpackets=on` for the event streams) and `<Location "/chordsplay/">` in `/etc/apache2/homeauth.conf` |
 | Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets and takes); the app serves nothing else there. |
 | After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-20261110-221319 --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
-| Amp bridge (amp computer) | `contrib/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `contrib/match-preset-levels.sh` |
+| Amp bridge (amp computer) | `mmp/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `mmp/match-preset-levels.sh` |
 
 ## Tests
 
@@ -351,10 +392,10 @@ the displays (code, state, event stream, unknown and ended codes, no way from `/
 controller API, TV pairing, QR code, hub wake-up), the amp (cues, artist preset, learn,
 bridge token, the bridge playing cues, edits, *Try now* with slot and tone, level-matched
 play, knobs read through the bridge, *original* with knobs, saving a tone and writing a
-slot, nothing while paused), takes (recorded, uploaded and played; no USB), PDF tabs
+slot, nothing while paused, a level survey sent over the bridge's link), takes (recorded, uploaded and played; no USB), PDF tabs
 (linking by name, by hand, next to the song, view and display), suggestions (run once,
 precedence, reject, sound table) and the migration (plays, tags, cues, tones and levels
-merged once, a locked text taken over, newer central chords win).
+merged once, a locked text taken over) and a new install (music folders from the settings).
 
 Manual check in a browser (headless Chromium with Playwright did this for 0.1): play,
 pause, next/previous, filter with live count and regex errors, tags by key, played count

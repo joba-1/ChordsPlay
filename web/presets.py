@@ -5,6 +5,9 @@ maneline's mmp_backup.py, and kept current by the amp bridge: when the amp's nam
 a slot differs from the copy's, the page asks the bridge to read the slot again.
 
   python -m web.presets import BACKUP_DIR      fill the copy from a backup
+  python -m web.presets levels FILE            import a level survey (maneline's mmp_level.py
+                                               survey); mmp/match-preset-levels.sh sends it
+                                               through the amp bridge's link instead
 '''
 
 import json
@@ -47,12 +50,16 @@ def main(argv=None):
     import ChordsPlay.db
     from web import app
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 2 or argv[0] != 'import':
-        print(__doc__.strip().splitlines()[-1].strip())
+    if len(argv) != 2 or argv[0] not in ('import', 'levels'):
+        print('\n'.join(line.strip() for line in __doc__.strip().splitlines()[-4:]))
         return 2
     db = ChordsPlay.db.Db(app.DB_PATH, app.DEFAULT_USER)
     try:
-        print('presets imported:', import_backup(db.conn, argv[1]))
+        if argv[0] == 'levels':
+            with open(argv[1], encoding='utf-8') as f:
+                print('levels imported:', db.importPresetLevels(json.load(f)))
+        else:
+            print('presets imported:', import_backup(db.conn, argv[1]))
     finally:
         db.close()
     return 0

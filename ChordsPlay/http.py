@@ -1,5 +1,5 @@
 '''
-HTTP for the Ultimate Guitar fetch and the sync client, with the standard library.
+HTTP for the Ultimate Guitar fetch, with the standard library.
 
 Ultimate Guitar refuses Python's default User-Agent (403) but answers a browser's.
 If it ever asks for more (a TLS fingerprint check), install curl_cffi: session()

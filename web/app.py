@@ -8,15 +8,17 @@ with the Mustang) and reports finished songs back. Displays (TV, tablet) and the
 amp bridge (web/bridge.py, switches the Mustang's presets) follow the browser
 over server-sent events.
 
-Reuses the Tk app's modules unchanged: ChordsPlay.db for all queries,
-ChordsPlay.scan for the library walk and the Ultimate Guitar fetch.
+Shared modules: ChordsPlay.db for all queries, ChordsPlay.scan for the library
+walk and the Ultimate Guitar fetch.
 
 Config via env:
-  CHORDSPLAY_WEB_DB      database file (default ~/.local/share/chordsplay-web/chordsplay.db)
+  CHORDSPLAY_WEB_DB      database file (default ~/.local/share/chordsplay-web/chordsplay.db);
+                         created at the first start
+  CHORDSPLAY_MUSIC_DIRS  folders with the songs, ":"-separated; added to the library at start
+                         (a folder once added stays in the database)
   CHORDSPLAY_USER        database user for requests without a proxy login (default $USER)
   CHORDSPLAY_USER_MAP    proxy name -> database user, e.g. "jo=user,caro=florence"
   CHORDSPLAY_SCAN_HOURS  rescan the library and fetch new chords every N hours (0: never; default 24)
-  CHORDSPLAY_SYNC_URL, CHORDSPLAY_SYNC_TOKEN   optional: keep the old sync service up to date
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
   CHORDSPLAY_OLLAMA_URL, CHORDSPLAY_SUGGEST_MODEL   suggested presets (web/suggest.py)
   CHORDSPLAY_TAKES_DIR   where takes are kept (default ~/.local/share/chordsplay-web/takes)
@@ -61,7 +63,7 @@ USER_HEADER = 'X-Remote-User'
 PROXY_HEADER = 'X-ChordsPlay-Proxy'
 
 FILTER_KEYS = ["Titles", "Artists", "Albums", "Capos", "Required Chords", "Accepted Chords", "Tag Keys"]
-FILTER_TYPE = "Playlist patterns"   # same JSON format as the Tk filter dialog
+FILTER_TYPE = "Playlist patterns"   # the JSON format of saved filters
 FILTER_VERSION = 1
 PREVIOUS_FILTER = '__previous'
 
@@ -241,7 +243,7 @@ def apply_filter():
     rows = db.getPatternPlaylist(patterns)
     if request.method == 'POST':
         db.setUserFilter(PREVIOUS_FILTER, filter_json(patterns))
-        if rows:  # like the Tk app: an empty result leaves the playlist alone
+        if rows:  # an empty result leaves the playlist alone
             db.updatePlaylist([row[0] for row in rows])
     return jsonify(playlist=rows_json(rows))
 
@@ -320,7 +322,7 @@ def audio(song_id):
 
 @app.route('/api/played/<int:song_id>', methods=['POST'])
 def played(song_id):
-    '''The song played to the end (the Tk app counts the same moment).'''
+    '''The song played to the end: that counts as played.'''
     db = get_db()
     db.songPlayed(song_id)
     return jsonify(played=db.numPlayed(song_id), last=db.lastPlayed(song_id))
@@ -693,7 +695,7 @@ def tags(song_id):
 # state back. Its URL holds a token made on the logged-in page (POST api/bridge);
 # below /d/ it needs no login, and the token allows nothing but this.
 
-LIVE_SLOT = 100         # tones are auditioned on this slot (as in the Tk app)
+LIVE_SLOT = 100         # tones are auditioned on this slot
 LEARN_START_MS = 3000   # key G earlier than this stores the song's start preset
 LEARN_REPLACE_MS = 2000
 BRIDGE_SEEN_S = 30      # a bridge reports at least this often
@@ -998,7 +1000,7 @@ def bridge_events(token):
 
 @app.route('/d/bridge/<token>/song/<int:song_id>')
 def bridge_song(token, song_id):
-    '''What the bridge needs to play a song's cues: like the Tk app's database calls.'''
+    '''What the bridge needs to play a song's cues (mmp/bridge.py, SongPlan).'''
     db = get_db(bridge_user(token))
     info = db.getPlayInfo(song_id)
     if info is None:
@@ -1248,12 +1250,28 @@ def bridge_take(token, take_id):
     return jsonify(ok=True)
 
 
+@app.route('/d/bridge/<token>/levels', methods=['PUT'])
+def bridge_levels(token):
+    '''A level survey of the amp's presets (maneline's mmp_level.py survey), sent from the
+    amp computer by mmp/match-preset-levels.sh.'''
+    db = get_db(bridge_user(token))
+    if (request.content_length or 0) > 256 * 1024:
+        abort(400)
+    report = request.get_json(silent=True)
+    try:
+        count = db.importPresetLevels(report)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        abort(400)
+    plan_changed(db.user)
+    return jsonify(ok=True, presets=count)
+
+
 # --- library scan -------------------------------------------------------------
 
-def scan_loop(hours, sync_url=None, sync_token=None):
+def scan_loop(hours):
     '''Walk the song lists and fetch missing chords, now and every `hours`.'''
     while True:
-        scanner = ChordsPlay.scan.Scan(DB_PATH, DEFAULT_USER, sync_url=sync_url, sync_token=sync_token)
+        scanner = ChordsPlay.scan.Scan(DB_PATH, DEFAULT_USER)
         scanner.start()
         scanner.join()
         scan_pdfs()
@@ -1284,21 +1302,35 @@ def scan_pdfs():
         db.close()
 
 
+def add_music_dirs(db, dirs):
+    '''Make the folders of CHORDSPLAY_MUSIC_DIRS part of the library (the scanner walks
+    every folder in song_lists). Returns the number of folders the library has.'''
+    for folder in dirs.split(':'):
+        if folder:
+            folder = os.path.abspath(os.path.expanduser(folder))
+            cur = db.conn.execute("INSERT OR IGNORE INTO song_lists (name) VALUES (?)", (folder,))
+            if cur.rowcount:
+                log.info('music folder added: %s', folder)
+    db.conn.commit()
+    return db.conn.execute("SELECT count(*) FROM song_lists WHERE name != ''").fetchone()[0]
+
+
 def start_scanner():
     hours = float(os.environ.get('CHORDSPLAY_SCAN_HOURS', '24'))
     if hours > 0:
-        threading.Thread(target=scan_loop, name='scan-loop', daemon=True,
-                         args=(hours, os.environ.get('CHORDSPLAY_SYNC_URL'),
-                               os.environ.get('CHORDSPLAY_SYNC_TOKEN'))).start()
+        threading.Thread(target=scan_loop, name='scan-loop', daemon=True, args=(hours,)).start()
 
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
-    if not os.path.exists(DB_PATH):
-        # an empty database would know no songs; it is made from an existing one
-        log.error('%s missing: create it with "python -m web.migrate init ~/.chordsplay.py.db"', DB_PATH)
-        return 1
-    ChordsPlay.db.Db(DB_PATH, DEFAULT_USER).close()  # migrate the schema before serving
+    os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+    db = ChordsPlay.db.Db(DB_PATH, DEFAULT_USER)    # create it or migrate the schema before serving
+    try:
+        folders = add_music_dirs(db, os.environ.get('CHORDSPLAY_MUSIC_DIRS', ''))
+    finally:
+        db.close()
+    if not folders:
+        log.warning('no music folder: set CHORDSPLAY_MUSIC_DIRS (see docs/web.md)')
     scan_pdfs()
     start_scanner()
     from waitress import serve

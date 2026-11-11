@@ -1,16 +1,17 @@
 '''
-Build and fill the web app's central database from existing ChordsPlay data.
+Take over data of the former desktop app (ChordsPlay 3.x, branch "legacy") into the
+web app's database. Not needed for a new installation: the server creates its own
+database at the first start.
 
-  python -m web.migrate init  LOCAL_DB [--central CENTRAL_DB]   create the web DB (once)
-  python -m web.migrate merge OTHER_DB                          add another host's history
+  python -m web.migrate init  LOCAL_DB      create the web DB from a desktop database (once)
+  python -m web.migrate merge OTHER_DB      add another database's history
 
-init copies a Tk app database that knows the library on this host (song
-lists with paths valid here), then folds in the old sync service's database
-(chords fetched on other hosts; newer wins, tags are joined).
+init copies a desktop database that knows the library on this host (song lists
+with paths valid here).
 
 merge adds play history, tags, saved filters and the amp's cues, artist
 presets, tones and level corrections from any other ChordsPlay database (e.g.
-the notebook's ~/.chordsplay.py.db), matched by (title, artist) and user name.
+a notebook's ~/.chordsplay.py.db), matched by (title, artist) and user name.
 Run it as often as you like: nothing is counted twice.
 
 Source databases are only read. The target is CHORDSPLAY_WEB_DB (see app.py)
@@ -32,13 +33,13 @@ log = logging.getLogger(__name__)
 def open_ro(path):
     # immutable: never touch the source's -wal/-shm (another program may be using it,
     # or the directory may not be ours). A not yet checkpointed WAL is then not seen,
-    # so the Tk app should not be running while its database is read.
+    # so the desktop app should not be running while its database is read.
     con = sqlite3.connect('file:{}?immutable=1'.format(quote(os.path.abspath(path))), uri=True)
     con.row_factory = sqlite3.Row
     return con
 
 
-def init(target, local, central=None, user=None):
+def init(target, local, user=None):
     if os.path.exists(target):
         raise SystemExit('{} exists already; use "merge" to add more data'.format(target))
     os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
@@ -48,28 +49,7 @@ def init(target, local, central=None, user=None):
     src.backup(dst)
     src.close()
     dst.close()
-    db = ChordsPlay.db.Db(target, user or os.environ.get('USER', 'anonymous'))
-    if central:
-        n = merge_central(db, central)
-        log.info('central: %d songs taken over', n)
-    db.close()
-
-
-def merge_central(db, central):
-    '''Fold in the sync service's database, last write wins (like a sync pull).'''
-    con = open_ro(central)
-    taken = 0
-    for row in con.execute("SELECT * FROM songs ORDER BY modified"):
-        song = dict(row)
-        song['chords'] = [r[0] for r in con.execute(
-            "SELECT name FROM song_chords WHERE song_id = ?", (row['id'],))]
-        song['tags'] = [(r[0], r[1]) for r in con.execute(
-            "SELECT user, name FROM song_tags WHERE song_id = ?", (row['id'],))]
-        if db.upsertRemoteSong(song):
-            taken += 1
-    db.commit()
-    con.close()
-    return taken
+    ChordsPlay.db.Db(target, user or os.environ.get('USER', 'anonymous')).close()
 
 
 def merge(db, other):
@@ -127,8 +107,7 @@ def merge(db, other):
 
 def merge_locked(con, conn, song_id):
     '''Songs locked in the other database (tag x, "Fixiert"): their text is the one
-    the user fixed, so it replaces ours. Marked dirty, it goes to the sync service
-    with its lock (the tag comes with the tags above) and wins on the other hosts.'''
+    the user fixed, so it replaces ours (the lock comes with the tags above).'''
     taken = 0
     for r in con.execute("""SELECT DISTINCT s.id, s.title, s.artist, s.lyrics_chords, s.lyrics_url, s.capo
                             FROM songs s JOIN song_tags st ON st.song_id = s.id
@@ -139,8 +118,8 @@ def merge_locked(con, conn, song_id):
         mine = conn.execute("SELECT lyrics_chords, lyrics_url, capo FROM songs WHERE id = ?", (sid,)).fetchone()
         if tuple(mine) == (r['lyrics_chords'], r['lyrics_url'], r['capo']):
             continue
-        conn.execute("UPDATE songs SET lyrics_chords = ?, lyrics_url = ?, capo = ?, modified = datetime('now'), "
-                     "dirty = 1 WHERE id = ?", (r['lyrics_chords'], r['lyrics_url'], r['capo'], sid))
+        conn.execute("UPDATE songs SET lyrics_chords = ?, lyrics_url = ?, capo = ?, modified = datetime('now') "
+                     "WHERE id = ?", (r['lyrics_chords'], r['lyrics_url'], r['capo'], sid))
         conn.execute("DELETE FROM song_chords WHERE song_id = ?", (sid,))
         for (name,) in con.execute("SELECT c.name FROM song_chords sc JOIN chords c ON c.id = sc.chord_id "
                                    "WHERE sc.song_id = ?", (r['id'],)):
@@ -203,12 +182,11 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='cmd', required=True)
     p_init = sub.add_parser('init', help='create the web database from a local one')
     p_init.add_argument('local')
-    p_init.add_argument('--central', help="the sync service's database")
     p_merge = sub.add_parser('merge', help='add play history, tags and filters of another database')
     p_merge.add_argument('other')
     args = parser.parse_args(argv)
     if args.cmd == 'init':
-        init(args.db, args.local, args.central)
+        init(args.db, args.local)
         log.info('created %s', args.db)
     else:
         db = ChordsPlay.db.Db(args.db, os.environ.get('USER', 'anonymous'))

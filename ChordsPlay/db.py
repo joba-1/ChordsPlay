@@ -147,26 +147,19 @@ class Db(object):
                 json_dict     text not null,
                 primary key   (user_id, name)
             );
-            create table if not exists sync_state (
-                key           text not null primary key,
-                value         text
-            );
             drop table if exists filters;
             drop table if exists filter_patterns;
             drop table if exists filter_song_lists;
             drop table if exists filter_chords;
             drop table if exists filter_tags;
         """)
-        # sync LWW timestamp: bumped on any local content change (chords, capo,
-        # tags). Kept separate from chord_update, which stays the "chords fetched"
-        # marker used by uncheckedSongs(). Added via migration for existing DBs.
+        # modified: time of the last content change (chords, capo, tags). Kept
+        # separate from chord_update, which stays the "chords fetched" marker used
+        # by uncheckedSongs(). Added via migration for existing DBs. (Databases of
+        # the retired sync also have a column `dirty` and a table sync_state;
+        # nothing reads them any more.)
         try:
             self.conn.execute("ALTER TABLE songs ADD COLUMN modified text default null")
-        except sqlite3.OperationalError:
-            pass  # column already present
-        # dirty = has local changes not yet pushed to central (push detection)
-        try:
-            self.conn.execute("ALTER TABLE songs ADD COLUMN dirty integer default 0")
         except sqlite3.OperationalError:
             pass  # column already present
         # a cue may play a tone (auditioned on the live slot) instead of a preset slot
@@ -310,12 +303,11 @@ class Db(object):
         try:
             if lyrics == None:
                 log.warn("no lyrics at {}".format(url))
-                # record the "checked, no chords on UG" result so other installations
-                # can skip re-querying it (dedup), synced like any other change
-                self.conn.execute("UPDATE songs SET chord_update = datetime('now'), modified = datetime('now'), dirty = 1 WHERE rowid = ?", (rowid,))
+                # record the "checked, no chords on UG" result, so it isn't asked again soon
+                self.conn.execute("UPDATE songs SET chord_update = datetime('now'), modified = datetime('now') WHERE rowid = ?", (rowid,))
             else:
                 log.info("save lyrics of {}".format(url))
-                self.conn.execute("UPDATE songs SET chord_update = datetime('now'), modified = datetime('now'), dirty = 1, lyrics_url = ?, lyrics_chords = ?, capo = ? WHERE rowid = ?", (url, lyrics, capo, rowid))
+                self.conn.execute("UPDATE songs SET chord_update = datetime('now'), modified = datetime('now'), lyrics_url = ?, lyrics_chords = ?, capo = ? WHERE rowid = ?", (url, lyrics, capo, rowid))
         except:
             import traceback
             traceback.print_exc()
@@ -578,7 +570,7 @@ WHERE s.lyrics_chords IS NOT NULL
         user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
         row = (user_id, song_id, tag_id)
         self.conn.execute("INSERT INTO song_tags (user_id, song_id, tag_id) VALUES(?, ?, ?)", row)
-        self.conn.execute("UPDATE songs SET modified = datetime('now'), dirty = 1 WHERE id = ?", (song_id,))
+        self.conn.execute("UPDATE songs SET modified = datetime('now') WHERE id = ?", (song_id,))
         self.conn.commit()
 
     def delUserTag(self, song_id, tag_id):
@@ -586,13 +578,13 @@ WHERE s.lyrics_chords IS NOT NULL
         user_id = self.conn.execute("SELECT id FROM users WHERE name = ?", (self.user,)).fetchone()[0]
         row = (user_id, song_id, tag_id)
         self.conn.execute("DELETE FROM song_tags WHERE user_id = ? AND song_id = ? AND tag_id = ?", row)
-        self.conn.execute("UPDATE songs SET modified = datetime('now'), dirty = 1 WHERE id = ?", (song_id,))
+        self.conn.execute("UPDATE songs SET modified = datetime('now') WHERE id = ?", (song_id,))
         self.conn.commit()
 
     # --- Mustang presets (docs/spec-amp.md) ---------------------------------
     # A cue (start_ms, slot, slot_name): from start_ms on, the song uses this amp
     # slot. slot_name is the preset name when the cue was stored, to notice a slot
-    # that was re-edited on the amp. Local only: not part of the central sync yet.
+    # that was re-edited on the amp.
 
     def getSongPresets(self, song_id):
         '''Cues as (start_ms, slot, slot_name, tone_id); tone_id is None for a plain slot.'''
@@ -760,133 +752,10 @@ WHERE s.lyrics_chords IS NOT NULL
             usage[slot] = count
         return usage
 
-    # --- central-sync support -------------------------------------------
-    # Shared data (songs/chords/song_chords/song_tags) is synced by the natural
-    # key (title, artist), independent of any local mount path. `modified` is the
-    # last-write-wins timestamp; local paths (song_lists/list_songs) never sync.
-
-    def getSyncState(self, key):
-        row = self.conn.execute("SELECT value FROM sync_state WHERE key = ?", (key,)).fetchone()
-        return row[0] if row else None
-
-    def setSyncState(self, key, value):
-        self.conn.execute("INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)", (key, value))
-        self.conn.commit()
-
-    def seedModified(self):
-        '''Give existing checked rows a `modified` timestamp and mark them dirty
-        so the first sync pushes them to central. One-time, idempotent.'''
-        self.conn.execute("UPDATE songs SET modified = chord_update, dirty = 1 "
-                          "WHERE modified IS NULL AND chord_update IS NOT NULL")
-        self.conn.commit()
-
-    def _songChordNames(self, song_id):
-        return [r[0] for r in self.conn.execute(
-            "SELECT c.name FROM song_chords sc JOIN chords c ON c.id = sc.chord_id "
-            "WHERE sc.song_id = ?", (song_id,))]
-
-    def _songTagNames(self, song_id):
-        return [(r[0], r[1]) for r in self.conn.execute(
-            "SELECT u.name, t.name FROM song_tags st "
-            "JOIN users u ON u.id = st.user_id JOIN tags t ON t.id = st.tag_id "
-            "WHERE st.song_id = ?", (song_id,))]
-
-    def getDirtySongs(self, limit=None):
-        '''Songs with local changes not yet pushed to central (dirty=1), each
-        with chord names + tags. Ordered by modified so batches are monotonic.'''
-        sql = ("SELECT id, title, artist, album, lyrics_chords, lyrics_url, capo, chord_update, modified "
-               "FROM songs WHERE dirty = 1 ORDER BY modified")
-        if limit:
-            sql += " LIMIT {:d}".format(int(limit))
-        out = []
-        for sid, title, artist, album, lyrics, url, capo, cu, mod in self.conn.execute(sql).fetchall():
-            out.append({
-                'title': title, 'artist': artist, 'album': album,
-                'lyrics_chords': lyrics, 'lyrics_url': url, 'capo': capo,
-                'chord_update': cu, 'modified': mod,
-                'chords': self._songChordNames(sid),
-                'tags': self._songTagNames(sid),
-            })
-        return out
-
-    def clearDirty(self, keys):
-        '''Mark the given (title, artist) songs as pushed (dirty=0).'''
-        self.conn.executemany(
-            "UPDATE songs SET dirty = 0 WHERE title = ? AND artist = ?", list(keys))
-        self.conn.commit()
-
-    def _applyTags(self, song_id, tags):
-        '''Additively apply (username, tagname) pairs to a local song (v1: no
-        removals). Unknown tag definitions are skipped.'''
-        for username, tagname in tags:
-            self.conn.execute("INSERT OR IGNORE INTO users (name) VALUES (?)", (username,))
-            uid = self.conn.execute("SELECT id FROM users WHERE name = ?", (username,)).fetchone()[0]
-            trow = self.conn.execute("SELECT id FROM tags WHERE name = ?", (tagname,)).fetchone()
-            if trow is None:
-                continue
-            self.conn.execute(
-                "INSERT OR IGNORE INTO song_tags (user_id, song_id, tag_id) VALUES (?, ?, ?)",
-                (uid, song_id, trow[0]))
-
-    LOCK_TAG = 'Fixiert'    # key x: the song's text is fixed, never fetched or synced over
+    LOCK_TAG = 'Fixiert'    # key x: the song's text is fixed, never fetched again
 
     def isLocked(self, song_id):
         '''True if any user locked the song (tag x).'''
         return self.conn.execute(
             "SELECT 1 FROM song_tags st JOIN tags t ON t.id = st.tag_id "
             "WHERE st.song_id = ? AND t.name = ?", (song_id, self.LOCK_TAG)).fetchone() is not None
-
-    def upsertRemoteSong(self, s):
-        '''Last-write-wins upsert of a remote song dict by (title, artist).
-        Tags are always merged additively. Returns True if chord data changed.
-        A song locked here (tag x) keeps its text: a newer remote version that is
-        not locked anywhere makes the local one dirty, so it goes back to central
-        and wins there (before 2026-11-10 locks were ignored and overwritten).'''
-        row = self.conn.execute(
-            "SELECT id, modified FROM songs WHERE title = ? AND artist = ?",
-            (s['title'], s['artist'])).fetchone()
-        remote_mod = s.get('modified')
-        if row is not None:
-            sid, local_mod = row
-            if local_mod is not None and remote_mod is not None and local_mod >= remote_mod:
-                self._applyTags(sid, s.get('tags', []))   # still merge tags
-                return False
-            if self.isLocked(sid):
-                remote_locked = any(name == self.LOCK_TAG for _, name in s.get('tags', []))
-                self._applyTags(sid, s.get('tags', []))
-                if not remote_locked:
-                    self.conn.execute("UPDATE songs SET modified = datetime('now'), dirty = 1 WHERE id = ?", (sid,))
-                log.info("sync: kept the locked text of %s - %s", s['artist'], s['title'])
-                return False
-            self.conn.execute(
-                "UPDATE songs SET album = ?, lyrics_chords = ?, lyrics_url = ?, capo = ?, "
-                "chord_update = ?, modified = ?, dirty = 0 WHERE id = ?",
-                (s.get('album'), s.get('lyrics_chords'), s.get('lyrics_url'), s.get('capo'),
-                 s.get('chord_update'), remote_mod, sid))
-        else:
-            self.conn.execute(
-                "INSERT INTO songs (title, artist, album, lyrics_chords, lyrics_url, capo, chord_update, modified) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (s['title'], s['artist'], s.get('album'), s.get('lyrics_chords'),
-                 s.get('lyrics_url'), s.get('capo'), s.get('chord_update'), remote_mod))
-            sid = self.conn.execute(
-                "SELECT id FROM songs WHERE title = ? AND artist = ?",
-                (s['title'], s['artist'])).fetchone()[0]
-        self.conn.execute("DELETE FROM song_chords WHERE song_id = ?", (sid,))
-        for name in s.get('chords', []):
-            self.conn.execute("INSERT OR IGNORE INTO chords (name) VALUES (?)", (name,))
-            self.conn.execute("INSERT OR IGNORE INTO song_chords (song_id, chord_id) "
-                              "SELECT ?, id FROM chords WHERE name = ?", (sid, name))
-        self._applyTags(sid, s.get('tags', []))
-        return True
-
-    def fixTabTags(self):
-        log.info('fixTabTags')
-        rows = self.conn.execute("SELECT id, title, artist, lyrics_chords FROM songs WHERE lyrics_chords IS NOT NULL").fetchall()
-        for row in rows:
-            log.info("Fix {} {}".format(row[2], row[1]))
-            lyrics = row[3].replace('[tab]', '')
-            lyrics = lyrics.replace('[/tab]', '')
-            parms = (lyrics, row[0])
-            self.conn.execute("UPDATE songs set lyrics_chords = ? WHERE id = ?", parms)            
-        self.conn.commit()

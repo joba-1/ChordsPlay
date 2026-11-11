@@ -10,7 +10,7 @@ Song text is a chord line, the line right below a chord line (chords are
 aligned to it by column), or a tab line. Those are never changed. Every other
 line (comments, headers, lyrics without chords) may be word-wrapped.
 
-Pure functions, no GUI: used by the web app, usable by the Tk app later.
+Pure functions, no GUI.
 '''
 
 import re

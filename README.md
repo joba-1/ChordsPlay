@@ -1,348 +1,60 @@
 # ChordsPlay
 
-Play your music collection while showing the lyrics and guitar chords,
-fetched automatically from Ultimate Guitar.
+Play your music collection in the browser while it shows each song's lyrics and guitar
+chords, fetched automatically from Ultimate Guitar and drawn as large as the screen
+allows.
 
----
+* One server holds the songs, chords, tags, filters and play history; any browser is the
+  player.
+* A TV, tablet or second screen can show the playing song (a link or QR code, no login).
+* PDF tabs next to the song files are shown instead of the text, cropped and paged.
+* Optional, with a **Fender Mustang Micro Plus**: the amp switches to the preset stored
+  for a song (and at set times within it), all presets equally loud, knobs per song,
+  recording takes.
 
-## Install
+Everything about using and operating it: [docs/web.md](docs/web.md).
 
-```bash
-pip install git+ssh://git@github.com/joba-1/ChordsPlay.git
-chordsplay.py /path/to/your/music
-```
+## Try it from a checkout
 
-Dependencies are pulled automatically: `mutagen`, `python-vlc`. (`curl_cffi` is no longer needed; if it is installed, the Ultimate Guitar fetch uses it.)
-
-The first run creates `~/.chordsplay.py.db` (a SQLite database) and starts
-scanning. Each new song is matched against Ultimate Guitar in the
-background; lyrics and chords appear as soon as a match is found. You can
-play music while the scan runs.
-
-To start without arguments later (the music directory is remembered):
+Needs Python 3.11 or newer.
 
 ```bash
-chordsplay.py
+git clone https://github.com/joba-1/ChordsPlay.git && cd ChordsPlay
+python3 -m venv venv
+venv/bin/pip install -r web/requirements.txt
+CHORDSPLAY_MUSIC_DIRS=/path/to/your/music venv/bin/python -m web.app
 ```
 
-To add another music directory, pass it as an argument:
+Open <http://127.0.0.1:8616/>. The first start creates the database
+(`~/.local/share/chordsplay-web/chordsplay.db`) and scans the music folder: every file
+with a title tag (MP3, M4A, Ogg) becomes a song, and each new song is looked up at
+Ultimate Guitar in the background. Songs appear in the list as their chords arrive;
+press `f` to choose what to play and `?` for the keys.
 
-```bash
-chordsplay.py /more/music
-```
+Settings are environment variables (the music folders, the database file, the port,
+users behind a reverse proxy …): see the head of [web/app.py](web/app.py).
 
----
+## What is where
 
-## Keyboard shortcuts
-
-Most of the UI is keyboard-driven.
-
-### Playback
-| Key | Action |
+| Path | What |
 |---|---|
-| `Space` / `m` | Pause / resume |
-| `Enter` / `n` / right-click | Next song |
-| `Backspace` / `p` / middle-click | Previous song |
-| `s` | Shuffle playlist |
-| `+` / `-` | Seek +1s / -1s |
-| `0` | Restart current song |
-| Double-click song | Jump to that song |
+| `web/` | the server (`app.py`, Flask served by waitress) and the page (`static/`) |
+| `ChordsPlay/` | shared modules: database (`db.py`), library scan (`scan.py`, `song.py`), Ultimate Guitar fetch (`chords.py`, `http.py`), text layout (`textfit.py`), amp logic (`amp.py`) |
+| `mmp/` | the optional Mustang Micro Plus parts for the computer the amp is paired with: the amp bridge (`bridge.py`), the units, the level-matching script. Design: [docs/spec-amp.md](docs/spec-amp.md) |
+| `contrib/` | service unit, Apache example, install script |
+| `tests/` | unit tests; hardware tests are described in [docs/test.md](docs/test.md) |
 
-### Dialogs
-| Key | Action |
-|---|---|
-| `f` | Filter (choose what to play) |
-| `t` | Tags (label the current song) |
-| `a` | Audio output device |
-| `A` | Cycle to next audio output |
-| `g` | Guitar tone: Mustang Micro Plus presets for this song ([see below](#guitar-tone-mustang-micro-plus)) |
-| `G` | Store the amp's current preset for the song, from the current position |
-| `l` | Toggle the playlist panel |
-| `F11` | Toggle fullscreen |
-| `Escape` | Leave fullscreen |
-| `q` | Quit (same as closing the window) |
-
----
-
-## Filter dialog
-
-Press `f`. Every field is a Python regular expression (or empty to match
-anything). The preview list updates when you tab between fields.
-
-| Field | Matches against |
-|---|---|
-| Titles | song title |
-| Artists | artist name |
-| Albums | album name |
-| Capos | capo fret number as text (e.g. `0` for no capo, `3` for capo 3) |
-| Required Chords | every chord listed here must be in the song |
-| Accepted Chords | the song may use only these chords (combined with Required, the song must use only required + accepted) |
-| Tag Keys | tag key character (e.g. `f` for Favourites, `[fl]` for Favourite or Easy) |
-
-Example: songs with no capo that contain only easy chords:
-- Capos: `^0$`
-- Accepted Chords: `^(C|D|E|G|Am|Em)$`
-
-Dialog buttons:
-- **Ok** — apply this filter as the current playlist
-- **Cancel** — close without changing anything
-- **Save** / **Save As** — store this filter under a name
-- **Load** — pick a previously saved filter
-- **Import** / **Export** — write/read a `.pat` JSON file
-
-Whatever you last applied with **Ok** is auto-saved as `__previous` and
-reloaded next time you open the dialog.
-
----
-
-## Tags
-
-Press `t` to tag the *currently playing* song. The dialog shows each tag
-with a single-letter shortcut. Pressing the letter toggles that tag.
-
-Default tags (German names, originally):
-
-| Key | Name | Meaning |
-|---|---|---|
-| `f` | Favorit | Favourite |
-| `s` | Schwer | Hard to play |
-| `l` | Leicht | Easy to play |
-| `u` | Unfertig | Incomplete tab |
-| `c` | Capo | Needs a capo |
-| `x` | Fixiert | **Locked — do not re-scan** |
-
-The `x` (Fixiert) tag is special: it prevents the background scanner
-from ever overwriting that song's lyrics/chords, and the central sync
-keeps a locked text too (a newer text from another installation doesn't
-replace it). Use it once you've hand-edited a song you want to keep.
-
-You can add or remove tags from the tag dialog itself.
-
----
-
-## Guitar tone (Mustang Micro Plus)
-
-ChordsPlay can switch a Fender Mustang Micro Plus to the preset you stored for
-a song. A song can have **several presets at different times**, for example a
-quiet acoustic intro and a loud chorus. Design: [docs/spec-amp.md](docs/spec-amp.md).
-
-**Store a tone:** set it on the amp (buttons or the Fender Tone app), then
-press `G`. Under 3 s into the song it becomes the song's start preset;
-later, it applies from the current position on. A stored preset within 2 s is
-replaced.
-
-**The `g` dialog** (or the *Tone* button) lists the song's cues, a position
-slider and the amp's 100 presets (current one marked ◀, *Used* = how many songs
-and artists use it). Pick a preset, then:
-
-| Key | Button | Action |
-|---|---|---|
-| `s` | Try now | Switch the amp now, to hear the preset. **Nothing is saved.** |
-| `b` | Save from start | Save it as the song's start preset |
-| `h` | Save from m:ss | Save it from the current position on (shown on the button) |
-| `a` | Save for artist | Save it for every song of this artist without its own start preset |
-
-*Try now* changes only the amp, and only until the next cue. *Save from …* stores
-a cue, so the amp switches there every time the song plays.
-
-**Setting several switches in one go:** drag the *Position* slider or press
-`+`/`-` (1 s), which moves the song itself. Then pick a preset and press `h`, and
-repeat. Double-click a cue to play from 2 s before it and hear the switch.
-
-For a selected cue: `t` changes its time (`m:ss`), `Del` deletes it, and `r`
-accepts a new preset name. If a slot's name changed since you stored it, the
-preset there was probably replaced, so ChordsPlay doesn't switch and shows a
-warning in the window title until you accept the new name. The title also
-shows the amp's state, e.g. `[amp 7 Hey Jimi]`.
-
-Which preset plays: the song's cues; before the first one, the artist's preset,
-else `amp_default_slot`; with none of these the amp is left alone.
-
-**Tones (the panel on the right of the `g` dialog).** A tone is one of the amp's
-presets with your own level and knob settings, for example "Echo Dome +3 dB with
-less reverb" for a solo.
-* **Nothing is written to the amp.** ChordsPlay plays a tone as an *audition* on a
-  reserved slot (`amp_live_slot`, default 100). The amp's 100 presets and their names
-  stay as they are, and switching tones costs no flash writes.
-* **Editing:**
-  1. Select a preset and press `e` (Edit as tone).
-  2. Move the level slider (−12 to +12 dB; quick buttons −6, −3, 0, +3, +6) and the
-     knobs: amp gain, bass, mid, treble, and for each effect on/off, mix, decay and
-     so on.
-  3. With *Play while adjusting* on, you hear each change on the amp a moment later.
-* **Using it:**
-  * `B` / `H` (*Tone from start* / *Tone from here*) save the tone and make it a cue
-    of the song.
-  * *Save tone…* keeps it under a name; *Load* and *Delete* manage saved tones.
-  * In the cue list a tone shows as `tone`.
-* **The same level for every preset:** with ChordsPlay closed, run
-  `contrib/match-preset-levels.sh` in one of two ways:
-  * **With a cable:** connect the computer's headphone output to the amp's plug with an
-    adapter cable (3.5 mm stereo plug to 6.35 mm socket). The script measures every
-    preset with a test tone (about 5 s each).
-  * **Without a cable:** `PLAYED=1 contrib/match-preset-levels.sh`. You play the same
-    short riff for every preset when prompted (4 s each, about ±1 dB).
-  * **Pause any time** with Enter (after the current preset); Enter again goes on, with
-    the practice takes first. **Stop** with Ctrl+C and run the same command again later:
-    it goes on where it stopped. After a pause or a stop it first has you play the last 2 presets of last time again (`OVERLAP=1`
-    for one) and takes the difference in your playing off the new levels. `FRESH=1`
-    starts over.
-  * Either way, the script imports the corrections once every preset is measured.
-  * After that, every tone starts at the same measured level, and −6/−3/+3/+6 are exact
-    variants of it.
-  * If the web app's amp bridge runs on this computer, stop it first
-    (`systemctl --user stop chordsplay-amp-bridge`); the script says so.
-  * Without that measurement, tones start at Fender's own factory levels.
-
-**Setup** (Linux, once):
-
-1. BlueZ 5.84+ with `Experimental = true` and the amp paired over Bluetooth LE
-   as well as for audio: maneline's `docs/MUSTANG_MICRO_PLUS_LINUX.md`.
-2. `contrib/install-amp-agent.sh` installs the amp agent (maneline's
-   `mmp_web.py`) as the systemd user unit `chordsplay-amp-agent.service`.
-   It uses port 8081; if that is taken, run it as
-   `AMP_PORT=8091 contrib/install-amp-agent.sh` (the port is kept for later runs).
-3. Add `amp_url` and `amp_unit` to the configuration file (below).
-
-ChordsPlay never talks Bluetooth itself: the agent owns the amp's connection.
-ChordsPlay starts the agent while the amp is connected as an audio output and
-stops it when the amp is gone or ChordsPlay quits. The first switch after the
-amp appears takes a few seconds while the agent connects; during a song,
-switching takes well under a second.
-
----
-
-## Configuration file
-
-`~/.chordsplay.py.cfg` (named after the program, `-c` to use another) holds
-defaults so you don't have to pass them every time:
-
-```ini
-[chordsplay.py]
-database  = /path/to/your/songs.db
-user      = yourname
-verbosity = 0
-
-# central chord sync (sync_service/README.md)
-sync_url   = http://host6:8615
-sync_token = <token>
-
-# Mustang Micro Plus guitar tone (see "Guitar tone" above)
-amp_url  = http://localhost:8081   # the agent's port (AMP_PORT)
-amp_unit = chordsplay-amp-agent.service
-# amp_sink = Mustang Micro Plus      text in the amp's audio output name
-# amp_default_slot = 1               preset for songs without one
-# amp_lead_ms = 300                  switch this much before a cue
-# amp_live_slot = 100                reserved slot for tones (auditions)
-```
-
-The file holds the sync token, so keep it private: `chmod 600 ~/.chordsplay.py.cfg`.
-
-### Quitting
-
-`q`, the window's close button, closing the terminal ChordsPlay was started from,
-`kill` and Ctrl-C all end it the same way:
-* the music stops at once;
-* the window closes;
-* the amp agent is stopped if ChordsPlay started it;
-* the scanner and the database are closed.
-
-If the scanner is stuck in a slow request to Ultimate Guitar, ChordsPlay waits at
-most 3 s for it; that song is simply fetched again next time.
-
-While ChordsPlay runs it keeps the screen and the computer awake (a logind
-inhibitor). The inhibitor ends with ChordsPlay, even after a crash.
-
----
-
-## Command-line options
-
-| Option | Purpose |
-|---|---|
-| `-c FILE` / `--config` | Use a different config file (default: `~/.chordsplay.py.cfg`) |
-| `-d FILE` / `--database` | Use a different database file |
-| `-u NAME` / `--user` | Database user (default: your OS username) |
-| `-l FILE` / `--logfile` | Write a full DEBUG log to a file (console stays at INFO) |
-| `-v` / `--verbose` | Verbose console output |
-| `-t FILE` / `--testfile` | Run one test song and dump HTML to file (for debugging chord scraper) |
-| `-f` / `--fix` | Run one-off database fix-ups and exit |
-| `--sync-url URL` / `--sync-token T` | Central chord-sync service (prefer the config file) |
-| `--sync-seed` | Push all local chord data to the sync service once, then exit |
-| `--import-levels FILE` | Import a level survey of the amp's presets (maneline `mmp_level.py survey`), then exit; only signal- and played-method surveys are used for tones |
-
----
-
-## Troubleshooting
-
-**Songs never get lyrics.** Check the log (`-l chordsplay.log`). The most
-common cause is Ultimate Guitar returning *No chords for song …* —
-either the song genuinely isn't on UG, or the search title differs from
-the file's ID3 tag. You can `t` → mark the song with `x` to stop the
-scanner retrying it.
-
-**Wrong capo detected.** Mark the song with the `x` (Fixiert) tag and
-manually clear the value:
+## Tests
 
 ```bash
-sqlite3 ~/.chordsplay.py.db "UPDATE songs SET capo = NULL WHERE title = '...' AND artist = '...';"
+venv/bin/python -m unittest discover -s tests
 ```
 
-**Database locked errors during scan.** Should not happen in current
-versions — but if you see them, share the log line so it can be fixed.
+No amp, display or network needed.
 
-**Force a rescan of a song:**
+## The desktop app
 
-```bash
-sqlite3 ~/.chordsplay.py.db "UPDATE songs SET chord_update = NULL WHERE title = '...' AND artist = '...';"
-```
-
-**Find songs the scanner hasn't reached yet:**
-
-```bash
-sqlite3 ~/.chordsplay.py.db "SELECT count(*) FROM songs WHERE chord_update IS NULL;"
-```
-
----
-
-## Desktop launcher
-
-`~/.local/share/applications/ChordsPlay.desktop`:
-
-```
-[Desktop Entry]
-Type=Application
-Name=ChordsPlay
-Exec=chordsplay.py /path/to/music
-Icon=/usr/share/icons/Adwaita/scalable/places/folder-music-symbolic.svg
-Terminal=true
-StartupNotify=true
-```
-
----
-
-## Developer notes
-
-* Source layout: main entry point `chordsplay.py`, package modules in
-  `ChordsPlay/` (`db.py`, `scan.py`, `chords.py`, `play.py`, `gui.py`,
-  `filter.py`, `dialog.py`, `selector.py`, `mclist.py`, `song.py`,
-  `playlist.py`, `sync.py`, `amp.py`, `ampdialog.py`, `textfit.py`); the web app
-  is in `web/` and reuses `db.py`, `scan.py`, `amp.py` and `textfit.py`.
-* Tests: `venv/bin/python -m unittest discover -s tests` (no amp, display or
-  network needed; the web app's tests are skipped without Flask). The hardware
-  test with the real amp is described in [docs/test.md](docs/test.md).
-* Database: SQLite in WAL mode at `~/.chordsplay.py.db`. Schema is
-  created/upgraded on connect.
-* Background scan thread re-checks each song's lyrics roughly once a
-  month, unless tagged with `x`.
-* Chord scraper: `ChordsPlay/chords.py`. Run `python3 ChordsPlay/chords.py`
-  to test against a single hardcoded song without going through the GUI.
-
-License: GPL 2.0.
-
-## Web app
-
-ChordsPlay also runs in the browser, with one central database for all devices,
-a TV or tablet as display, PDF tabs, level-matched amp presets and recorded takes:
-see [docs/web.md](docs/web.md). The desktop app keeps its own database; its chords
-reach the web app through the sync service, its history and amp cues through
-`python -m web.migrate merge`.
+ChordsPlay began as a desktop (Tk) program with a database per computer and a sync
+service between them. Both are retired in favour of the web app; their last state is on
+the branch `legacy`. `python -m web.migrate` takes a desktop database over into the web
+app's (see its `--help`).

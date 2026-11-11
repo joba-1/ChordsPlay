@@ -4,9 +4,8 @@
 # so later edits in the checkout don't reach the running service until the next
 # install. See docs/web.md.
 #
-# First install: create the database once, before or after this script:
-#   cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init \
-#       ~/.chordsplay.py.db --central /opt/chordsplay-sync/chordsplay-central.db
+# First install: put CHORDSPLAY_MUSIC_DIRS=/path/to/music into
+# ~/.config/chordsplay/web.env; the database is created at the first start.
 set -euo pipefail
 
 BASE=$HOME/.local/share/chordsplay-web
