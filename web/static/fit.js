@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2026 joba1
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Show a song text as large as the box allows, in 1..MAX_COLUMNS columns.
 // Shared by the controller page (app.js) and the display page (display.js).
 'use strict';

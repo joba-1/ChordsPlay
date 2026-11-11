@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 Take over data of the former desktop app (ChordsPlay 3.x, branch "legacy") into the
 web app's database. Not needed for a new installation: the server creates its own

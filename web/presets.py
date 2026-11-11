@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 The amp's presets as the server knows them: one copy of each slot's stored preset
 (Fender's preset JSON), for the knobs in the tone dialog. Filled from a backup of

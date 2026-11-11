@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Measure every Mustang Micro Plus preset with a test tone at the guitar input and
 # send the level corrections to the ChordsPlay server (through the amp bridge's link). Afterwards a tone built on any preset
 # starts at the same measured output level; the tone panel's level slider and its

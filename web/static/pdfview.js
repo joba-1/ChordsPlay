@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2026 joba1
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Show a PDF tab as large as the box allows: white margins cropped, one page or two
 // side by side (two when they are nearly as large as one), turned in steps of what
 // is shown. Shared by the controller page (app.js) and the display page (display.js).

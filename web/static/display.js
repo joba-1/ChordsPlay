@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2026 joba1
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // ChordsPlay display: shows the song the controller plays, nothing else.
 // Opened by a pairing link (…/d/<code>/) without a login; read-only.
 'use strict';

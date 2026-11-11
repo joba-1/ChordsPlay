@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2016-2026 joba1
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // ChordsPlay web page: the controller. Plays the audio, shows the song text
 // as large as the screen allows, and keeps the playlist, filter and tags in
 // step with the server. No build step, no libraries.
@@ -1092,6 +1094,7 @@ async function start() {
   }
   $('#help-version').textContent = state.version;
   $('#version').textContent = `Logged in as ${state.user}`;
+  if (/^https?:\/\//.test(state.source || '')) $('#help-source').href = state.source;
   $('#help-tv-url').textContent = new URL('d/tv/', location.href).href;
   followAmp();
   filterValues = state.filter;

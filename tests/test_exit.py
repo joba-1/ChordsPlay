@@ -1,7 +1,8 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
-Unit tests for a clean program exit: the scanner stops between songs when asked,
-and the DB is committed and closed. The full exit paths (q, window close, signals)
-need a display and run in tests/manual_exit_test.py.
+Unit tests for a clean exit: the scanner stops between songs when asked,
+and the DB is committed and closed.
 '''
 
 import os

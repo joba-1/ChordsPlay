@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 ChordsPlay web app: one server with the central database, any browser
 as the player. See docs/web.md.
@@ -21,6 +23,9 @@ Config via env:
   CHORDSPLAY_SCAN_HOURS  rescan the library and fetch new chords every N hours (0: never; default 24)
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
   CHORDSPLAY_OLLAMA_URL, CHORDSPLAY_SUGGEST_MODEL   suggested presets (web/suggest.py)
+  CHORDSPLAY_SOURCE_URL  where this server's source code is (the Source link in the page's help).
+                         Change it if you run a modified version: the licence (AGPL) gives
+                         everyone who uses the page the right to its source.
 
 A template with all settings: contrib/chordsplay.env.example
   CHORDSPLAY_TAKES_DIR   where takes are kept (default ~/.local/share/chordsplay-web/takes)
@@ -58,6 +63,7 @@ TAKES_DIR = os.path.expanduser(os.environ.get('CHORDSPLAY_TAKES_DIR', '~/.local/
 PDF_DIRS = [os.path.expanduser(d) for d in os.environ.get(
     'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf').split(':') if d]
 DEFAULT_USER = os.environ.get('CHORDSPLAY_USER', os.environ.get('USER', 'anonymous'))
+SOURCE_URL = os.environ.get('CHORDSPLAY_SOURCE_URL') or 'https://github.com/joba-1/ChordsPlay'
 USER_MAP = dict(pair.split('=', 1) for pair in
                 os.environ.get('CHORDSPLAY_USER_MAP', '').split(',') if '=' in pair)
 # the reverse proxy sets this after its login and removes what a client sends itself
@@ -228,7 +234,7 @@ def health():
 def state():
     '''Everything the page needs at start: user, playlist, last song, filter.'''
     db = get_db()
-    return jsonify(user=db.user, version=__version__,
+    return jsonify(user=db.user, version=__version__, source=SOURCE_URL,
                    playlist=rows_json(db.getFirstPlaylist()),
                    now=get_state(db, 'now'),
                    filter=load_filter(db, PREVIOUS_FILTER) or {key: '' for key in FILTER_KEYS})

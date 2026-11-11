@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install or update the ChordsPlay web app as a systemd user unit.
 # Copies this checkout's ChordsPlay/ and web/ to ~/.local/share/chordsplay-web/app,
 # so later edits in the checkout don't reach the running service until the next

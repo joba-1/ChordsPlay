@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # ChordsPlay web app (web/app.py): central database, audio files and the page.
 # Installed by contrib/install-web.sh as a user unit; a reverse proxy can publish it
 # (example: contrib/apache-chordsplay-web.conf). See docs/web.md.

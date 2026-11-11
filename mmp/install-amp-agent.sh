@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install the Mustang Micro Plus amp agent (maneline mmp_web.py) for ChordsPlay
 # as a systemd user unit. Re-run to update. See docs/spec-amp.md.
 #

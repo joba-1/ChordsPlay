@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 Amp bridge: plays the web app's cues on the Mustang Micro Plus.
 

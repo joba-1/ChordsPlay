@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 Tones: a base preset plus level offset and knob settings, auditioned on the live slot
 (docs/spec-amp.md, "Tones"). No amp needed: the agent is a fake HTTP server.

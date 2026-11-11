@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 Tests for the web app (web/app.py) and the database migration (web/migrate.py).
 
@@ -73,6 +75,7 @@ class Api(unittest.TestCase):
 
     def test_state_has_songs_with_chords(self):
         r = self.client.get('/api/state').get_json()
+        self.assertTrue(r['source'].startswith('https://'))    # the Source link in the help (AGPL)
         self.assertEqual(r['user'], 'jo')
         self.assertEqual(self.ids(r['playlist']), ['Alpha', 'Beta'])
 

@@ -58,3 +58,13 @@ ChordsPlay began as a desktop (Tk) program with a database per computer and a sy
 service between them. Both are retired in favour of the web app; their last state is on
 the branch `legacy`. `python -m web.migrate` takes a desktop database over into the web
 app's (see its `--help`).
+
+## Licence
+
+ChordsPlay is free software under the GNU Affero General Public License, version 3 or
+later (`AGPL-3.0-or-later`): see [LICENSE](LICENSE). If you run a modified version for
+others, they have the right to its source: the page's help carries a *Source* link, set
+it with `CHORDSPLAY_SOURCE_URL`.
+
+The bundled PDF viewer, [PDF.js](https://mozilla.github.io/pdf.js/)
+(`web/static/vendor/pdfjs/`), is under the Apache License 2.0, see its `LICENSE` there.

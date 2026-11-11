@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 '''
 Manual hardware test: ChordsPlay's tones change the amp's output level as intended
 (docs/test.md). The whole path: ChordsPlay's AmpClient builds tones from a stored

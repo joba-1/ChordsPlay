@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install the amp bridge of the ChordsPlay web app (web/bridge.py) as a systemd user
 # unit on the computer the Mustang Micro Plus is paired with, next to the amp agent
 # (mmp/install-amp-agent.sh). It follows the web app over HTTPS and switches the
