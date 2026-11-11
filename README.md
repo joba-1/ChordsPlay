@@ -12,7 +12,8 @@ allows.
   for a song (and at set times within it), all presets equally loud, knobs per song,
   recording takes.
 
-Everything about using and operating it: [docs/web.md](docs/web.md).
+Installing it as a service, with or without the Mustang parts, updating and removing:
+[docs/install.md](docs/install.md). Using and operating it: [docs/web.md](docs/web.md).
 
 ## Try it from a checkout
 
@@ -41,7 +42,7 @@ users behind a reverse proxy …): see the head of [web/app.py](web/app.py).
 | `web/` | the server (`app.py`, Flask served by waitress) and the page (`static/`) |
 | `ChordsPlay/` | shared modules: database (`db.py`), library scan (`scan.py`, `song.py`), Ultimate Guitar fetch (`chords.py`, `http.py`), text layout (`textfit.py`), amp logic (`amp.py`) |
 | `mmp/` | the optional Mustang Micro Plus parts for the computer the amp is paired with: the amp bridge (`bridge.py`), the units, the level-matching script. Design: [docs/spec-amp.md](docs/spec-amp.md) |
-| `contrib/` | service unit, Apache example, install script |
+| `contrib/` | install script (`install.sh`), service unit, settings template, Apache example |
 | `tests/` | unit tests; hardware tests are described in [docs/test.md](docs/test.md) |
 
 ## Tests

@@ -186,12 +186,12 @@ every device plays them.
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.
-  Set it up once on that computer:
-  0. `mmp/install-amp-agent.sh` installs the amp agent (maneline's `mmp_web.py`); the
+  Set it up once on that computer ([install.md](install.md), "The Mustang parts"):
+  0. `contrib/install.sh mmp` installs the amp agent (maneline's `mmp_web.py`); the
      one-time Bluetooth setup is in [spec-amp.md](spec-amp.md), "Agent installation".
   1. `g` → *Set up amp control…*: copy the line it shows into
      `~/.config/chordsplay/bridge.env`.
-  2. `mmp/install-amp-bridge.sh` (from a checkout of this repo).
+  2. `contrib/install.sh mmp` again (from a checkout of this repo): it installs the bridge.
   It starts the amp agent while the amp is connected as an audio device. Making a new
   line ends the previous one.
 * The top right shows what the bridge reports: `Mustang 19 80S Rock`, `Mustang ▶ <tone>`,
@@ -373,7 +373,7 @@ flowchart LR
 
 | What | How |
 |---|---|
-| Install / update | `contrib/install-web.sh` (copies the checkout to `~/.local/share/chordsplay-web/app`, venv, restarts the user unit `chordsplay-web.service`) |
+| Install / update / remove | [install.md](install.md): `contrib/install.sh web` (copies the checkout to `~/.local/share/chordsplay-web/app`, venv, restarts the user unit `chordsplay-web.service`) |
 | Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two` in the settings: the folders are added to the library at start and scanned at start and every 24 hours. The database is created at the first start |
 | Data of the former desktop app | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db` instead of a new database, and `../venv/bin/python -m web.migrate merge <file>` for another computer's database (desktop app closed): plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins). Songs locked there (tag x) bring their text, which replaces ours |
 | Logs | `journalctl --user -u chordsplay-web` |
@@ -381,7 +381,7 @@ flowchart LR
 | Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User` |
 | Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets and takes); the app serves nothing else there. |
 | After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-<date> --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
-| Amp bridge (amp computer) | `mmp/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `mmp/match-preset-levels.sh` |
+| Amp bridge (amp computer) | `contrib/install.sh mmp` ([install.md](install.md)); unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `mmp/match-preset-levels.sh` |
 
 ## Tests
 
