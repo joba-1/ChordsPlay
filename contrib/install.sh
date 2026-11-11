@@ -77,6 +77,8 @@ install_web() {
     run install -m 644 "$HERE/$WEB_UNIT" "$UNIT_DIR/$WEB_UNIT"
     run systemctl --user daemon-reload
     run systemctl --user enable --quiet "$WEB_UNIT"
+    local since
+    since=$(date '+%Y-%m-%d %H:%M:%S')
     run systemctl --user restart "$WEB_UNIT"
     [ -n "$DRY" ] && return
     sleep 2
@@ -84,7 +86,10 @@ install_web() {
     local port
     port=$(sed -n 's/^CHORDSPLAY_PORT=//p' "$env" 2>/dev/null | tail -1)
     echo "Installed $(cat "$app/VERSION" 2>/dev/null): http://127.0.0.1:${port:-8616}/"
-    grep -q '^CHORDSPLAY_MUSIC_DIRS=' "$env" \
+    # the server says so at its start if the library has no folder (a database taken
+    # over from an older install has them without the setting)
+    ! journalctl --user --unit "$WEB_UNIT" --since "$since" --no-pager 2>/dev/null \
+            | grep -q 'no music folder' \
         || echo "No music folder yet: set CHORDSPLAY_MUSIC_DIRS in $env, then run this again."
     loginctl show-user "$USER" --property=Linger 2>/dev/null | grep -q yes \
         || echo "To run it without being logged in: loginctl enable-linger $USER"
