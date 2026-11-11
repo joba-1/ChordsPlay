@@ -181,6 +181,50 @@ every device plays them.
 
 ## How it works
 
+### What runs where, and why
+
+```mermaid
+flowchart LR
+  subgraph nas[NAS]
+    share[("music share<br>songs, PDF tabs")]
+  end
+  subgraph host6["host6: the server"]
+    apache["Apache + Authelia"]
+    web["ChordsPlay web server<br>page, songs, events, takes"]
+    db[("one database")]
+  end
+  subgraph host7["amp computer (host7)"]
+    ctl["browser: controller<br>plays the song"]
+    bridge["amp control 1: bridge<br>(web/bridge.py)"]
+    agent["amp control 2: amp agent<br>(maneline mmp_web.py)"]
+  end
+  mmp["Mustang Micro Plus"]
+  disp["browser: display<br>TV, tablet, phone"]
+  share -- NFS --> web
+  web <--> db
+  apache <--> web
+  ctl <-- "page, audio, now playing" --> apache
+  disp -- follows --> apache
+  bridge <-- "outbound: follows, reports, takes" --> apache
+  bridge -- localhost --> agent
+  ctl == "song: Bluetooth audio" ==> mmp
+  agent -. "control: Bluetooth LE" .-> mmp
+  mmp == "USB: recording" ==> bridge
+```
+
+* **Server (host6):** one database for every device; scans the library, fetches chords,
+  serves the page, the audio and the PDFs.
+* **Controller:** any browser; with the Mustang it is the device paired with it, because
+  the device that plays must send the sound to the Mustang.
+* **Display:** any browser; shows only, needs no login (a link with a code, or a TV
+  paired once).
+* **Amp control** is two programs on the amp computer. The **amp agent** (maneline) holds
+  the Mustang's single control connection, which needs a heartbeat every 0.5 s: only a
+  program that always runs can do that, not a browser tab; the desktop app uses it too.
+  The **bridge** (ChordsPlay) connects the agent with the web app: it follows your song
+  from the server and tells the agent what to play, without an open port (it connects
+  out, like a display), and records takes from the Mustang's USB.
+
 ```
 browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/app.py 127.0.0.1:8616 (host6)
                                                                               |-- ~/.local/share/chordsplay-web/chordsplay.db
@@ -266,6 +310,7 @@ flowchart LR
 | Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`, `CHORDSPLAY_SYNC_URL` + `CHORDSPLAY_SYNC_TOKEN` (push new chords to the old sync service, so the Tk apps get them) |
 | Apache | `/etc/apache2/public.d/locations/chordsplay.conf` (= `contrib/apache-chordsplay-web.conf`, with `flushpackets=on` for the event streams) and `<Location "/chordsplay/">` in `/etc/apache2/homeauth.conf` |
 | Displays and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs a display code (read only) or the bridge token (follow the session, report the amp's state); the app serves nothing else there. |
+| After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-20261110-221319 --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
 | Amp bridge (amp computer) | `contrib/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `contrib/match-preset-levels.sh` |
 
 ## Tests
