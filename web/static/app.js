@@ -869,7 +869,7 @@ $('#amp-sounds').addEventListener('change', async (e) => {
 });
 
 $('#amp-bridge').addEventListener('click', async () => {
-  if (!confirm('Make a new bridge link? A bridge with the previous link stops working.')) return;
+  if (!confirm('Make a new line for amp control? Amp control with the previous line stops until it gets the new one.')) return;
   try {
     const r = await api('bridge', { method: 'POST' });
     $('#amp-bridge-line').textContent = 'CHORDSPLAY_BRIDGE_URL=' + new URL(r.path, location.href).href;

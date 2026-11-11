@@ -4,7 +4,7 @@
 # (contrib/install-amp-agent.sh). It follows the web app over HTTPS and switches the
 # amp's presets for the playing song. Re-run to update. See docs/web.md.
 #
-# Needs the line from the web app's tone dialog (key g, "Bridge link…") in
+# Needs the line from the web app's tone dialog (key g, "Set up amp control…") in
 #   ~/.config/chordsplay/bridge.env:  CHORDSPLAY_BRIDGE_URL=https://.../chordsplay/d/bridge/<token>/
 # Optional there: AMP_URL (default: the agent's port from its install), AMP_UNIT
 # (the agent's unit, started while the amp's audio sink exists), AMP_SINK,
@@ -19,7 +19,7 @@ ENV_FILE=$HOME/.config/chordsplay/bridge.env
 AGENT_ENV=$HOME/.config/chordsplay/amp-agent.env
 
 if ! grep -qE '^CHORDSPLAY_BRIDGE_URL=https?://.+/d/bridge/[^/]+/?$' "$ENV_FILE" 2>/dev/null; then
-    echo "Put the line from the web app's tone dialog (g, \"Bridge link…\") into $ENV_FILE first." >&2
+    echo "Put the line from the web app's tone dialog (g, \"Set up amp control…\") into $ENV_FILE first." >&2
     exit 1
 fi
 chmod 600 "$ENV_FILE"       # the token is the bridge's only key

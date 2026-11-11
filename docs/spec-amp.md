@@ -1,7 +1,11 @@
-# Spec: Mustang Micro Plus presets per song (phase A)
+# Spec: Mustang Micro Plus presets per song (desktop app)
 
-Status: phase A, the Tk app on the notebook. The web-app phase (B) is planned on the
-Trac page `ChordsPlay`, section "Mustang Micro Plus: preset per song".
+Status: built (ChordsPlay 3.34, tones since 3.35). This page describes the desktop (Tk)
+app. The web app is built too (since web 0.3): its amp bridge (`web/bridge.py`) reuses
+`AmpCues`, `AmpClient` and `AgentControl` from `ChordsPlay/amp.py` unchanged and talks to
+the same agent; what differs there (cues in the central database, level per cue, knobs,
+writing an amp slot, takes) is in [web.md](web.md). Plan and history: Trac page
+`ChordsPlay`, section "Mustang Micro Plus: preset per song".
 
 ## Goal
 
@@ -11,11 +15,27 @@ intro and a loud chorus. Storing a tone must be quick: set it on the amp, press 
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  subgraph app["ChordsPlay (Tk)"]
+    cues["AmpCues<br>Tk thread, every 200 ms:<br>which cue applies now"]
+    client["AmpClient<br>worker thread:<br>newest wish only"]
+    control["AgentControl<br>starts/stops the unit"]
+  end
+  subgraph unit["systemd user unit chordsplay-amp-agent"]
+    agent["amp agent<br>maneline mmp_web.py<br>heartbeat every 0.25 s"]
+  end
+  sink(["amp's Bluetooth audio sink<br>(pactl)"])
+  mmp["Mustang Micro Plus"]
+  cues -- "request(slot) / audition(tone)" --> client
+  client -- "HTTP localhost:8081" --> agent
+  sink -. "appears / vanishes" .-> control
+  control -. "systemctl --user start / stop" .-> agent
+  agent -. "Bluetooth LE (LE bearer only)" .-> mmp
 ```
-ChordsPlay (Tk)                          amp agent (maneline mmp_web.py)        Mustang
- AmpCues (Tk thread, every 200 ms)  ---> AmpClient thread --HTTP localhost:8081--> BLE (LE bearer) --> amp
- AgentControl: start/stop the agent's systemd user unit when the amp's audio sink appears/vanishes
-```
+
+The web app's bridge puts the same three classes in a service of its own and feeds
+`AmpCues` from the server instead of the local database.
 
 * **ChordsPlay never speaks Bluetooth.** The amp agent is maneline's `mmp_web.py`, running as a
   systemd user unit. It owns the single LE connection to the amp.
@@ -25,8 +45,13 @@ ChordsPlay (Tk)                          amp agent (maneline mmp_web.py)        
   * maneline already solves BlueZ LE-bearer control without dropping A2DP audio, plus reconnects,
     battery saving (`--idle-disconnect`) and single ownership. Re-implementing that would mean
     keeping a second copy of the same code.
-* **HTTP over localhost** is the boundary: `GET /api/micro-plus` returns the state, and
-  `POST /api/micro-plus {"preset": n}` switches and waits for the amp's confirmation.
+* **HTTP over localhost** is the boundary:
+  * `GET /api/micro-plus` returns the state;
+  * `POST /api/micro-plus {"preset": n}` switches and waits for the amp's confirmation;
+  * `POST /api/micro-plus/audition {"preset": {…}, "slot": 100}` plays a preset without
+    saving it and `GET /api/micro-plus/preset?slot=n` reads a stored one (both for tones);
+  * `POST /api/micro-plus/save` writes a slot. The desktop app never calls it; only the
+    web app's *Write to amp slot…* does.
   * The agent rejects a POST without a same-origin `Origin` header (protection against other web pages).
   * The client is not a browser, so it sends `Origin: <agent base URL>`.
 * **Playback never waits for the amp.** Switching runs in the `AmpClient` worker thread.
@@ -39,6 +64,10 @@ ChordsPlay (Tk)                          amp agent (maneline mmp_web.py)        
   * **Cold start:** the first switch after the amp appears waits until the agent has connected
     (measured 3–8 s). After that the connection stays up while audio streams to the amp, and a
     switch takes 0.15–0.7 s (measured 2026-11-09).
+  * **Idle:** after 5 minutes without a switch and without Bluetooth audio streaming, the agent
+    drops the control link (`--idle-disconnect 300`); the next switch reconnects first (about
+    3 s). The state then says `asleep`: the window title shows "amp asleep", the web page
+    "Mustang idle".
 * **GUI writes vs. the scanner:** cue writes happen in the Tk thread. The startup scan used to hold
   SQLite's write lock for 100 files at a time (seconds over NFS), which froze `G` for about 3 s.
   The scan now commits at least every 0.2 s (`scan.py`, `COMMIT_INTERVAL`).
@@ -46,8 +75,11 @@ ChordsPlay (Tk)                          amp agent (maneline mmp_web.py)        
 ## Data model (SQLite, local DB)
 
 ```sql
-song_presets (song_id → songs.id, start_ms ≥ 0, slot 1..100, slot_name, PK (song_id, start_ms))
-artist_presets (artist PK, slot 1..100, slot_name)
+song_presets   (song_id → songs.id, start_ms ≥ 0, slot 1..100, slot_name,
+                tone_id → tones.id, level_db, params, PK (song_id, start_ms))
+artist_presets (artist PK, slot 1..100, slot_name, level_db, params)
+tones          (id, name unique, base_slot 1..100, base_name, level_db, params, created)
+preset_levels  (slot PK, name, correction_db, method, measured_at)
 ```
 
 * A **cue** is `(start_ms, slot)`: from `start_ms` on, the song uses this slot.
@@ -56,13 +88,19 @@ artist_presets (artist PK, slot 1..100, slot_name)
     the cue is **not** applied and a warning is shown.
   * **Why:** switching to a slot whose tone was changed is worse than not switching.
   * The `g` dialog can accept the new name.
+* `tone_id`: the cue plays a tone instead of the plain slot (see "Tones" below).
+* `level_db` and `params` on a cue or an artist preset are set only by the web app (level
+  "original" or level-matched, knobs per cue); the desktop app stores such sounds as tones.
 * No user column: the amp's slots belong to one physical amp, not to a ChordsPlay user.
-* Not synced to central yet: the sync service doesn't carry it. In phase B it moves to the central DB.
+* The sync service doesn't carry any of this. The web app keeps its own copy in its
+  central database; `python -m web.migrate merge` adds a desktop database's cues, artist
+  presets, tones and levels to it (one way).
 
 ## Which slot plays when
 
 1. `cues` = the song's cues, ordered by `start_ms`.
 2. `base` = the artist's slot, else `amp_default_slot` from the config, else none.
+   (The web app puts a suggested preset between the two, if switched on.)
 3. If there's a base and no cue at 0 ms, the base becomes the cue at 0 ms.
 4. Every 200 ms the active cue is the last one with `start_ms - lead_ms <= position`.
    * `lead_ms` (default 300) makes up for the 0.1–0.6 s a switch takes while connected.
@@ -140,8 +178,11 @@ the first tone after start-up comes a moment later.
 
 **Level matching across presets** (`preset_levels`, imported from maneline's
 `mmp_level.py survey`):
-* Only corrections measured with the **signal** method are used: a test tone at the
-  guitar input.
+* Only corrections measured with a playing-level signal at the guitar input are used:
+  the **signal** method (a test tone through a cable) or the **played** method (you play
+  the same riff for every preset). The corrections in use since 2026-11-10 were
+  measured with the played method; the signal method is built but not yet run with a
+  cable.
 * The **noise** method (guitar connected at volume zero, gate off) is exact for level
   *changes* within a preset. But it is wrong across presets: on the 71 factory
   presets it spans 59 dB, because noise doesn't drive distortion and compressors like
@@ -149,8 +190,9 @@ the first tone after start-up comes a moment later.
 * Measuring with the signal method needs an adapter cable (3.5 mm plug to 6.35 mm
   socket) from the computer's headphone output to the amp's plug. See maneline's
   `docs/MUSTANG_MICRO_PLUS_LEVELS.md`.
-* Import a survey with `chordsplay.py --import-levels <backup>/levels-signal.json`.
-  A noise survey is stored, with a warning, but not used.
+* Import a survey with `chordsplay.py --import-levels <backup>/levels-<method>.json`
+  (`levels-signal.json` or `levels-played.json`). A noise survey is stored, with a
+  warning, but not used.
 * **Played method (no cable):** `PLAYED=1 contrib/match-preset-levels.sh`. For every
   preset you play the same short riff when prompted, and the level of its loudest half
   of 100 ms frames is measured, so pauses don't count. It is about ±1 dB from take to
@@ -184,13 +226,16 @@ the first tone after start-up comes a moment later.
 ## Agent installation
 
 `contrib/install-amp-agent.sh` installs the agent:
-* clones maneline (fork branch `micro-plus-preset-backup`: Linux LE bearer, idle disconnect,
-  audition and stored-preset API) to `~/.local/share/chordsplay/maneline`; `MANELINE_REPO`
-  may be a local checkout
+* clones maneline (fork `joba-1/maneline`, branch `micro-plus-preset-backup`: Linux LE
+  bearer, idle disconnect, audition, stored-preset and save API, `mmp_backup.py`,
+  `mmp_level.py`, `mmp_restore.py`, `mmp_check.py`) to `~/.local/share/chordsplay/maneline`;
+  `MANELINE_REPO` may be a local checkout. Run it again to update an older install
 * creates a venv with pinned `bleak` and `dbus-fast`
 * installs the user unit `chordsplay-amp-agent.service` (not enabled: ChordsPlay starts it)
 
-One-time BlueZ setup (`Experimental = true`, LE pairing): maneline's `docs/MUSTANG_MICRO_PLUS_LINUX.md`.
+One-time BlueZ setup (`Experimental = true`, LE pairing): maneline's
+`docs/MUSTANG_MICRO_PLUS_LINUX.md`. The fuller version (requirements, pairing from
+scratch) is on the fork's branch `micro-plus-linux-setup`, not in the installed one.
 
 ## Open points
 

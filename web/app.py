@@ -1,6 +1,6 @@
 '''
 ChordsPlay web app: one server (host6) with the central database, any browser
-as the player. Design: Trac page ChordsPlay, docs/spec-web.md.
+as the player. Design: Trac page ChordsPlay, docs/web.md.
 
 The server keeps the songs, chords, tags, filters and play history, serves the
 audio files and the page. The browser plays the audio (it is the device paired
@@ -19,6 +19,7 @@ Config via env:
   CHORDSPLAY_SYNC_URL, CHORDSPLAY_SYNC_TOKEN   optional: keep the old sync service up to date
   CHORDSPLAY_HOST, CHORDSPLAY_PORT   bind address (default 127.0.0.1:8616; HOST is often set by the shell)
   CHORDSPLAY_OLLAMA_URL, CHORDSPLAY_SUGGEST_MODEL   suggested presets (web/suggest.py)
+  CHORDSPLAY_TAKES_DIR   where takes are kept (default ~/.local/share/chordsplay-web/takes)
   CHORDSPLAY_PDF_DIRS    more folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf);
                          the library's folders are always scanned (tabs next to their songs); see web/pdfs.py
 '''

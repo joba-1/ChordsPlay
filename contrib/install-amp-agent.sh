@@ -43,7 +43,7 @@ else
 fi
 echo "maneline: $(git -C "$DEST" log --oneline -1)"
 
-# Versions tested with the Micro Plus on firmware 1.1.11 and BlueZ 5.87
+# Versions tested with the Micro Plus on firmware 1.0.29 and BlueZ 5.87
 [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --quiet --upgrade pip
 "$VENV/bin/pip" install --quiet --upgrade 'bleak==3.0.2' 'dbus-fast==5.2.0'

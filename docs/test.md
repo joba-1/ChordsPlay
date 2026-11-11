@@ -10,11 +10,14 @@ venv/bin/python -m unittest discover -s tests
 hardware, display or network. The agent is a fake HTTP server.
 `tests/test_exit.py` checks that the scanner stops between songs when asked (it
 used to go through every remaining song first) and that the DB is committed and closed.
+`tests/test_sync_lock.py` checks that the sync keeps a locked song's text (tag x).
+`tests/test_textfit.py` and `tests/test_web.py` belong to the web app (docs/web.md,
+"Tests"); `test_web.py` is skipped when Flask isn't installed.
 `tests/test_tones.py` covers tones:
 * building a tone's preset JSON (level, correction, knobs, ignored empty blocks);
 * the knobs offered;
 * tones and tone cues in the DB;
-* "signal-only" level corrections;
+* level corrections used only from the signal or played method;
 * auditioning on the live slot and fetching presets over HTTP (fake agent);
 * tone cues waiting for their base preset.
 
@@ -45,7 +48,7 @@ Expected:
 * "G took" well under a second (no GUI stall while the scanner runs)
 * the amp back on slot 1, and `systemctl --user is-active chordsplay-amp-agent` → inactive
 
-Last run 2026-11-09 (firmware 1.1.11, BlueZ 5.87): all as expected; G 0.13 s.
+Last run 2026-11-09 (firmware 1.0.29, BlueZ 5.87): all as expected; G 0.13 s.
 
 ## Manual tone level test (after changing tones, the client or the agent)
 

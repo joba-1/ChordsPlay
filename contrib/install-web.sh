@@ -2,7 +2,7 @@
 # Install or update the ChordsPlay web app as a systemd user unit (on host6).
 # Copies this checkout's ChordsPlay/ and web/ to ~/.local/share/chordsplay-web/app,
 # so later edits in the checkout don't reach the running service until the next
-# install. See docs/spec-web.md.
+# install. See docs/web.md.
 #
 # First install: create the database once, before or after this script:
 #   cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init \

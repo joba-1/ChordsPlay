@@ -112,8 +112,9 @@ Default tags (German names, originally):
 | `x` | Fixiert | **Locked — do not re-scan** |
 
 The `x` (Fixiert) tag is special: it prevents the background scanner
-from ever overwriting that song's lyrics/chords. Use it once you've
-hand-edited a song you want to keep.
+from ever overwriting that song's lyrics/chords, and the central sync
+keeps a locked text too (a newer text from another installation doesn't
+replace it). Use it once you've hand-edited a song you want to keep.
 
 You can add or remove tags from the tag dialog itself.
 
@@ -189,6 +190,8 @@ less reverb" for a solo.
   * Either way, the script imports the corrections once every preset is measured.
   * After that, every tone starts at the same measured level, and −6/−3/+3/+6 are exact
     variants of it.
+  * If the web app's amp bridge runs on this computer, stop it first
+    (`systemctl --user stop chordsplay-amp-bridge`); the script says so.
   * Without that measurement, tones start at Fender's own factory levels.
 
 **Setup** (Linux, once):
@@ -265,7 +268,7 @@ inhibitor). The inhibitor ends with ChordsPlay, even after a crash.
 | `-f` / `--fix` | Run one-off database fix-ups and exit |
 | `--sync-url URL` / `--sync-token T` | Central chord-sync service (prefer the config file) |
 | `--sync-seed` | Push all local chord data to the sync service once, then exit |
-| `--import-levels FILE` | Import a level survey of the amp's presets (maneline `mmp_level.py survey`), then exit; only signal-method surveys are used for tones |
+| `--import-levels FILE` | Import a level survey of the amp's presets (maneline `mmp_level.py survey`), then exit; only signal- and played-method surveys are used for tones |
 
 ---
 
@@ -322,10 +325,11 @@ StartupNotify=true
 * Source layout: main entry point `chordsplay.py`, package modules in
   `ChordsPlay/` (`db.py`, `scan.py`, `chords.py`, `play.py`, `gui.py`,
   `filter.py`, `dialog.py`, `selector.py`, `mclist.py`, `song.py`,
-  `playlist.py`, `sync.py`, `amp.py`, `ampdialog.py`).
+  `playlist.py`, `sync.py`, `amp.py`, `ampdialog.py`, `textfit.py`); the web app
+  is in `web/` and reuses `db.py`, `scan.py`, `amp.py` and `textfit.py`.
 * Tests: `venv/bin/python -m unittest discover -s tests` (no amp, display or
-  network needed). The hardware test with the real amp is described in
-  [docs/test.md](docs/test.md).
+  network needed; the web app's tests are skipped without Flask). The hardware
+  test with the real amp is described in [docs/test.md](docs/test.md).
 * Database: SQLite in WAL mode at `~/.chordsplay.py.db`. Schema is
   created/upgraded on connect.
 * Background scan thread re-checks each song's lyrics roughly once a
@@ -337,5 +341,8 @@ License: GPL 2.0.
 
 ## Web app
 
-ChordsPlay also runs in the browser, with one central database for all devices:
-see [docs/web.md](docs/web.md).
+ChordsPlay also runs in the browser, with one central database for all devices,
+a TV or tablet as display, PDF tabs, level-matched amp presets and recorded takes:
+see [docs/web.md](docs/web.md). The desktop app keeps its own database; its chords
+reach the web app through the sync service, its history and amp cues through
+`python -m web.migrate merge`.

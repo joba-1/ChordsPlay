@@ -1,6 +1,6 @@
 # ChordsPlay web app (web/app.py): central database, audio files and the page.
 # Installed by contrib/install-web.sh; Apache publishes it at /chordsplay/
-# (contrib/apache-chordsplay-web.conf). See docs/spec-web.md.
+# (contrib/apache-chordsplay-web.conf). See docs/web.md.
 [Unit]
 Description=ChordsPlay web app
 After=network-online.target

@@ -5,11 +5,20 @@ Holds the shared chord data for all ChordsPlay installations, keyed by
 changes and push their locally-fetched/edited songs; merges are
 last-write-wins by `modified`, tags are unioned.
 
+**Locked songs (tag `x`, Fixiert) are the exception** (since 2026-11-10, in the
+client, `Db.upsertRemoteSong`): a client that has a song locked keeps its text
+when a newer one arrives, and pushes its own text back so it wins at the service.
+The service itself knows nothing of locks. Tags are only ever added: removing a
+lock (or any tag) at one client does not remove it at the service or elsewhere.
+
+The web app (`web/`, docs/web.md) is a client too: its scanner pulls and pushes
+with `CHORDSPLAY_SYNC_URL` / `CHORDSPLAY_SYNC_TOKEN`.
+
 ## What syncs
 - `songs` (lyrics_chords, lyrics_url, capo, chord_update), chord names, and
   user tags — matched by `(title, artist)`.
 - **Never** synced: `song_lists` / `list_songs` (local paths), playlists,
-  filters, play history.
+  filters, play history, amp cues, artist presets, tones and level corrections.
 
 ## API
 - `GET  /health` → `{"status":"ok"}`

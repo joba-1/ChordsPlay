@@ -11,7 +11,7 @@ controller page can show it and learn from it (key G).
 Standard library only, plus ChordsPlay/amp.py.
 
 Config via env:
-  CHORDSPLAY_BRIDGE_URL  https://.../chordsplay/d/bridge/<token>/ (from the page's Amp dialog)
+  CHORDSPLAY_BRIDGE_URL  https://.../chordsplay/d/bridge/<token>/ (from the page's tone dialog, key g, "Set up amp control…")
   AMP_URL                the agent (default http://localhost:8081)
   AMP_UNIT               start the agent's user unit while the amp's audio sink exists
                          (default chordsplay-amp-agent.service; empty: never)
@@ -175,7 +175,7 @@ class Session(object):
         self.lock = threading.Lock()
         self.now = None         # (song_id, t at `since`, playing, since (monotonic))
         self.plan_rev = None
-        self.commands = []      # try now / fetch a preset, in order
+        self.commands = []      # try now / fetch a preset / write a slot / record, in order
 
     def update(self, channel, data):
         with self.lock:
@@ -263,7 +263,8 @@ class Bridge(object):
                     read_events(response, self.session.update)
             except urllib.error.HTTPError as e:
                 log.error('bridge: the server says %s%s', e.code,
-                          ' - the token is not valid (any more): make a new one in the Amp dialog'
+                          ' - the token is not valid (any more): make a new line in the web '
+                          'app, tone dialog (key g), "Set up amp control…"'
                           if e.code == 404 else '')
                 wait = RECONNECT_S[1]
             except (urllib.error.URLError, OSError, ValueError) as e:
@@ -421,7 +422,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
     url = os.environ.get('CHORDSPLAY_BRIDGE_URL')
     if not url or '/d/bridge/' not in url:
-        log.error('CHORDSPLAY_BRIDGE_URL missing: make a bridge link in the web app\'s Amp dialog (key g)')
+        log.error('CHORDSPLAY_BRIDGE_URL missing: make the line in the web app\'s tone dialog (key g, "Set up amp control…")')
         return 1
     unit = os.environ.get('AMP_UNIT', 'chordsplay-amp-agent.service')
     control = ampmod.AgentControl(unit, os.environ.get('AMP_SINK', 'Mustang Micro Plus')) if unit else None

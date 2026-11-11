@@ -45,6 +45,7 @@ Most keys work as in the desktop app:
 | Page Down / Up | turn the PDF's pages |
 | g | guitar tone: the amp's presets for this song (see below) |
 | G | learn: the amp's current preset from here on (in the first 3 s: from the start) |
+| r / R | record a take through the amp's USB / the song's takes (see below) |
 | F11 | full screen |
 | ? | key overview |
 
@@ -64,8 +65,10 @@ text larger. Chord lines, the lines under them and tab lines are never changed, 
 lines no longer than 90 % of the song's lines stay whole. Heuristic:
 `ChordsPlay/textfit.py`.
 
-**Not yet in the web app:** editing tones (the knobs; use the desktop app, tones are
-shared through `web.migrate merge`), filter import/export to files.
+**Only in the desktop app:** filter import/export to files, and changing a cue's time
+(here: delete the cue and save it again at the new position). Cues, artist presets and
+tones made in the desktop app reach the web app through `web.migrate merge` (see
+"Operating it"); nothing flows back from the web app to a desktop app's database.
 
 ## A TV or tablet as display
 
@@ -155,15 +158,19 @@ every device plays them.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.
   Set it up once on that computer (next to the amp agent of the desktop app):
-  1. `g` → *Bridge link…*: copy the line into `~/.config/chordsplay/bridge.env`.
+  1. `g` → *Set up amp control…*: copy the line it shows into
+     `~/.config/chordsplay/bridge.env`.
   2. `contrib/install-amp-bridge.sh` (from a checkout of this repo).
   It starts the amp agent while the amp is connected as an audio device, like the
-  desktop app does. A new bridge link ends the previous one.
-* The top right shows what the bridge reports: `amp 19 80S Rock`, `amp ▶ <tone>`,
-  `amp idle · 19 80S Rock`, or `amp bridge offline` (nothing heard for 30 s). *Idle*: after
-  5 minutes without a switch the agent drops the Bluetooth control link to save the amp's
-  battery. Sound (Bluetooth audio, USB) is a separate connection and keeps playing; the
-  next switch wakes the link, which takes a few seconds.
+  desktop app does. Making a new line ends the previous one.
+* The top right shows what the bridge reports: `Mustang 19 80S Rock`, `Mustang ▶ <tone>`,
+  `Mustang idle · 19 80S Rock`, `Mustang not connected`, or `amp control off` (nothing
+  heard from the bridge for 30 s). *Idle*: after 5 minutes without a switch **and with no
+  Bluetooth audio streaming to the amp**, the agent drops the Bluetooth control link to
+  save the amp's battery; the next switch wakes the link, which takes a few seconds
+  (measured 2.7–3.4 s, once 14 s). While a song streams over Bluetooth the link stays
+  up, so switches within a song are not delayed. With the song on USB instead, the
+  agent sees no stream and can go idle during a long song.
 * **Suggested presets** for songs with no preset of their own and none for their artist:
   the local LLM on host6 puts each song into a sound (clean, crunch, hard rock, …; with
   the artist's genres from MusicBrainz as a hint) and says whether it knows the song.
@@ -188,28 +195,37 @@ flowchart LR
   subgraph nas[NAS]
     share[("music share<br>songs, PDF tabs")]
   end
+  ug(["Ultimate Guitar"])
   subgraph host6["host6: the server"]
-    apache["Apache + Authelia"]
-    web["ChordsPlay web server<br>page, songs, events, takes"]
+    apache["Apache + Authelia<br>/chordsplay/d/ without login"]
+    web["ChordsPlay web server<br>page, songs, events, takes<br>library scan"]
     db[("one database")]
+    llm["local LLM (Ollama)<br>suggested sounds"]
+    sync["old sync service<br>for the desktop apps"]
   end
   subgraph host7["amp computer (host7)"]
     ctl["browser: controller<br>plays the song"]
     bridge["amp control 1: bridge<br>(web/bridge.py)"]
     agent["amp control 2: amp agent<br>(maneline mmp_web.py)"]
+    tk["desktop app (Tk)<br>optional, own database"]
   end
   mmp["Mustang Micro Plus"]
   disp["browser: display<br>TV, tablet, phone"]
   share -- NFS --> web
   web <--> db
+  web -- "chords, once per song" --> ug
+  web --> llm
+  web <-- chords --> sync
+  tk <-- chords --> sync
+  tk -. localhost .-> agent
   apache <--> web
   ctl <-- "page, audio, now playing" --> apache
   disp -- follows --> apache
   bridge <-- "outbound: follows, reports, takes" --> apache
-  bridge -- localhost --> agent
+  bridge -- "localhost HTTP" --> agent
   ctl == "song: Bluetooth audio" ==> mmp
-  agent -. "control: Bluetooth LE" .-> mmp
-  mmp == "USB: recording" ==> bridge
+  agent -. "control: Bluetooth LE<br>switch, audition, save" .-> mmp
+  mmp == "USB: recording<br>(song + guitar)" ==> bridge
 ```
 
 * **Server (host6):** one database for every device; scans the library, fetches chords,
@@ -219,23 +235,26 @@ flowchart LR
 * **Display:** any browser; shows only, needs no login (a link with a code, or a TV
   paired once).
 * **Amp control** is two programs on the amp computer. The **amp agent** (maneline) holds
-  the Mustang's single control connection, which needs a heartbeat every 0.5 s: only a
-  program that always runs can do that, not a browser tab; the desktop app uses it too.
+  the Mustang's single control connection, which needs a heartbeat at least every 0.5 s
+  (the agent sends one every 0.25 s): only a program that always runs can do that, not
+  a browser tab; the desktop app uses it too.
   The **bridge** (ChordsPlay) connects the agent with the web app: it follows your song
   from the server and tells the agent what to play, without an open port (it connects
   out, like a display), and records takes from the Mustang's USB.
 
-```
-browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/app.py 127.0.0.1:8616 (host6)
-                                                                              |-- ~/.local/share/chordsplay-web/chordsplay.db
-                                                                              '-- music: /srv/music (NFS)
-```
+Addresses: the browser talks to Apache on port 443 under `/chordsplay/` (Authelia
+login, except `/chordsplay/d/`), Apache passes it on to `web/app.py` on
+`127.0.0.1:8616`. The database is `~/.local/share/chordsplay-web/chordsplay.db`, the
+music comes from `/srv/music` (NFS).
 
 * `web/app.py` (Flask, served by waitress): JSON API, the page (`web/static/`), the audio
   files with range requests. All queries go through `ChordsPlay/db.py`, unchanged.
 * One database for all devices: play history, tags, filters and the playlist order
-  are no longer per device. It has the Tk app's schema plus a table `web_state`
-  (the current song per user).
+  are no longer per device. It has the Tk app's schema plus the web app's own tables:
+  `web_state` (per user: the current song, *Play suggestions automatically*),
+  `display_codes`, `tv_devices`/`tv_pairings`, `bridge_tokens`, `takes`, the PDF tables
+  (`web/pdfs.py`), `amp_presets` (`web/presets.py`) and the suggestion tables
+  (`web/suggest.py`).
 * The library scan and the Ultimate Guitar fetch run in the server (`ChordsPlay/scan.py`),
   at start and every 24 hours.
 * User: Apache passes the Authelia name as `X-Remote-User` (and drops what a client
@@ -247,12 +266,18 @@ browser (controller)  --https-->  Apache :443 /chordsplay/ (Authelia)  -->  web/
   `api/events` and `d/<code>/events`.
 * Amp bridge (`web/bridge.py`, standard library plus `ChordsPlay/amp.py`): follows
   `d/bridge/<token>/events` (song and position; `plan` when cues were edited; `cmd` for
-  *Try now*), fetches the song's cues (`d/bridge/<token>/song/<id>`), picks the cue with
-  the desktop app's own logic (`AmpCues`, 0.3 s early) and switches through the agent
-  (`AmpClient`). It reports the amp's state every 10 s or on a change
-  (`PUT d/bridge/<token>/amp`), which the controller pages get as `amp` events. The
-  token is stored only as a hash (table `bridge_tokens`, one per user). Display codes are in the table `display_codes`
-  (10 characters from a 31-letter alphabet, ~49 bits; an unknown code costs a 1 s wait).
+  *Try now*, reading a slot for the knobs, writing an amp slot, starting and stopping a
+  take), fetches the song's cues (`d/bridge/<token>/song/<id>`), picks the cue with
+  the desktop app's own logic (`AmpCues`, 0.3 s early) and switches or auditions through
+  the agent (`AmpClient`). It reports the amp's state every 10 s or on a change
+  (`PUT d/bridge/<token>/amp`), which the controller pages get as `amp` events, and
+  uploads what the server asked for (`PUT …/preset/<slot>`, `PUT …/take/<id>`). The
+  token is stored only as a hash (table `bridge_tokens`, one per user).
+* Display codes are in the table `display_codes` (10 characters from a 31-letter
+  alphabet, ~49 bits; an unknown code costs a 1 s wait). A paired TV (`d/tv/`) shows a
+  6-character code for 10 minutes; once the logged-in page approves it, the TV gets a
+  random token as an HttpOnly cookie for `/chordsplay/d/tv` (kept 3 years, only its
+  hash stored in `tv_devices`).
 * Audio comes from the NFS mount, not from media-find as the plan suggested: the scanner
   needs the files anyway (tags), and no media-find service account is needed. The unit
   mounts the share if it is missing (the fstab entry has `users`).
@@ -307,9 +332,9 @@ flowchart LR
 | First database | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db --central /opt/chordsplay-sync/chordsplay-central.db` |
 | Add another host's history | copy its `~/.chordsplay.py.db` over (Tk app closed), then `../venv/bin/python -m web.migrate merge <file>`; plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins). Songs locked there (tag x) bring their text: it replaces ours and goes to the sync service with its lock |
 | Logs | `journalctl --user -u chordsplay-web` |
-| Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`, `CHORDSPLAY_SYNC_URL` + `CHORDSPLAY_SYNC_TOKEN` (push new chords to the old sync service, so the Tk apps get them) |
+| Settings | `~/.config/chordsplay/web.env`: `CHORDSPLAY_USER_MAP=authelia=dbuser,...`, `CHORDSPLAY_SCAN_HOURS`, `CHORDSPLAY_SYNC_URL` + `CHORDSPLAY_SYNC_TOKEN` (the server's scanner pulls from and pushes to the old sync service, so the desktop apps and the web app share their chords); more settings: the head of `web/app.py` |
 | Apache | `/etc/apache2/public.d/locations/chordsplay.conf` (= `contrib/apache-chordsplay-web.conf`, with `flushpackets=on` for the event streams) and `<Location "/chordsplay/">` in `/etc/apache2/homeauth.conf` |
-| Displays and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs a display code (read only) or the bridge token (follow the session, report the amp's state); the app serves nothing else there. |
+| Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block in `homeauth.conf` (since 2026-11-10). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets and takes); the app serves nothing else there. |
 | After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-20261110-221319 --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
 | Amp bridge (amp computer) | `contrib/install-amp-bridge.sh`; unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `contrib/match-preset-levels.sh` |
 
@@ -323,9 +348,13 @@ python3 -m venv /tmp/wv && /tmp/wv/bin/pip install -r web/requirements.txt
 `tests/test_textfit.py` covers the comment wrapping, `tests/test_web.py` the API (filter,
 order, saved filters, song text, audio ranges, played, tags, current song, proxy login),
 the displays (code, state, event stream, unknown and ended codes, no way from `/d/` to the
-controller API, QR code, hub wake-up), the amp (cues, artist preset, learn, bridge token,
-the bridge playing cues, edits, *Try now* with slot and tone, nothing while paused) and the
-migration (plays, tags, cues, tones and levels merged once, newer central chords win).
+controller API, TV pairing, QR code, hub wake-up), the amp (cues, artist preset, learn,
+bridge token, the bridge playing cues, edits, *Try now* with slot and tone, level-matched
+play, knobs read through the bridge, *original* with knobs, saving a tone and writing a
+slot, nothing while paused), takes (recorded, uploaded and played; no USB), PDF tabs
+(linking by name, by hand, next to the song, view and display), suggestions (run once,
+precedence, reject, sound table) and the migration (plays, tags, cues, tones and levels
+merged once, a locked text taken over, newer central chords win).
 
 Manual check in a browser (headless Chromium with Playwright did this for 0.1): play,
 pause, next/previous, filter with live count and regex errors, tags by key, played count
