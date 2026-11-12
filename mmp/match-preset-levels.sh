@@ -24,15 +24,26 @@
 # your playing off the new levels. The corrections are imported once every preset is measured.
 # FRESH=1 starts over with a new backup.
 #
-# Usage: mmp/match-preset-levels.sh [output dir]
+# Usage: mmp/match-preset-levels.sh [output dir]   (from the package: chordsplay-match-levels)
 #   SIGNAL_SINK=<PipeWire sink> if the headphone output isn't found automatically.
 #   MEASURE_SLOTS=1-20 measures only these slots.
 # Nothing is written to the amp: presets are read and auditioned on slot 100 only.
 set -euo pipefail
 
-HERE=$(cd "$(dirname "$0")/.." && pwd)
+HERE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# maneline's programs: from the checkout mmp/install-amp-agent.sh made, else the
+# commands of the package maneline-mmp
 AGENT=$HOME/.local/share/chordsplay/maneline
-PYTHON=$AGENT-venv/bin/python
+if [ -x "$AGENT-venv/bin/python" ] && [ -f "$AGENT/scripts/mmp_level.py" ]; then
+    MMP_BACKUP=("$AGENT-venv/bin/python" "$AGENT/scripts/mmp_backup.py")
+    MMP_LEVEL=("$AGENT-venv/bin/python" "$AGENT/scripts/mmp_level.py")
+elif command -v mmp-level >/dev/null && command -v mmp-backup >/dev/null; then
+    MMP_BACKUP=(mmp-backup)
+    MMP_LEVEL=(mmp-level)
+else
+    echo "maneline's Micro Plus programs are not installed (mmp/install-amp-agent.sh or the package maneline-mmp)." >&2
+    exit 1
+fi
 OUT=${1:-$HOME/.local/share/chordsplay/levels}
 BRIDGE_ENV=$HOME/.config/chordsplay/bridge.env
 
@@ -65,14 +76,13 @@ if [ -n "${FRESH:-}" ]; then
     rm -f "$CURRENT"
 fi
 
-cd "$AGENT/scripts"
 if [ -s "$CURRENT" ] && [ -d "$(cat "$CURRENT")" ]; then
     BACKUP=$(cat "$CURRENT")
     echo "== Going on with $BACKUP (FRESH=1 starts over)"
 else
     BACKUP=$OUT/backup-$(date +%Y%m%d-%H%M%S)
     echo "== Reading the presets as they are now"
-    "$PYTHON" mmp_backup.py --out "$BACKUP"
+    "${MMP_BACKUP[@]}" --out "$BACKUP"
     echo "$BACKUP" > "$CURRENT"
 fi
 if [ "$METHOD" = played ]; then
@@ -81,7 +91,7 @@ else
     echo "== Measuring every preset with the test tone (about 5 s each)"
 fi
 status=0
-"$PYTHON" mmp_level.py "${MEASURE[@]}" survey "$BACKUP" --slots "${MEASURE_SLOTS:-1-99}" \
+"${MMP_LEVEL[@]}" "${MEASURE[@]}" survey "$BACKUP" --slots "${MEASURE_SLOTS:-1-99}" \
     --overlap "${OVERLAP:-2}" || status=$?
 if [ $status -eq 3 ]; then
     echo "Stopped. Run $0 again to go on; nothing is imported yet."

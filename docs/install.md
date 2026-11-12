@@ -10,7 +10,7 @@ Two parts, installed separately:
 
 There are two ways to install: from a git checkout, for the current user and without
 root (most of this page), or the web server [from a package](#the-web-server-from-a-package)
-as a system service.
+as a system service, with the Mustang parts [from packages](#the-mustang-parts-from-packages) too.
 
 ## What you need
 
@@ -31,7 +31,7 @@ For the Mustang parts, on the amp computer:
 * PipeWire with `pactl` (finding the amp) and, for recording takes, `pw-record` and
   `opusenc` (package `opus-tools`).
 * Python 3.11 or newer with `venv`, `git`; internet access at install time (maneline
-  from GitHub, `bleak` and `dbus-fast` from PyPI).
+  from GitHub, `dbus-fast` from PyPI).
 * A web server installed as above, reachable from the amp computer.
 
 ## The web server from a checkout
@@ -133,7 +133,35 @@ After installing the package:
   to your former user name: that is the database user the server used so far. Then
   `contrib/install.sh --uninstall web` and start `chordsplay`.
 
-## The Mustang parts
+## The Mustang parts from packages
+
+The same repositories as for [the web server](#the-web-server-from-a-package) have
+`chordsplay-mmp` (the amp bridge, its units, the level-matching command) and
+`maneline-mmp` (maneline's Micro Plus programs, which it needs). On the computer the
+amp is paired with, after adding the repository as described there:
+
+```bash
+sudo zypper install chordsplay-mmp        # Arch: pacman -S, Debian: apt install
+```
+
+Both parts run as systemd units of **your** user, the one whose session has the amp's
+Bluetooth audio:
+
+1. Pair the amp for audio and over Bluetooth LE, with `Experimental = true` in BlueZ's
+   `main.conf`: `MUSTANG_MICRO_PLUS_LINUX.md` in the documentation of `maneline-mmp`.
+2. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
+   into `~/.config/chordsplay/bridge.env` (mode 600: the token in it is the bridge's key).
+3. `systemctl --user enable --now chordsplay-amp-bridge`. The bridge starts the amp
+   agent (`chordsplay-amp-agent.service`) whenever the amp is connected.
+
+If port 8081 is taken on that computer, put `AMP_AGENT_PORT=8091` into
+`~/.config/chordsplay/amp-agent.env`. Equal loudness of all presets needs one
+measurement: `chordsplay-match-levels` (docs/web.md, "Guitar tone").
+
+**Debian 13 and Raspberry Pi OS 13** ship BlueZ 5.82. The amp agent needs 5.84 or newer;
+the packages install there, but the agent cannot connect until BlueZ is newer.
+
+## The Mustang parts from a checkout
 
 On the computer the amp is paired with, from a checkout of this repo:
 

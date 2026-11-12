@@ -8,7 +8,7 @@
 %define appdir %{_datadir}/%{name}
 
 Name:           chordsplay
-Version:        1.1
+Version:        1.2
 Release:        0
 Summary:        Play your music in the browser with lyrics and guitar chords
 License:        AGPL-3.0-or-later AND Apache-2.0
@@ -45,6 +45,27 @@ reverse proxy (an Apache example is in the documentation).
 
 The bundled PDF viewer PDF.js is under the Apache License 2.0.
 
+%package mmp
+Summary:        ChordsPlay amp control for the Fender Mustang Micro Plus
+Requires:       maneline-mmp
+Requires:       opus-tools
+Requires:       pipewire-tools
+Requires:       pulseaudio-utils
+Requires:       python3 >= 3.11
+Requires:       python3-numpy
+
+%description mmp
+The optional Mustang Micro Plus parts of ChordsPlay, for the computer the amp
+is paired with (it may be the server or another one): the amp bridge, which
+follows the ChordsPlay page and switches the amp to the preset stored for the
+playing song, and the script that measures all presets so they are equally
+loud (chordsplay-match-levels).
+
+Both run as systemd user units of the user whose session has the amp's
+Bluetooth audio: chordsplay-amp-bridge.service, which starts
+chordsplay-amp-agent.service (mmp-web from the package maneline-mmp) while
+the amp is connected. See install.md in the documentation of chordsplay.
+
 %prep
 %autosetup -n %{name}-%{version}
 
@@ -62,6 +83,7 @@ install -D -m 0755 packaging/chordsplay %{buildroot}%{_bindir}/chordsplay
 install -D -m 0644 packaging/chordsplay.service %{buildroot}%{_unitdir}/chordsplay.service
 install -D -m 0644 packaging/chordsplay.sysusers %{buildroot}%{_sysusersdir}/chordsplay.conf
 install -D -m 0644 packaging/chordsplay.env %{buildroot}%{_sysconfdir}/chordsplay/chordsplay.env
+packaging/mmp/install.sh %{buildroot}
 
 %check
 python3 -m unittest discover -s tests
@@ -88,5 +110,13 @@ python3 -m unittest discover -s tests
 %{_sysusersdir}/chordsplay.conf
 %dir %{_sysconfdir}/chordsplay
 %config(noreplace) %{_sysconfdir}/chordsplay/chordsplay.env
+
+%files mmp
+%license LICENSE
+%doc docs/spec-amp.md
+%{_bindir}/chordsplay-match-levels
+%{_datadir}/chordsplay-mmp
+%{_userunitdir}/chordsplay-amp-agent.service
+%{_userunitdir}/chordsplay-amp-bridge.service
 
 %changelog

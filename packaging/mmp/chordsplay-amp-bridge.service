@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# ChordsPlay amp bridge, as installed from the package chordsplay-mmp: follows the
+# web app and switches the Mustang Micro Plus through the amp agent on this computer.
+# A user unit: systemctl --user enable --now chordsplay-amp-bridge. See docs/web.md.
+[Unit]
+Description=ChordsPlay amp bridge (web app -> amp agent)
+After=network-online.target
+
+[Service]
+Environment=PYTHONPATH=/usr/share/chordsplay-mmp PYTHONDONTWRITEBYTECODE=1
+# the agent's port, if it is not 8081 (AMP_AGENT_PORT)
+EnvironmentFile=-%h/.config/chordsplay/amp-agent.env
+# CHORDSPLAY_BRIDGE_URL (the line from the page's tone dialog) and optional settings
+EnvironmentFile=%h/.config/chordsplay/bridge.env
+ExecStart=/usr/bin/python3 -m mmp.bridge
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

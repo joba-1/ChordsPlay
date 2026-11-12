@@ -15,6 +15,9 @@ execute_after_dh_install:
 	find debian/chordsplay/usr/share/chordsplay -name '*.py' -exec chmod 0644 {} +
 	rm -f debian/chordsplay/usr/share/chordsplay/web/requirements.txt
 
+execute_after_dh_auto_install:
+	packaging/mmp/install.sh debian/chordsplay-mmp
+
 # as in the other packages: the admin sets the music folders first, then enables it
 override_dh_installsystemd:
-	dh_installsystemd --no-enable --no-start
+	dh_installsystemd -pchordsplay --no-enable --no-start

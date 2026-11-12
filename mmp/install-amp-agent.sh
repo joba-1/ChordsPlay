@@ -6,8 +6,8 @@
 #
 # Defaults (override via environment):
 #   MANELINE_REPO    git URL       https://github.com/joba-1/maneline.git
-#   MANELINE_BRANCH  branch/commit micro-plus-preset-backup  (Linux LE bearer, idle disconnect,
-#                                  audition + preset API; based on upstream PRs #139/#140)
+#   MANELINE_BRANCH  branch/commit micro-plus-preset-backup  (Linux LE bearer without bleak, idle
+#                                  disconnect, audition + preset API)
 #   MANELINE_REPO may also be a local checkout, e.g. ~/project/mustang-micro-test/maneline
 #   AMP_PORT         agent port    8081, or what an earlier run stored in $ENV_FILE
 set -euo pipefail
@@ -48,7 +48,9 @@ echo "maneline: $(git -C "$DEST" log --oneline -1)"
 # Versions tested with the Micro Plus on firmware 1.0.29 and BlueZ 5.87
 [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --quiet --upgrade pip
-"$VENV/bin/pip" install --quiet --upgrade 'bleak==3.0.2' 'dbus-fast==5.2.0'
+"$VENV/bin/pip" install --quiet --upgrade 'dbus-fast==5.2.0'
+# maneline no longer uses bleak on Linux: it asks BlueZ for the paired amp
+"$VENV/bin/pip" uninstall --quiet --yes bleak 2>/dev/null || true
 
 install -D -m 644 "$HERE/$UNIT" "$UNIT_DIR/$UNIT"
 systemctl --user daemon-reload

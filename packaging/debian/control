@@ -19,3 +19,15 @@ Description: Play your music in the browser with lyrics and guitar chords
  The package installs the server as the system service chordsplay.service with
  its own user. Settings are in /etc/chordsplay/chordsplay.env, the data is in
  /var/lib/chordsplay. Publish it through a reverse proxy with a login.
+
+Package: chordsplay-mmp
+Architecture: all
+Depends: ${misc:Depends}, python3 (>= 3.11), maneline-mmp, python3-numpy, pulseaudio-utils, pipewire-bin, opus-tools
+Description: ChordsPlay amp control for the Fender Mustang Micro Plus
+ The optional Mustang Micro Plus parts of ChordsPlay, for the computer the amp
+ is paired with: the amp bridge, which follows the ChordsPlay page and switches
+ the amp to the preset stored for the playing song, and the script that
+ measures all presets so they are equally loud (chordsplay-match-levels).
+ .
+ Both run as systemd user units: chordsplay-amp-bridge.service, which starts
+ chordsplay-amp-agent.service (mmp-web from the package maneline-mmp).

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Mustang Micro Plus amp agent for ChordsPlay, as installed from the package
+# chordsplay-mmp: maneline's mmp-web (package maneline-mmp) owns the single
+# Bluetooth LE connection to the amp (see docs/spec-amp.md). A user unit without
+# [Install] section: the amp bridge starts it while the amp's audio sink exists.
+[Unit]
+Description=Mustang Micro Plus amp agent for ChordsPlay (maneline mmp-web)
+After=bluetooth.target
+
+[Service]
+Type=simple
+# --idle-disconnect: save the amp's battery when idle; stays connected while
+#   Bluetooth audio streams to the amp, so switching during a song is instant.
+# --log /dev/null: the protocol log records every heartbeat (4/s, ~1 MB/hour).
+# Port: AMP_AGENT_PORT in ~/.config/chordsplay/amp-agent.env; the bridge reads the same file.
+Environment=AMP_AGENT_PORT=8081
+EnvironmentFile=-%h/.config/chordsplay/amp-agent.env
+ExecStart=/usr/bin/mmp-web --port ${AMP_AGENT_PORT} --idle-disconnect 300 --log /dev/null
+Restart=on-failure
+RestartSec=5

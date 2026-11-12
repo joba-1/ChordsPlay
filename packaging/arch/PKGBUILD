@@ -1,25 +1,27 @@
 # SPDX-FileCopyrightText: 2016-2026 joba1
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Maintainer: joba1 <joba-1@users.noreply.github.com>
-pkgname=chordsplay
-pkgver=1.1
+pkgbase=chordsplay
+pkgname=(chordsplay chordsplay-mmp)
+pkgver=1.2
 pkgrel=1
 pkgdesc="Play your music in the browser with lyrics and guitar chords"
 arch=('any')
 url="https://github.com/joba-1/ChordsPlay"
 license=('AGPL-3.0-or-later AND Apache-2.0')
-depends=('python>=3.11' 'python-flask' 'python-waitress' 'python-mutagen' 'python-qrcode')
-backup=('etc/chordsplay/chordsplay.env')
-source=("$pkgname-$pkgver.tar.xz")
+makedepends=('python>=3.11' 'python-flask' 'python-waitress' 'python-mutagen' 'python-qrcode')
+source=("$pkgbase-$pkgver.tar.xz")
 sha256sums=('SKIP')
 
 check() {
-    cd "$pkgname-$pkgver"
+    cd "$pkgbase-$pkgver"
     python -m unittest discover -s tests
 }
 
-package() {
-    cd "$pkgname-$pkgver"
+package_chordsplay() {
+    depends=('python>=3.11' 'python-flask' 'python-waitress' 'python-mutagen' 'python-qrcode')
+    backup=('etc/chordsplay/chordsplay.env')
+    cd "$pkgbase-$pkgver"
     install -d "$pkgdir/usr/share/chordsplay"
     cp -a ChordsPlay web "$pkgdir/usr/share/chordsplay/"
     find "$pkgdir/usr/share/chordsplay" -name __pycache__ -prune -exec rm -rf {} +
@@ -32,4 +34,13 @@ package() {
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/chordsplay/LICENSE"
     install -Dm644 -t "$pkgdir/usr/share/doc/chordsplay" README.md docs/install.md docs/web.md \
         contrib/chordsplay.env.example contrib/apache-chordsplay-web.conf
+}
+
+package_chordsplay-mmp() {
+    pkgdesc="ChordsPlay amp control for the Fender Mustang Micro Plus"
+    depends=('python>=3.11' 'maneline-mmp' 'python-numpy' 'libpulse' 'pipewire' 'opus-tools')
+    cd "$pkgbase-$pkgver"
+    packaging/mmp/install.sh "$pkgdir"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/chordsplay-mmp/LICENSE"
+    install -Dm644 docs/spec-amp.md "$pkgdir/usr/share/doc/chordsplay-mmp/spec-amp.md"
 }

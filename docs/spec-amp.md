@@ -225,7 +225,7 @@ the first tone after start-up comes a moment later.
   bearer, idle disconnect, audition, stored-preset and save API, `mmp_backup.py`,
   `mmp_level.py`, `mmp_restore.py`, `mmp_check.py`) to `~/.local/share/chordsplay/maneline`;
   `MANELINE_REPO` may be a local checkout. Run it again to update an older install
-* creates a venv with pinned `bleak` and `dbus-fast`
+* creates a venv with pinned `dbus-fast`
 * installs the user unit `chordsplay-amp-agent.service` (not enabled: the bridge starts it)
 
 Then `mmp/install-amp-bridge.sh` installs the bridge (web.md, "Guitar tone").
