@@ -1,0 +1,4 @@
+ChordsPlay usr/share/chordsplay
+web usr/share/chordsplay
+packaging/chordsplay usr/bin
+packaging/chordsplay.env etc/chordsplay

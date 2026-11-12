@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: AGPL-3.0-or-later
+%:
+	dh $@
+
+override_dh_auto_test:
+	python3 -m unittest discover -s tests
+
+execute_before_dh_install:
+	cp -f packaging/chordsplay.sysusers debian/chordsplay.sysusers
+	cp -f packaging/chordsplay.service debian/chordsplay.service
+
+execute_after_dh_install:
+	find debian/chordsplay/usr/share/chordsplay -name __pycache__ -prune -exec rm -rf {} +
+	find debian/chordsplay/usr/share/chordsplay -name '*.py' -exec chmod 0644 {} +
+	rm -f debian/chordsplay/usr/share/chordsplay/web/requirements.txt
+
+# as in the other packages: the admin sets the music folders first, then enables it
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start

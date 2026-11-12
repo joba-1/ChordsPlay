@@ -1,0 +1,21 @@
+Source: chordsplay
+Section: sound
+Priority: optional
+Maintainer: joba1 <joba-1@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13), dh-sequence-installsysusers, python3 (>= 3.11), python3-flask, python3-waitress, python3-mutagen, python3-qrcode
+Standards-Version: 4.7.0
+Homepage: https://github.com/joba-1/ChordsPlay
+Rules-Requires-Root: no
+
+Package: chordsplay
+Architecture: all
+Depends: ${misc:Depends}, python3 (>= 3.11), python3-flask, python3-waitress, python3-mutagen, python3-qrcode
+Description: Play your music in the browser with lyrics and guitar chords
+ ChordsPlay is a web server for your music collection: any browser plays the
+ songs while the page shows each song's lyrics and guitar chords, fetched from
+ Ultimate Guitar and drawn as large as the screen allows. One server holds the
+ songs, chords, tags, filters and play history.
+ .
+ The package installs the server as the system service chordsplay.service with
+ its own user. Settings are in /etc/chordsplay/chordsplay.env, the data is in
+ /var/lib/chordsplay. Publish it through a reverse proxy with a login.

@@ -1,0 +1,5 @@
+README.md
+docs/install.md
+docs/web.md
+contrib/chordsplay.env.example
+contrib/apache-chordsplay-web.conf
