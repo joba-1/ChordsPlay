@@ -7,7 +7,7 @@ as the player. See docs/web.md.
 The server keeps the songs, chords, tags, filters and play history, serves the
 audio files and the page. The browser plays the audio (it is the device paired
 with the Mustang) and reports finished songs back. Displays (TV, tablet) and the
-amp bridge (web/bridge.py, switches the Mustang's presets) follow the browser
+amp bridge (mmp/bridge.py, switches the Mustang's presets) follow the browser
 over server-sent events.
 
 Shared modules: ChordsPlay.db for all queries, ChordsPlay.scan for the library
@@ -695,7 +695,7 @@ def tags(song_id):
                          for tid, key, on, name in db.getUserTags(song_id)])
 
 
-# --- amp: cues per song, played by the amp bridge (web/bridge.py) ----------------
+# --- amp: cues per song, played by the amp bridge (mmp/bridge.py) ----------------
 #
 # The bridge runs next to the amp agent (maneline's mmp_web.py) on the machine the
 # amp is paired with. It follows the user's 'now' state over an outbound event
@@ -789,7 +789,7 @@ def amp():
 @app.route('/api/amp/suggest-auto', methods=['PUT'])
 def suggest_auto():
     '''{on: true}: songs without their own or their artist's preset play the suggested one.
-    Off by default: the model says it "knows" nearly every song (2026-11-10: 98 %), so the
+    Off by default: the model says it "knows" nearly every song (98 % in a test), so the
     suggestions are shown, and played only once you choose to (after setting the presets by ear).'''
     db = get_db()
     set_state(db, 'suggest_auto', bool((request.get_json(silent=True) or {}).get('on')))
@@ -1332,7 +1332,7 @@ def start_scanner():
 def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
-    db = ChordsPlay.db.Db(DB_PATH, DEFAULT_USER)    # create it or migrate the schema before serving
+    db = ChordsPlay.db.Db(DB_PATH, DEFAULT_USER)    # create it before serving
     try:
         folders = add_music_dirs(db, os.environ.get('CHORDSPLAY_MUSIC_DIRS', ''))
     finally:

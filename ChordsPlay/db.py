@@ -63,6 +63,7 @@ class Db(object):
                 lyrics_url    text default null,
                 capo          int default null check(capo is null or (capo >= 0 and capo <= 11)),
                 chord_update  text default null,
+                modified      text default null,
                 unique        (title, artist)
             );
             create index if not exists songs_ix1 on songs (
@@ -120,12 +121,17 @@ class Db(object):
                 start_ms      int not null default 0 check(start_ms >= 0),
                 slot          int not null check(slot between 1 and 100),
                 slot_name     text,
+                tone_id       integer default null references tones(id) on delete set null,
+                level_db      real default null,
+                params        text default null,
                 primary key   (song_id, start_ms)
             );
             create table if not exists artist_presets (
                 artist        text not null primary key,
                 slot          int not null check(slot between 1 and 100),
-                slot_name     text
+                slot_name     text,
+                level_db      real default null,
+                params        text default null
             );
             create table if not exists tones (
                 id            integer not null primary key autoincrement,
@@ -149,37 +155,7 @@ class Db(object):
                 json_dict     text not null,
                 primary key   (user_id, name)
             );
-            drop table if exists filters;
-            drop table if exists filter_patterns;
-            drop table if exists filter_song_lists;
-            drop table if exists filter_chords;
-            drop table if exists filter_tags;
         """)
-        # modified: time of the last content change (chords, capo, tags). Kept
-        # separate from chord_update, which stays the "chords fetched" marker used
-        # by uncheckedSongs(). Added via migration for existing DBs. (Databases of
-        # the retired sync also have a column `dirty` and a table sync_state;
-        # nothing reads them any more.)
-        try:
-            self.conn.execute("ALTER TABLE songs ADD COLUMN modified text default null")
-        except sqlite3.OperationalError:
-            pass  # column already present
-        # a cue may play a tone (auditioned on the live slot) instead of a preset slot
-        try:
-            self.conn.execute("ALTER TABLE song_presets ADD COLUMN tone_id integer default null "
-                              "references tones(id) on delete set null")
-        except sqlite3.OperationalError:
-            pass  # column already present
-        # how a cue or an artist preset sounds (web app): level_db NULL plays the slot as
-        # stored; a number plays it level-matched (measured correction) plus level_db, by
-        # audition; params are knob settings like a tone's ({"reverb.wetlvl": 0.3, ...})
-        for table in ('song_presets', 'artist_presets'):
-            for column in ('level_db real default null', 'params text default null'):
-                try:
-                    self.conn.execute("ALTER TABLE {} ADD COLUMN {}".format(table, column))
-                except sqlite3.OperationalError:
-                    pass  # column already present
-
         try:
             self.conn.execute("insert into users (name) values (?)", (user,))
             log.info("created user {}".format(user))

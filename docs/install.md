@@ -2,257 +2,184 @@
 
 Two parts, installed separately:
 
-* **The web server** (`web`): everything except amp control. One computer that can
-  read the music; any browser then plays.
-* **The Mustang parts** (`mmp`): only for a Fender Mustang Micro Plus, on the computer
-  the amp is paired with (it may be the server or another one): the amp agent and the
-  amp bridge.
+* **The web server** (package `chordsplay`): everything except amp control. One computer
+  that can read the music; any browser then plays.
+* **The Mustang parts** (package `chordsplay-mmp`, which brings `maneline-mmp`): only for a
+  Fender Mustang Micro Plus, on the computer the amp is paired with (the server or
+  another one).
 
-There are two ways to install: from a git checkout, for the current user and without
-root (most of this page), or the web server [from a package](#the-web-server-from-a-package)
-as a system service, with the Mustang parts [from packages](#the-mustang-parts-from-packages) too.
+Packages are the normal way. Installing from a git checkout, for the current user and
+without root, is described [at the end](#from-a-git-checkout) for developers.
 
-## What you need
-
-For the web server:
-
-* Linux with systemd (the service runs as a systemd user unit).
-* Python 3.11 or newer with the `venv` module (Debian and Raspberry Pi OS:
-  `python3-venv`), `git`, `rsync`.
-* Internet access at install time (Flask, waitress, mutagen and qrcode come from PyPI
-  into a venv of their own) and later for the chords from Ultimate Guitar.
-* The music as files with title and artist tags (MP3, M4A, Ogg), readable by your user.
-
-For the Mustang parts, on the amp computer:
-
-* BlueZ 5.86 or newer with `Experimental = true`, and the amp paired for audio and over
-  Bluetooth LE: see `docs/MUSTANG_MICRO_PLUS_LINUX.md` in maneline (the installer says
-  where it put it).
-* PipeWire with `pactl` (finding the amp) and, for recording takes, `pw-record` and
-  `opusenc` (package `opus-tools`).
-* Python 3.11 or newer with `venv`, `git`; internet access at install time (maneline
-  from GitHub, `dbus-fast` from PyPI).
-* A web server installed as above, reachable from the amp computer.
-
-## The web server from a checkout
-
-```bash
-git clone https://github.com/joba-1/ChordsPlay.git
-cd ChordsPlay
-contrib/install.sh --music /path/to/your/music web
-```
-
-Several folders: `--music /one:/two`. The script
-
-1. copies the program to `~/.local/share/chordsplay-web/app` and makes a venv next to it;
-2. creates the settings file `~/.config/chordsplay/web.env` from the template
-   `contrib/chordsplay.env.example`, if there is none yet;
-3. installs, enables and starts the user unit `chordsplay-web.service`.
-
-Then open <http://127.0.0.1:8616/> on that computer. The first start creates the database
-and scans the music; songs appear in the list as their chords arrive (a large library
-takes hours, a few seconds per song). `journalctl --user -u chordsplay-web -f` shows
-the progress.
-
-* **Running without being logged in** (a server): `loginctl enable-linger $USER`.
-* **From other devices:** the server has no login of its own and listens on this computer
-  only. Put a reverse proxy with a login in front of it: `contrib/apache-chordsplay-web.conf`
-  is an example for Apache (see docs/web.md, "Operating it"). Displays and the amp
-  bridge reach the server through the same address as the browser.
-* **Settings:** edit `~/.config/chordsplay/web.env` (every setting is explained there),
-  then `systemctl --user restart chordsplay-web`.
-* **A network share** for the music that isn't always mounted at boot: set
-  `CHORDSPLAY_MUSIC_MOUNT` there.
-
-To see what the script would do, without doing it: `contrib/install.sh -n web`.
-
-## The web server from a package
-
-The package `chordsplay` (openSUSE: `packaging/rpm/`; Arch: `packaging/arch/`; Debian, Raspberry Pi OS: `packaging/debian/`) installs the
-server as the system service `chordsplay.service` with a user of its own, and takes
-Flask, waitress, mutagen and qrcode from the distribution: no venv, no PyPI.
-
-| What | Where |
-|---|---|
-| settings | `/etc/chordsplay/chordsplay.env` |
-| database, takes, PDF tabs | `/var/lib/chordsplay` (`chordsplay.db`, `takes/`, `pdf/`) |
-| program | `/usr/share/chordsplay`, command `chordsplay` |
-| every setting, Apache example, these docs | `/usr/share/doc/packages/chordsplay` (Arch, Debian: `/usr/share/doc/chordsplay`) |
+## Adding the repository
 
 The packages are built on the openSUSE Build Service, project
 [home:joba1:chordsplay](https://build.opensuse.org/project/show/home:joba1:chordsplay).
-`R` below is `https://download.opensuse.org/repositories/home:/joba1:/chordsplay`.
+In the commands, `R=https://download.opensuse.org/repositories/home:/joba1:/chordsplay`.
 
-openSUSE Tumbleweed (for Leap put `16.0` or `16.1` in place of `openSUSE_Tumbleweed`):
+| System | Repository name |
+|---|---|
+| openSUSE Tumbleweed | `openSUSE_Tumbleweed` |
+| openSUSE Leap 16.0, 16.1 | `16.0`, `16.1` |
+| Arch, CachyOS, Omarchy | `Arch` |
+| Debian 13, Raspberry Pi OS 13 64-bit (default on Pi 4 and 5, possible on Pi 3 and Zero 2) | `Debian_13` |
+| Raspberry Pi OS 13 32-bit | `Raspbian_13` |
+| Debian testing | `Debian_Testing` |
+
+openSUSE:
 
 ```bash
 sudo zypper addrepo -f $R/openSUSE_Tumbleweed/home:joba1:chordsplay.repo
-sudo zypper install chordsplay
 ```
 
-Arch, CachyOS, Omarchy: add to `/etc/pacman.conf`
+Arch: add to `/etc/pacman.conf`
 
 ```ini
 [home_joba1_chordsplay_Arch]
 Server = https://download.opensuse.org/repositories/home:/joba1:/chordsplay/Arch/$arch
 ```
 
-then
+then trust its key:
 
 ```bash
 curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | sudo pacman-key --add -
 sudo pacman-key --lsign-key "$(curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | gpg --show-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
-sudo pacman -Syu chordsplay       # -Syu: Arch does not support installing onto a partly updated system
 ```
 
-Debian 13 and Raspberry Pi OS based on it (there `Raspbian_13` in place of `Debian_13`;
-for Debian testing `Debian_Testing`):
+Debian and Raspberry Pi OS:
 
 ```bash
 curl -fsSL $R/Debian_13/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay.gpg > /dev/null
 echo "deb [signed-by=/etc/apt/keyrings/chordsplay.gpg] $R/Debian_13/ /" | sudo tee /etc/apt/sources.list.d/chordsplay.list
-sudo apt update && sudo apt install chordsplay
+sudo apt update
 ```
 
-After installing the package:
-
-1. Set `CHORDSPLAY_MUSIC_DIRS` in `/etc/chordsplay/chordsplay.env`. The user `chordsplay`
-   must be able to read the folders.
-2. `sudo systemctl enable --now chordsplay`, then open <http://127.0.0.1:8616/>.
-   `journalctl -u chordsplay -f` shows the progress of the first scan.
-
-* **A network share** for the music that is mounted late: `sudo systemctl edit chordsplay`
-  and add `[Unit]` with `RequiresMountsFor=/mnt/music` (your mount point).
-* **From other devices:** a reverse proxy with a login, as for the checkout install below.
-* **Updating:** with the system's package updates; the service is restarted, settings and
-  data are kept.
-* **Removing** the package keeps `/var/lib/chordsplay` and a changed settings file.
-* **Moving from a checkout install** to the package: stop both services, copy
-  `~/.local/share/chordsplay-web/chordsplay.db`, `takes/` and `pdf/` to `/var/lib/chordsplay`,
-  give them to the user `chordsplay` (`chown -R chordsplay:chordsplay /var/lib/chordsplay`),
-  carry your settings over from `~/.config/chordsplay/web.env`, and set `CHORDSPLAY_USER`
-  to your former user name: that is the database user the server used so far. Then
-  `contrib/install.sh --uninstall web` and start `chordsplay`.
-
-## The Mustang parts from packages
-
-The same repositories as for [the web server](#the-web-server-from-a-package) have
-`chordsplay-mmp` (the amp bridge, its units, the level-matching command) and
-`maneline-mmp` (maneline's Micro Plus programs, which it needs). On the computer the
-amp is paired with, after adding the repository as described there:
+## The web server
 
 ```bash
-sudo zypper install chordsplay-mmp        # Arch: pacman -Syu, Debian: apt install
+sudo zypper install chordsplay      # Arch: sudo pacman -Syu chordsplay   Debian: sudo apt install chordsplay
 ```
 
-Both parts run as systemd units of **your** user, the one whose session has the amp's
-Bluetooth audio:
+On Arch install with `-Syu`: Arch does not support installing onto a partly updated system.
 
-1. Prepare BlueZ once: put `Experimental = true` into the `[General]` section of
-   `/etc/bluetooth/main.conf` (openSUSE ships no such file: create it with the two lines
-   `[General]` and `Experimental = true`), `sudo systemctl restart bluetooth`, and pair
-   the amp for audio as usual. Then, with the amp switched on:
+1. Set `CHORDSPLAY_MUSIC_DIRS` (the music folders, `:`-separated) in
+   `/etc/chordsplay/chordsplay.env`. The user `chordsplay` must be able to read them; the
+   music are files with title and artist tags (MP3, M4A, Ogg).
+2. `sudo systemctl enable --now chordsplay`, then open <http://127.0.0.1:8616/> on that
+   computer. The first start creates the database and scans the music; songs appear as
+   their chords arrive from Ultimate Guitar (a few seconds per song).
+   `journalctl -u chordsplay -f` shows the progress.
 
-   ```bash
-   sudo mmp-bluez-setup AA:BB:CC:DD:EE:FF        # the amp's address (bluetoothctl devices)
-   ```
+| What | Where |
+|---|---|
+| settings | `/etc/chordsplay/chordsplay.env` (every setting with its default: `chordsplay.env.example` in the docs) |
+| database, takes, PDF tabs | `/var/lib/chordsplay` |
+| program | `/usr/share/chordsplay`, command `chordsplay` |
+| Apache example, these docs | `/usr/share/doc/packages/chordsplay` (Arch, Debian: `/usr/share/doc/chordsplay`) |
 
-   This is maneline's setup script: it pairs the amp over Bluetooth LE as well and removes
-   one entry from BlueZ's cache that the amp does not answer. It restarts Bluetooth once,
-   so all Bluetooth devices reconnect. What it does and why, and the same by hand:
-   `MUSTANG_MICRO_PLUS_LINUX.md` in the documentation of `maneline-mmp`.
-2. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
+* **From other devices:** the server has no login of its own and listens on its own
+  computer only. Put a reverse proxy with a login in front of it:
+  `apache-chordsplay-web.conf` in the docs is an example for Apache
+  ([web.md](web.md), "Operating it"). Displays and the amp bridge reach the server
+  through the same address as the browser.
+* **A network share** that is mounted late at boot: `sudo systemctl edit chordsplay` and
+  add `[Unit]` with `RequiresMountsFor=/mnt/music` (your mount point).
+* **Updating** comes with the system's package updates; the service is restarted,
+  settings and data are kept.
+
+## The Mustang parts
+
+On the computer the amp is paired with, after adding the repository:
+
+```bash
+sudo zypper install chordsplay-mmp  # Arch: sudo pacman -Syu chordsplay-mmp   Debian: sudo apt install chordsplay-mmp
+```
+
+**BlueZ 5.86 or newer** is needed:
+
+| System | BlueZ |
+|---|---|
+| Tumbleweed, Arch, Debian testing | the system's own is new enough |
+| Leap 16.0, 16.1 | our repository has a current `bluez` (openSUSE's own development package); zypper asks to change the vendor of `bluez`: accept |
+| Debian 13, Raspberry Pi OS 13 | add the opt-in repository below |
+
+The opt-in repository for Debian 13 and Raspberry Pi OS 13 has Debian testing's BlueZ 5.88
+with Raspberry Pi OS's own audio patch. It replaces the system's Bluetooth stack: add it
+only on the amp computer, and remove it once the system ships 5.86 or newer. It is not
+official and has not yet run on a real Pi. 32-bit Raspberry Pi OS: `Raspbian_13`.
+
+```bash
+B=https://download.opensuse.org/repositories/home:/joba1:/chordsplay:/bluez/Debian_13
+curl -fsSL $B/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay-bluez.gpg > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/chordsplay-bluez.gpg] $B/ /" | sudo tee /etc/apt/sources.list.d/chordsplay-bluez.list
+sudo apt update && sudo apt upgrade && sudo reboot
+```
+
+Then, once:
+
+1. Put `Experimental = true` into the `[General]` section of `/etc/bluetooth/main.conf`
+   (openSUSE has no such file: create it with these two lines), then
+   `sudo systemctl restart bluetooth`. Pair the amp for audio as usual.
+2. With the amp switched on: `sudo mmp-bluez-setup AA:BB:CC:DD:EE:FF` (the amp's address,
+   `bluetoothctl devices`). It pairs the amp over Bluetooth LE as well and removes an entry
+   from BlueZ's cache that the amp does not answer; Bluetooth restarts once. What it does,
+   and the same by hand: `MUSTANG_MICRO_PLUS_LINUX.md` in the docs of `maneline-mmp`.
+3. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
    into `~/.config/chordsplay/bridge.env` (mode 600: the token in it is the bridge's key).
-3. `systemctl --user enable --now chordsplay-amp-bridge`. The bridge starts the amp
-   agent (`chordsplay-amp-agent.service`) whenever the amp is connected.
+4. `systemctl --user enable --now chordsplay-amp-bridge`. It runs as **your** user, the
+   one whose session has the amp's Bluetooth audio, and starts the amp agent
+   (`chordsplay-amp-agent.service`) whenever the amp is connected. The page's top right
+   shows the amp's state.
 
-If port 8081 is taken on that computer, put `AMP_AGENT_PORT=8091` into
-`~/.config/chordsplay/amp-agent.env`. Equal loudness of all presets needs one
-measurement: `chordsplay-match-levels` (docs/web.md, "Guitar tone").
-
-**openSUSE Leap** itself has no `opus-tools` (`opusenc`, needed for recording takes;
-everything else works without). The openSUSE multimedia project builds it (for Leap 16.1 put `16.1` in place of `16.0`):
-
-```bash
-sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo
-sudo zypper install opus-tools
-```
-
-**BlueZ 5.86 or newer** is needed by the amp agent. Tumbleweed and Arch have it.
-
-* **openSUSE Leap 16.0 and 16.1** ship an older one (5.79, 5.82). The repository has a
-  current `bluez` for them, a build of openSUSE's own development package, and
-  `maneline-mmp` requires it. It replaces a part of the system, so zypper asks whether to
-  change the vendor of `bluez` when you install `chordsplay-mmp`: accept that, or do it first:
-
-  ```bash
-  sudo zypper install --from home_joba1_chordsplay --allow-vendor-change bluez
-  ```
-
-* **Debian 13 and Raspberry Pi OS 13** ship 5.82. A separate, opt-in repository has Debian
-  testing's BlueZ 5.88 rebuilt for them, with Raspberry Pi OS's own audio patch. It replaces
-  the system's Bluetooth stack, so add it only on the computer the amp is paired with:
-
-  ```bash
-  B=https://download.opensuse.org/repositories/home:/joba1:/chordsplay:/bluez/Debian_13
-  curl -fsSL $B/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay-bluez.gpg > /dev/null
-  echo "deb [signed-by=/etc/apt/keyrings/chordsplay-bluez.gpg] $B/ /" | sudo tee /etc/apt/sources.list.d/chordsplay-bluez.list
-  sudo apt update && sudo apt upgrade
-  ```
-
-  For 32-bit Raspberry Pi OS put `Raspbian_13` in place of `Debian_13`; 64-bit Raspberry
-  Pi OS (the default on a Pi 4 and 5) uses `Debian_13`. It is not an official package and
-  has not run on a real Pi yet; remove the repository once your system ships 5.86 or newer.
-  Debian testing has 5.88 itself: use the `Debian_Testing` repository on such a system.
-
-## The Mustang parts from a checkout
-
-On the computer the amp is paired with, from a checkout of this repo:
-
-```bash
-contrib/install.sh mmp
-```
-
-The first run installs the amp agent (maneline's `mmp_web.py`, with a venv, in
-`~/.local/share/chordsplay/`). Prepare BlueZ once as in step 1 above; the script is
-`~/.local/share/chordsplay/maneline/scripts/bluez_setup.sh` here. Then the one step
-left by hand:
-
-1. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
-   into `~/.config/chordsplay/bridge.env`.
-2. Run `contrib/install.sh mmp` again: it installs and starts the amp bridge
-   (`chordsplay-amp-bridge.service`).
-
-The page's top right then shows the amp's state. If port 8081 is taken on that computer,
-run `AMP_PORT=8091 contrib/install.sh mmp` once; the port is kept for later runs.
-
-Equal loudness of all presets needs one measurement: `mmp/match-preset-levels.sh`
-(docs/web.md, "Guitar tone").
-
-## Updating
-
-```bash
-cd ChordsPlay
-git pull
-contrib/install.sh web        # and/or mmp, on the computer that has it
-```
-
-The same command as the install: it replaces the program, updates the dependencies and
-restarts the service. The settings file and the database are kept; the database's
-schema is brought up to date at the start.
+* Equal loudness of all presets needs one measurement: `chordsplay-match-levels`
+  ([web.md](web.md), "Guitar tone").
+* Port 8081 taken on that computer: `AMP_AGENT_PORT=8091` in
+  `~/.config/chordsplay/amp-agent.env`.
+* Recording takes needs `opusenc`. openSUSE Leap has it only in the openSUSE multimedia
+  project: `sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo`
+  (or `16.1`), then `sudo zypper install opus-tools`.
 
 ## Removing
 
 ```bash
-contrib/install.sh --uninstall web     # and/or mmp
+sudo zypper remove chordsplay chordsplay-mmp maneline-mmp     # Arch: sudo pacman -Rns …   Debian: sudo apt purge …
 ```
 
-stops and removes the service and the program. It keeps your data and settings and
-says where they are: the database, takes and PDFs in `~/.local/share/chordsplay-web`,
-level measurements in `~/.local/share/chordsplay/levels`, the settings in
-`~/.config/chordsplay`. Delete those by hand if you want them gone.
+The data stays, so a later install picks it up again. To remove it as well:
 
-## Coming from the desktop app
+| What | Where |
+|---|---|
+| database, takes, PDF tabs | `/var/lib/chordsplay` |
+| settings | `/etc/chordsplay` (openSUSE keeps a changed file as `.rpmsave`, Arch as `.pacsave`; `apt purge` removes it) |
+| service user | `chordsplay` (`sudo userdel chordsplay`) |
+| amp computer, per user | `~/.config/chordsplay`, `~/.local/share/chordsplay/levels` (level measurements and preset backups), `~/.local/share/maneline-mmp` |
+| BlueZ | Leap: `sudo zypper removerepo home_joba1_chordsplay`, then `sudo zypper install --oldpackage "bluez<5.86"`; Debian: remove `/etc/apt/sources.list.d/chordsplay-bluez.list`, `sudo apt update`, then `sudo apt install --allow-downgrades bluez/trixie` |
 
-A database of the former desktop app (`~/.chordsplay.py.db`) can be taken over instead
-of starting empty: docs/web.md, "Operating it", *Data of the former desktop app*.
+## From a git checkout
+
+For developers: the same two parts as systemd user units of the current user, without
+root, with the Python packages from PyPI in a venv.
+
+Needs Linux with systemd, Python 3.11 or newer with `venv` (Debian: `python3-venv`), `git`
+and `rsync`. For the Mustang parts also PipeWire (`pactl`, `pw-record`), `opusenc` and the
+BlueZ setup above.
+
+```bash
+git clone https://github.com/joba-1/ChordsPlay.git && cd ChordsPlay
+contrib/install.sh --music /path/to/your/music web     # the web server
+contrib/install.sh mmp                                 # the Mustang parts, on the amp computer
+```
+
+* **web** copies the program to `~/.local/share/chordsplay-web/app` with a venv, creates
+  `~/.config/chordsplay/web.env` from `contrib/chordsplay.env.example` and starts the user
+  unit `chordsplay-web.service`. Logs: `journalctl --user -u chordsplay-web`. Without being
+  logged in (a server): `loginctl enable-linger $USER`. A network share that is mounted
+  late: `CHORDSPLAY_MUSIC_MOUNT` in `web.env`.
+* **mmp** installs maneline's agent from the fork `joba-1/maneline` with a venv in
+  `~/.local/share/chordsplay/` (its setup script is `maneline/scripts/bluez_setup.sh`
+  there). With the line from step 3 above in `~/.config/chordsplay/bridge.env`, run it
+  again: it installs and starts the bridge. Another agent port: `AMP_PORT=8091` once.
+* **Update:** `git pull`, then the same command again.
+* **Remove:** `contrib/install.sh --uninstall web` (and/or `mmp`); data and settings stay,
+  the script says where.
+* `-n` shows what the script would do.

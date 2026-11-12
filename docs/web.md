@@ -1,4 +1,4 @@
-# ChordsPlay web app (version 1.0)
+# ChordsPlay: using and operating it
 
 ChordsPlay in the browser. The examples assume it is published by a reverse proxy at
 `https://example.org/chordsplay/`, behind a login (see "Operating it"); on the server
@@ -127,10 +127,10 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
 48 kHz, as the amp sends it), `r` again stops it; the top right shows `● REC 0:12`.
 The amp bridge records on the computer the amp is connected to by USB, compresses
 the take to Opus (192 kbit/s, about 4 MB for 3 minutes) and sends it to the server
-(`~/.local/share/chordsplay-web/takes`, `CHORDSPLAY_TAKES_DIR`). `R` (or *Takes*) lists
+(`/var/lib/chordsplay/takes`, `CHORDSPLAY_TAKES_DIR`). `R` (or *Takes*) lists
 the song's takes: ▶ plays one, ✕ deletes it. A take holds the **whole mix**: the amp
-mixes the song arriving over Bluetooth into its USB output (measured 2026-11-10: −92.5 dBFS
-with nothing playing, −41 dBFS with a song and the strings quiet). A take nobody stops ends after 20 minutes.
+mixes the song arriving over Bluetooth into its USB output (measured: −92.5 dBFS with
+nothing playing, −41 dBFS with a song and the strings quiet). A take nobody stops ends after 20 minutes.
 
 ## PDF tabs
 
@@ -145,7 +145,7 @@ as large as one alone.
 * **Where a tab belongs: next to its song**, like a hand-saved song text, with the song
   file's name and `.pdf`: `13 Cruz.mp3` → `13 Cruz.pdf`. A part goes after ` - `:
   `13 Cruz - Solo.pdf`. The library folders are always scanned for these.
-* Other folders on the server (`CHORDSPLAY_PDF_DIRS`, default `~/.local/share/chordsplay-web/pdf`):
+* Other folders on the server (`CHORDSPLAY_PDF_DIRS`, default `/var/lib/chordsplay/pdf`):
   there a file named `Artist - Title.pdf` or
   `Artist - Title - Part.pdf` (`Queen - Hammer To Fall - Solo 1.pdf`) links itself to its
   song; case, punctuation and a leading "The" don't matter. `V` (or *PDF*) lists all PDFs: choose the song for one that didn't link
@@ -165,7 +165,7 @@ every device plays them.
   it and save it again at the new position.
 * **Level** (next to the presets): *original* plays the preset as stored in the amp. A
   number plays it **level-matched**: with the correction from your level measurement
-  (`mmp/match-preset-levels.sh`, see below), so every preset at *matched* (0 dB) is equally
+  (`chordsplay-match-levels`, see below), so every preset at *matched* (0 dB) is equally
   loud, plus −6 … +6 dB (e.g. +3 for a solo). It is stored with the cue, the artist
   preset and the preset per sound, and used by *Try now*. Level-matched presets play
   by audition on slot 100 (nothing is written to the amp); a preset that wasn't
@@ -176,24 +176,20 @@ every device plays them.
   knobs with the cue or the artist, together with the level; ✎ in a cue's row loads
   it for changing, ⤓ stores the current choice into that cue. With *original* the
   preset keeps its own volume. The server knows each slot's preset from a backup
-  (`python -m web.presets import BACKUP_DIR`) and asks the bridge to read a slot again
+  (`chordsplay presets import BACKUP_DIR`) and asks the bridge to read a slot again
   when the amp's name for it changed.
 * **Keep a tuned sound:** *Save as tone…* names it (preset, level, knobs); it is then in
   the *Tones* list for any song. *Write to amp slot…* writes it into a free slot of the
   amp (72–99), so the amp's own buttons call it up too: built exactly as it is heard by
   audition, read back after writing. The factory presets (1–71) and slot 100 (used for
-  auditions) are never written. maneline's `mmp_restore.py` puts slots back from a backup.
+  auditions) are never written. `mmp-restore` (maneline) puts slots back from a backup.
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.
-  Set it up once on that computer ([install.md](install.md), "The Mustang parts"):
-  0. `contrib/install.sh mmp` installs the amp agent (maneline's `mmp_web.py`); the
-     one-time Bluetooth setup is in [spec-amp.md](spec-amp.md), "Agent installation".
-  1. `g` → *Set up amp control…*: copy the line it shows into
-     `~/.config/chordsplay/bridge.env`.
-  2. `contrib/install.sh mmp` again (from a checkout of this repo): it installs the bridge.
-  It starts the amp agent while the amp is connected as an audio device. Making a new
-  line ends the previous one.
+  Set it up once on that computer as described in [install.md](install.md), "The
+  Mustang parts": the package `chordsplay-mmp`, the one-time Bluetooth setup, and the
+  line from `g` → *Set up amp control…* in `~/.config/chordsplay/bridge.env`. The bridge
+  starts the amp agent while the amp is connected. Making a new line ends the previous one.
 * The top right shows what the bridge reports: `Mustang 19 80S Rock`, `Mustang ▶ <tone>`,
   `Mustang idle · 19 80S Rock`, `Mustang not connected`, or `amp control off` (nothing
   heard from the bridge for 30 s). *Idle*: after 5 minutes without a switch **and with no
@@ -207,22 +203,23 @@ every device plays them.
   puts each song into a sound (clean, crunch, hard rock, …; with
   the artist's genres from MusicBrainz as a hint) and says whether it knows the song.
   Suggestions are **only shown** until you tick *Play suggestions automatically* (under
-  *Preset per sound*): the model claims to know nearly every song (98 % on 2026-11-10,
+  *Preset per sound*): the model claims to know nearly every song (98 % in a test,
   album tracks of German singers included), so set the presets by ear first. Then songs
   it "knows" are switched; guesses never are. `g` shows the suggestion,
   with *Use from start* (store it as the song's own) and *Reject*. Under *Preset per
   sound* you set which preset each sound plays: the table starts as a draft by preset
   names and is meant to be set by ear. New songs get a suggestion after each library
-  scan (`python -m web.suggest` runs it by hand). Order when a song plays: its own cues,
+  scan. Order when a song plays: its own cues,
   the artist's preset, the suggestion, `AMP_DEFAULT_SLOT` of the bridge.
 * The bridge switches only while a song plays.
-* **The same level for every preset:** on the amp computer, with the bridge stopped
-  (`systemctl --user stop chordsplay-amp-bridge`; the script says so), run
-  `mmp/match-preset-levels.sh` in one of two ways:
+* **The same level for every preset:** on the amp computer, with the bridge and the agent
+  stopped (`systemctl --user stop chordsplay-amp-bridge chordsplay-amp-agent`; the
+  command says so), run `chordsplay-match-levels` (from a checkout:
+  `mmp/match-preset-levels.sh`) in one of two ways:
   * **With a cable:** connect the computer's headphone output to the amp's plug with an
     adapter cable (3.5 mm stereo plug to 6.35 mm socket). The script measures every
     preset with a test tone (about 5 s each).
-  * **Without a cable:** `PLAYED=1 mmp/match-preset-levels.sh`. You play the same short
+  * **Without a cable:** `PLAYED=1 chordsplay-match-levels`. You play the same short
     riff for every preset when prompted (4 s each, about ±1 dB).
   * **Pause any time** with Enter (after the current preset); Enter again goes on, with
     the practice takes first. **Stop** with Ctrl+C and run the same command again later:
@@ -253,7 +250,7 @@ flowchart LR
   subgraph ampc["amp computer"]
     ctl["browser: controller<br>plays the song"]
     bridge["amp control 1: bridge<br>(mmp/bridge.py)"]
-    agent["amp control 2: amp agent<br>(maneline mmp_web.py)"]
+    agent["amp control 2: amp agent<br>(maneline mmp-web)"]
   end
   mmp["Mustang Micro Plus"]
   disp["browser: display<br>TV, tablet, phone"]
@@ -287,12 +284,12 @@ flowchart LR
 
 Addresses: the browser talks to the reverse proxy (Apache in the example) on port 443
 under `/chordsplay/` (with a login, except `/chordsplay/d/`), which passes it on to
-`web/app.py` on `127.0.0.1:8616`. The database is
-`~/.local/share/chordsplay-web/chordsplay.db`; the music is in the folders of
-`CHORDSPLAY_MUSIC_DIRS`, local or a network share.
+`web/app.py` on `127.0.0.1:8616`. The database is `/var/lib/chordsplay/chordsplay.db`
+(checkout install: `~/.local/share/chordsplay-web/chordsplay.db`); the music is in the
+folders of `CHORDSPLAY_MUSIC_DIRS`, local or a network share.
 
 * `web/app.py` (Flask, served by waitress): JSON API, the page (`web/static/`), the audio
-  files with range requests. All queries go through `ChordsPlay/db.py`, unchanged.
+  files with range requests. All queries go through `ChordsPlay/db.py`.
 * One database for all devices: play history, tags, filters and the playlist order
   are the same everywhere. Besides the tables of `ChordsPlay/db.py` it has the web app's own:
   `web_state` (per user: the current song, *Play suggestions automatically*),
@@ -323,86 +320,29 @@ under `/chordsplay/` (with a login, except `/chordsplay/d/`), which passes it on
   random token as an HttpOnly cookie for `/chordsplay/d/tv` (kept 3 years, only its
   hash stored in `tv_devices`).
 * Audio is read from the music folders directly: the scanner needs the files anyway
-  (tags). For a network share that isn't always mounted at boot, set
-  `CHORDSPLAY_MUSIC_MOUNT` to its mount point: the unit then mounts it if it is missing
-  (the fstab entry needs `users`, since the unit doesn't run as root).
-
-## Possible, not built: the sound on the TV
-
-Decided 2026-11-11 not to build it for now; recorded so it can be picked up later.
-
-Today the device with this page plays the song, because it is the one paired with the
-Mustang by Bluetooth; a display only shows. "Sound on the TV" would be a switch on the
-controller (*Sound: here / on the TV*):
-
-```mermaid
-flowchart LR
-  subgraph server
-    srv["ChordsPlay server<br>songs, state, events"]
-    files[("music share<br>audio files")]
-  end
-  ctl["controller page<br>(plays muted: keeps position,<br>'played', repeat)"]
-  tv["TV display page<br>&lt;audio&gt; plays the song"]
-  spk(["TV speakers"])
-  mmp["Mustang Micro Plus"]
-  gtr(["guitar"])
-  ears(["headphones / amp"])
-  ctl -- "now: song, position t,<br>playing, sound=tv" --> srv
-  srv -- "event stream<br>(as for every display)" --> tv
-  files -- "song (HTTP, seekable)" --> tv
-  tv -- "sound" --> spk
-  gtr --> mmp --> ears
-```
-
-* The TV loads the same audio file as the controller (`d/tv/audio/<id>`, only the
-  current song) and follows play/pause/song changes from the event stream. It computes
-  where the controller is (`t` plus the time since `at`, corrected for the clock
-  offset) and seeks when it is more than ~0.25 s off; the drift is small because both
-  play the same file.
-* The controller keeps playing, muted: its position stays the reference, and "played"
-  and the repeat at the end work as before.
-* Browsers start sound only after a key press on the device: the TV shows "Press OK to
-  play the sound here" once.
-* Consequences: the song no longer goes through the Mustang (you hear it from the TV, the
-  guitar from the Mustang's headphones or an amp), and a take then holds only the
-  guitar. The TV's delay (100–200 ms) doesn't matter, as with Bluetooth: the song isn't
-  tied to the guitar's timing. Good for playing to the room or with friends; for
-  practising with headphones the song through the Mustang stays better.
+  (tags). A network share that is mounted late at boot: see [install.md](install.md).
 
 ## Operating it
 
 | What | How |
 |---|---|
-| Install / update / remove | [install.md](install.md): `contrib/install.sh web` (copies the checkout to `~/.local/share/chordsplay-web/app`, venv, restarts the user unit `chordsplay-web.service`) |
-| Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two` in the settings: the folders are added to the library at start and scanned at start and every 24 hours. The database is created at the first start |
-| Data of the former desktop app | `cd ~/.local/share/chordsplay-web/app && ../venv/bin/python -m web.migrate init ~/.chordsplay.py.db` instead of a new database, and `../venv/bin/python -m web.migrate merge <file>` for another computer's database (desktop app closed): plays, tags, saved filters, amp cues, artist presets, tones and level corrections are added, nothing twice (what the web DB has already wins). Songs locked there (tag x) bring their text, which replaces ours |
-| Logs | `journalctl --user -u chordsplay-web` |
-| Settings | `~/.config/chordsplay/web.env`, from the template `contrib/chordsplay.env.example` (all settings with their defaults): `CHORDSPLAY_MUSIC_DIRS`, `CHORDSPLAY_USER_MAP=loginname=dbuser,...`, `CHORDSPLAY_SCAN_HOURS` … The file is yours: it is not in the repo, and a copy in a checkout (`*.env`) is ignored by git |
-| Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User` |
-| Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets and takes); the app serves nothing else there. |
-| After a Mustang firmware update | on the amp computer: `cd ~/.local/share/chordsplay/maneline/scripts && ~/.local/share/chordsplay/maneline-venv/bin/python mmp_check.py ~/.local/share/chordsplay/levels/backup-<date> --all` (connection, firmware against the backup, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
-| Amp bridge (amp computer) | `contrib/install.sh mmp` ([install.md](install.md)); unit `chordsplay-amp-bridge.service`, logs `journalctl --user -u chordsplay-amp-bridge`; stop it before `mmp/match-preset-levels.sh` |
+| Install, update, remove | [install.md](install.md) |
+| Settings | `/etc/chordsplay/chordsplay.env` (checkout install: `~/.config/chordsplay/web.env`); every setting with its default: `contrib/chordsplay.env.example`. Restart the service after a change |
+| Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two`: added to the library at start, scanned at start and every 24 hours. The database is created at the first start |
+| Logs | `journalctl -u chordsplay` (checkout install: `journalctl --user -u chordsplay-web`) |
+| Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User`, and `CHORDSPLAY_USER_MAP=loginname=dbuser,...` where names differ |
+| Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets, takes and level surveys); the app serves nothing else there |
+| Amp bridge (amp computer) | user unit `chordsplay-amp-bridge.service` (package `chordsplay-mmp`), logs `journalctl --user -u chordsplay-amp-bridge -u chordsplay-amp-agent` |
+| After a Mustang firmware update | on the amp computer: `mmp-check <backup dir> --all` (connection, firmware against a backup made with `mmp-backup`, names, presets, switching, audition; `--write` also saving on slot 99, put back at the end) |
 
 ## Tests
 
 ```bash
-python3 -m venv /tmp/wv && /tmp/wv/bin/pip install -r web/requirements.txt
-/tmp/wv/bin/python -m unittest discover -s tests     # test_web.py is skipped without Flask
+python3 -m venv venv && venv/bin/pip install -r web/requirements.txt
+venv/bin/python -m unittest discover -s tests     # test_web.py is skipped without Flask
 ```
 
-`tests/test_textfit.py` covers the comment wrapping, `tests/test_web.py` the API (filter,
-order, saved filters, song text, audio ranges, played, tags, current song, proxy login),
-the displays (code, state, event stream, unknown and ended codes, no way from `/d/` to the
-controller API, TV pairing, QR code, hub wake-up), the amp (cues, artist preset, learn,
-bridge token, the bridge playing cues, edits, *Try now* with slot and tone, level-matched
-play, knobs read through the bridge, *original* with knobs, saving a tone and writing a
-slot, nothing while paused, a level survey sent over the bridge's link), takes (recorded, uploaded and played; no USB), PDF tabs
-(linking by name, by hand, next to the song, view and display), suggestions (run once,
-precedence, reject, sound table) and the migration (plays, tags, cues, tones and levels
-merged once, a locked text taken over) and a new install (music folders from the settings).
-
-Manual check in a browser (headless Chromium with Playwright did this for 0.1): play,
-pause, next/previous, filter with live count and regex errors, tags by key, played count
-after the end, 1600×900, 1920×1080 and 390×844 layouts, reload resumes. For 0.2 also a
-controller and a display page side by side: the display follows next/pause/play within a
-second, shows the expired message after *End all display links* (open display: ~8 s).
+`tests/test_textfit.py` covers the comment wrapping, `tests/test_web.py` the API, the
+displays and TV pairing, the amp (cues, artist presets, tones, levels, knobs, the bridge),
+takes, PDF tabs, suggestions and a new install. Tests with the amp and in a browser:
+[test.md](test.md).

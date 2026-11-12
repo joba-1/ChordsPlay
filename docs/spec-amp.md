@@ -3,8 +3,7 @@
 How ChordsPlay switches a Fender Mustang Micro Plus: the amp agent, the amp bridge
 (`mmp/bridge.py`) and the logic they share (`ChordsPlay/amp.py`: `AmpCues`, `AmpClient`,
 `AgentControl`). Using it (the tone dialog, levels, knobs, writing an amp slot, takes) is
-in [web.md](web.md). The design was first built into the former desktop app (3.34, tones
-since 3.35) and moved into the bridge unchanged.
+in [web.md](web.md).
 
 ## Goal
 
@@ -23,7 +22,7 @@ flowchart LR
     control["AgentControl<br>starts/stops the unit"]
   end
   subgraph unit["systemd user unit chordsplay-amp-agent"]
-    agent["amp agent<br>maneline mmp_web.py<br>heartbeat every 0.25 s"]
+    agent["amp agent<br>maneline mmp-web<br>heartbeat every 0.25 s"]
   end
   sink(["amp's Bluetooth audio sink<br>(pactl)"])
   mmp["Mustang Micro Plus"]
@@ -39,8 +38,8 @@ The bridge and the agent run on the computer the amp is paired with. The bridge 
 the user's session on the server (which song, where in it) and feeds `AmpCues` from the
 server's reply for the song (`SongPlan` in `mmp/bridge.py`).
 
-* **ChordsPlay never speaks Bluetooth.** The amp agent is maneline's `mmp_web.py`, running as a
-  systemd user unit. It owns the single LE connection to the amp.
+* **ChordsPlay never speaks Bluetooth.** The amp agent is maneline's `mmp-web` (package
+  `maneline-mmp`), running as a systemd user unit. It owns the single LE connection to the amp.
   * **Why:** the amp needs a heartbeat at least every 0.5 s, and only one program may hold the link
     (with two subscribers BlueZ duplicates notifications and replies get garbled).
   * The connection should also outlive restarts of the bridge, because a reconnect costs about 3 s.
@@ -64,13 +63,13 @@ server's reply for the song (`SongPlan` in `mmp/bridge.py`).
   * It only stops a unit it started itself, so an agent started by hand is left alone.
   * **Cold start:** the first switch after the amp appears waits until the agent has connected
     (measured 3–8 s). After that the connection stays up while audio streams to the amp, and a
-    switch takes 0.15–0.7 s (measured 2026-11-09).
+    switch takes 0.15–0.7 s.
   * **Idle:** after 5 minutes without a switch and without Bluetooth audio streaming, the agent
     drops the control link (`--idle-disconnect 300`); the next switch reconnects first (about
     3 s). The state then says `asleep`: the page shows "Mustang idle".
-* **Cue writes vs. the scanner:** the library scan used to hold SQLite's write lock for 100 files
-  at a time (seconds over NFS), which made storing a cue wait for about 3 s. The scan now commits
-  at least every 0.2 s (`scan.py`, `COMMIT_INTERVAL`).
+* **Cue writes vs. the scanner:** the library scan commits at least every 0.2 s (`scan.py`,
+  `COMMIT_INTERVAL`), so storing a cue never waits long for SQLite's write lock (a scan over
+  NFS is slow).
 
 ## Data model (SQLite, the server's database)
 
@@ -129,15 +128,15 @@ Slot 100 is reserved for tones (auditions) and never offered as a normal preset.
 
 ## Security
 
-* The agent listens on port 8081 (or `AMP_AGENT_PORT` from `~/.config/chordsplay/amp-agent.env`,
-  written by the installer's `AMP_PORT`) on all interfaces. Its host check allows only localhost and
+* The agent listens on port 8081 (or `AMP_AGENT_PORT` from `~/.config/chordsplay/amp-agent.env`)
+  on all interfaces. Its host check allows only localhost and
   this machine's hostname, and its Origin check blocks other web pages.
 * The bridge talks to the agent on `localhost` only and validates the replies. It needs no open
   port itself: it connects out to the server, and its token (in the link from the page's tone
   dialog, stored on the server only as a hash) is its only key.
 * Slot numbers are validated in the DB (`CHECK`) and in the client (1–100).
 
-## Tones: audition fiddling (added 2026-11-10)
+## Tones: audition fiddling
 
 A **tone** is a base preset (a slot), a **level offset** in dB, and **knob settings**:
 amp gain/bass/mid/treble/presence, and per effect block on/off, mix, depth, decay
@@ -176,9 +175,7 @@ the first tone after start-up comes a moment later.
 `mmp_level.py survey`):
 * Only corrections measured with a playing-level signal at the guitar input are used:
   the **signal** method (a test tone through a cable) or the **played** method (you play
-  the same riff for every preset). The corrections in use since 2026-11-10 were
-  measured with the played method; the signal method is built but not yet run with a
-  cable.
+  the same riff for every preset).
 * The **noise** method (guitar connected at volume zero, gate off) is exact for level
   *changes* within a preset. But it is wrong across presets: on the 71 factory
   presets it spans 59 dB, because noise doesn't drive distortion and compressors like
@@ -187,10 +184,10 @@ the first tone after start-up comes a moment later.
   socket) from the computer's headphone output to the amp's plug. See maneline's
   `docs/MUSTANG_MICRO_PLUS_LEVELS.md`.
 * A survey (`<backup>/levels-signal.json` or `levels-played.json`) reaches the server
-  over the bridge's link: `python3 -m mmp.bridge levels FILE` on the amp computer, which
-  `mmp/match-preset-levels.sh` does at its end; or `python -m web.presets levels FILE`
-  on the server. A noise survey is stored but not used.
-* **Played method (no cable):** `PLAYED=1 mmp/match-preset-levels.sh`. For every
+  over the bridge's link, which `chordsplay-match-levels` does at its end (by hand:
+  `python3 -m mmp.bridge levels FILE` with the bridge's settings); or
+  `chordsplay presets levels FILE` on the server. A noise survey is stored but not used.
+* **Played method (no cable):** `PLAYED=1 chordsplay-match-levels`. For every
   preset you play the same short riff when prompted, and the level of its loudest half
   of 100 ms frames is measured, so pauses don't count. It is about ±1 dB from take to
   take. The noise floor is measured once with muted strings; a first take less than
@@ -204,38 +201,26 @@ the first tone after start-up comes a moment later.
   session's offset and is taken off all its levels, so every session is on the scale of
   the first. If the repeats disagree by more than 1.5 dB the script suggests stopping and
   warming up. The levels are sent only when every preset is measured.
-* **One step, once the cable is there:** `mmp/match-preset-levels.sh` backs up the
+* **Signal method (with the cable):** `chordsplay-match-levels` backs up the
   presets, measures every slot 1–99 with the test tone (headphone output at a fixed
   40%), and sends the corrections.
   * The measurement aborts before writing anything if the tone doesn't arrive (less
     than 15 dB above the amp's level without it).
-  * A dry run without the cable on 2026-11-10 stopped there as intended.
 * **No software-only alternative:** a fuzz at full gain in front of the amp lifts the
   input noise by only 9–27 dB, far from playing level. USB and Bluetooth playback don't
   pass the amp model.
 
-**Verified 2026-11-10 on the amp:**
-* Tones built by ChordsPlay from 80S Rock at +3/+6/−3/−6 dB measured +2.9/+5.8/−3.0/−5.8
-  dB at the amp's USB output (`mmp/manual_tone_level_test.py`).
+**Measured on the amp:** tones built by ChordsPlay from 80S Rock at +3/+6/−3/−6 dB came out
+at +2.9/+5.8/−3.0/−5.8 dB at the amp's USB output (`mmp/manual_tone_level_test.py`).
 
-## Agent installation
+## Installation
 
-`mmp/install-amp-agent.sh` installs the agent:
-* clones maneline (fork `joba-1/maneline`, branch `micro-plus-preset-backup`: Linux LE
-  bearer, idle disconnect, audition, stored-preset and save API, `mmp_backup.py`,
-  `mmp_level.py`, `mmp_restore.py`, `mmp_check.py`) to `~/.local/share/chordsplay/maneline`;
-  `MANELINE_REPO` may be a local checkout. Run it again to update an older install
-* creates a venv with pinned `dbus-fast`
-* installs the user unit `chordsplay-amp-agent.service` (not enabled: the bridge starts it)
+The packages `chordsplay-mmp` (bridge, user units, `chordsplay-match-levels`) and
+`maneline-mmp` (the agent `mmp-web` and the other `mmp-*` tools); the one-time BlueZ setup
+(`Experimental = true`, pairing over LE as well, `mmp-bluez-setup`) and the bridge's line:
+[install.md](install.md), "The Mustang parts". maneline's Micro Plus programs come from the
+fork `joba-1/maneline` until upstream has them.
 
-Then `mmp/install-amp-bridge.sh` installs the bridge (web.md, "Guitar tone").
+## Open question
 
-One-time BlueZ setup (`Experimental = true`, LE pairing): maneline's
-`docs/MUSTANG_MICRO_PLUS_LINUX.md`. The fuller version (requirements, pairing from
-scratch) is on the fork's branch `micro-plus-linux-setup`, not in the installed one.
-
-## Open points
-
-* ~~Does the amp report a preset chosen with its own buttons while connected?~~ Yes (tested 2026-11-09):
-  the ◀ marker in the tone dialog follows, so `G` also learns presets set on the amp.
 * Can Fender Tone connect while the agent holds the link, or only while the agent sleeps?

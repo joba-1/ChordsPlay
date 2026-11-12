@@ -2,38 +2,40 @@
 
 Play your music collection in the browser while it shows each song's lyrics and guitar
 chords, fetched automatically from Ultimate Guitar and drawn as large as the screen
-allows.
+allows. One server holds the songs, chords and history; any browser is the player.
 
-* One server holds the songs, chords, tags, filters and play history; any browser is the
-  player.
-* A TV, tablet or second screen can show the playing song (a link or QR code, no login).
-* PDF tabs next to the song files are shown instead of the text, cropped and paged.
-* Optional, with a **Fender Mustang Micro Plus**: the amp switches to the preset stored
-  for a song (and at set times within it), all presets equally loud, knobs per song,
-  recording takes.
+## What it does
 
-Installing it as a service, with or without the Mustang parts, updating and removing:
-[docs/install.md](docs/install.md). Using and operating it: [docs/web.md](docs/web.md).
+* Chords and lyrics of the playing song, as large as the screen allows; PDF tabs next to
+  the song files instead of the text.
+* Choosing what to play: filters by title, artist, capo, chords and tags; tags per user.
+* The playing song on a TV, tablet or phone: a link or QR code, or a TV paired once.
+* With a **Fender Mustang Micro Plus**: the amp switches to the preset or tone stored for
+  the song, its artist or a part of the song; all presets equally loud; knobs per song;
+  recording takes of song and guitar through the amp's USB.
 
-## Try it from a checkout
+## Installing
 
-Needs Python 3.11 or newer.
+Packages for openSUSE Tumbleweed and Leap, Arch and CachyOS, Debian and Raspberry Pi OS:
+[docs/install.md](docs/install.md). The server needs only the music folders in its
+settings; other devices reach it through a reverse proxy with a login.
 
-```bash
-git clone https://github.com/joba-1/ChordsPlay.git && cd ChordsPlay
-python3 -m venv venv
-venv/bin/pip install -r web/requirements.txt
-CHORDSPLAY_MUSIC_DIRS=/path/to/your/music venv/bin/python -m web.app
-```
+## Documentation
 
-Open <http://127.0.0.1:8616/>. The first start creates the database
-(`~/.local/share/chordsplay-web/chordsplay.db`) and scans the music folder: every file
-with a title tag (MP3, M4A, Ogg) becomes a song, and each new song is looked up at
-Ultimate Guitar in the background. Songs appear in the list as their chords arrive;
-press `f` to choose what to play and `?` for the keys.
+| | |
+|---|---|
+| [docs/install.md](docs/install.md) | installing, updating, removing; from a checkout for developers |
+| [docs/web.md](docs/web.md) | using and operating it: keys, filters, displays, PDF tabs, guitar tone, takes |
+| [docs/spec-amp.md](docs/spec-amp.md) | how the amp control works |
+| [docs/test.md](docs/test.md) | unit tests and tests with the amp |
+| [docs/plans.md](docs/plans.md) | open points and ideas |
 
-Settings are environment variables (the music folders, the database file, the port,
-users behind a reverse proxy …): see the head of [web/app.py](web/app.py).
+## Status
+
+Version 1.2. In daily use on one server with one amp computer (CachyOS). Built and
+installed in containers for every listed system; the Mustang parts are tested with the amp
+on Arch/CachyOS, not yet on a Raspberry Pi. maneline's Micro Plus programs
+(`maneline-mmp`) come from a fork until upstream maneline has them.
 
 ## What is where
 
@@ -41,25 +43,19 @@ users behind a reverse proxy …): see the head of [web/app.py](web/app.py).
 |---|---|
 | `web/` | the server (`app.py`, Flask served by waitress) and the page (`static/`) |
 | `ChordsPlay/` | shared modules: database (`db.py`), library scan (`scan.py`, `song.py`), Ultimate Guitar fetch (`chords.py`, `http.py`), text layout (`textfit.py`), amp logic (`amp.py`) |
-| `mmp/` | the optional Mustang Micro Plus parts for the computer the amp is paired with: the amp bridge (`bridge.py`), the units, the level-matching script. Design: [docs/spec-amp.md](docs/spec-amp.md) |
-| `contrib/` | install script (`install.sh`), service unit, settings template, Apache example |
-| `packaging/` | what the distribution packages `chordsplay` and `chordsplay-mmp` install: system unit, service user, settings file, the `chordsplay` command, the Mustang parts' user units (`mmp/`); RPM spec in `rpm/`, Arch `PKGBUILD` in `arch/`, Debian files in `debian/` |
-| `tests/` | unit tests; hardware tests are described in [docs/test.md](docs/test.md) |
+| `mmp/` | the Mustang Micro Plus parts for the amp computer: the amp bridge (`bridge.py`), its units, level matching |
+| `packaging/` | what the packages install (system unit, service user, settings file, `chordsplay` command, the Mustang parts' user units) and the package files for RPM, Arch and Debian |
+| `contrib/` | install script for a checkout, settings template, Apache example |
+| `tests/` | unit tests |
 
-## Tests
+Try it from a checkout (Python 3.11 or newer):
 
 ```bash
+git clone https://github.com/joba-1/ChordsPlay.git && cd ChordsPlay
+python3 -m venv venv && venv/bin/pip install -r web/requirements.txt
+CHORDSPLAY_MUSIC_DIRS=/path/to/your/music venv/bin/python -m web.app     # http://127.0.0.1:8616/
 venv/bin/python -m unittest discover -s tests
 ```
-
-No amp, display or network needed.
-
-## The desktop app
-
-ChordsPlay began as a desktop (Tk) program with a database per computer and a sync
-service between them. Both are retired in favour of the web app; their last state is on
-the branch `legacy`. `python -m web.migrate` takes a desktop database over into the web
-app's (see its `--help`).
 
 ## Licence
 

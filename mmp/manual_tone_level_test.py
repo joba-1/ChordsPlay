@@ -12,9 +12,9 @@ Needs:
 * the agent installed (mmp/install-amp-agent.sh).
 
 Nothing is saved on the amp; at the end it selects the preset it started on.
-Run it with the agent's venv, which has numpy:
+Needs numpy (with the package maneline-mmp: python3-numpy / python-numpy):
 
-  ~/.local/share/chordsplay/maneline-venv/bin/python mmp/manual_tone_level_test.py [slot]
+  python3 mmp/manual_tone_level_test.py [slot]
 
 Expected: every level offset measures within 1 dB of what was set.
 '''
@@ -24,7 +24,10 @@ import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# maneline's scripts: the checkout mmp/install-amp-agent.sh made, else the package maneline-mmp
 AGENT = os.path.expanduser('~/.local/share/chordsplay/maneline/scripts')
+if not os.path.isdir(AGENT):
+    AGENT = '/usr/share/maneline-mmp/scripts'
 sys.path.insert(0, REPO)
 sys.path.insert(0, AGENT)
 from ChordsPlay.amp import AgentControl, AmpClient, build_tone   # noqa: E402

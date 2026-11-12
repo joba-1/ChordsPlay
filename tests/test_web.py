@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2016-2026 joba1
 # SPDX-License-Identifier: AGPL-3.0-or-later
 '''
-Tests for the web app (web/app.py) and the database migration (web/migrate.py).
+Tests for the web app (web/app.py).
 
 Run from the repo root:  <venv with web/requirements.txt>/bin/python -m unittest discover -s tests
-Skipped when Flask is not installed (the Tk app's venv does not need it).
+Skipped when Flask is not installed.
 '''
 
 import json
@@ -745,69 +745,6 @@ class NewInstall(unittest.TestCase):
             self.assertEqual(web.app.add_music_dirs(db, tmp + ':' + os.path.join(tmp, 'more') + ':'), 2)
             self.assertEqual(web.app.add_music_dirs(db, tmp), 2)        # once added, kept; nothing twice
             self.assertEqual({name for (name,) in db.getSongLists()}, {'', tmp, os.path.join(tmp, 'more')})
-            db.close()
-
-
-class Migrate(unittest.TestCase):
-
-    def test_init_and_merge_plays_once(self):
-        from web import migrate
-        with tempfile.TemporaryDirectory() as tmp:
-            local = os.path.join(tmp, 'local.db')
-            other = os.path.join(tmp, 'other.db')
-            target = os.path.join(tmp, 'web', 'web.db')
-            make_db(local, plays=[('Alpha', '2026-01-01 10:00:00')]).close()
-            db = make_db(other, plays=[('Alpha', '2026-01-01 10:00:00'), ('Beta', '2026-02-02 10:00:00')])
-            beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
-            db.setUserTag(beta, 1)
-            db.setSongPreset(beta, 0, 7, 'Twin Trem')
-            db.setSongTone(beta, 30000, db.saveTone('Solo', 2, 'Stadium Lead', 3.0, {}), 100)
-            db.setArtistPreset('Band', 19, '80S Rock')
-            db.importPresetLevels({'method': 'played', 'presets': [{'slot': 2, 'correction_db': -1.5}]})
-            db.close()
-            migrate.init(target, local, user='jo')
-            db = ChordsPlay.db.Db(target, 'jo')
-            first = migrate.merge(db, other)
-            again = migrate.merge(db, other)
-            self.assertEqual(first['plays'], 1)   # Alpha's play was there already
-            self.assertEqual(first['tags'], 1)
-            self.assertEqual(again['plays'], 0)
-            self.assertEqual(db.conn.execute("SELECT count(*) FROM user_songs").fetchone()[0], 2)
-            self.assertEqual((first['cues'], first['tones'], first['artist presets'], first['levels']), (2, 1, 1, 1))
-            self.assertEqual((again['cues'], again['tones']), (0, 0))
-            beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
-            cues = db.getSongPresets(beta)
-            self.assertEqual(cues[0], (0, 7, 'Twin Trem', None))
-            self.assertEqual(db.getTone(cues[1][3])['name'], 'Solo')    # the tone id is the target's
-            self.assertEqual(db.getPresetLevel(2)[0], -1.5)
-            db.close()
-            with self.assertRaises(SystemExit):
-                migrate.init(target, local)
-
-    def test_locked_text_taken_over(self):
-        from web import migrate
-        with tempfile.TemporaryDirectory() as tmp:
-            target, other = os.path.join(tmp, 'web.db'), os.path.join(tmp, 'other.db')
-            make_db(target).close()
-            db = make_db(other)
-            beta = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
-            db.conn.execute("UPDATE songs SET lyrics_chords = ? WHERE id = ?", ('Em  C\nmy fixed beta', beta))
-            db.conn.execute("INSERT INTO chords (name) VALUES ('Em')")
-            db.conn.execute("INSERT INTO song_chords (song_id, chord_id) SELECT ?, id FROM chords WHERE name = 'Em'",
-                            (beta,))
-            db.conn.commit()
-            db.setUserTag(beta, 6)          # x, Fixiert
-            db.close()
-            db = ChordsPlay.db.Db(target, 'jo')
-            self.assertEqual(migrate.merge(db, other)['locked texts'], 1)
-            sid = db.conn.execute("SELECT id FROM songs WHERE title='Beta'").fetchone()[0]
-            self.assertEqual(db.conn.execute("SELECT lyrics_chords FROM songs WHERE id = ?", (sid,)).fetchone()[0],
-                             'Em  C\nmy fixed beta')
-            self.assertTrue(db.isLocked(sid))
-            self.assertEqual([c for (c,) in db.conn.execute(
-                "SELECT c.name FROM song_chords sc JOIN chords c ON c.id = sc.chord_id WHERE sc.song_id = ?", (sid,))],
-                ['Em'])
-            self.assertEqual(migrate.merge(db, other)['locked texts'], 0)    # once
             db.close()
 
 

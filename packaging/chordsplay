@@ -4,7 +4,6 @@
 # ChordsPlay as installed from a package: the server and its tools.
 #
 #   chordsplay                 run the web server (what chordsplay.service does)
-#   chordsplay migrate ARGS    take over a database of the old desktop app (web/migrate.py)
 #   chordsplay presets ARGS    amp presets and level surveys (web/presets.py)
 #
 # The tools work on the database named by CHORDSPLAY_WEB_DB; for the service's own run
@@ -12,8 +11,8 @@
 #   sudo -u chordsplay sh -c 'set -a; . /etc/chordsplay/chordsplay.env; chordsplay presets --help'
 case ${1:-} in
     '') module=web.app ;;
-    migrate|presets) module=web.$1; shift ;;
-    -h|--help) sed -n '4,12s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    presets) module=web.$1; shift ;;
+    -h|--help) sed -n '4,11s/^# \{0,1\}//p' "$0"; exit 0 ;;
     *) echo "chordsplay: unknown command '$1' (see --help)" >&2; exit 2 ;;
 esac
 : "${CHORDSPLAY_WEB_DB:=/var/lib/chordsplay/chordsplay.db}"

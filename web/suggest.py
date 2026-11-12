@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS song_suggestions (
     rejected int not null default 0);
 CREATE TABLE IF NOT EXISTS sound_presets (
     category text not null primary key,
-    slot     int check(slot between 1 and 100));
+    slot     int check(slot between 1 and 100),
+    level_db real default null);
 CREATE TABLE IF NOT EXISTS artist_genres (
     artist   text not null primary key,
     genres   text not null,
@@ -60,10 +61,6 @@ CREATE TABLE IF NOT EXISTS artist_genres (
 
 def setup(conn):
     conn.executescript(SCHEMA)
-    try:        # how the sound's preset plays: NULL as stored, else level-matched plus this (web 0.6)
-        conn.execute("ALTER TABLE sound_presets ADD COLUMN level_db real default null")
-    except Exception:
-        pass    # column already present
     conn.executemany("INSERT OR IGNORE INTO sound_presets (category, slot) VALUES (?, ?)", CATEGORIES)
     conn.commit()
 
