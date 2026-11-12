@@ -83,7 +83,7 @@ The packages are built on the openSUSE Build Service, project
 [home:joba1:chordsplay](https://build.opensuse.org/project/show/home:joba1:chordsplay).
 `R` below is `https://download.opensuse.org/repositories/home:/joba1:/chordsplay`.
 
-openSUSE Tumbleweed (for Leap 16.0 put `16.0` in place of `openSUSE_Tumbleweed`):
+openSUSE Tumbleweed (for Leap put `16.0` or `16.1` in place of `openSUSE_Tumbleweed`):
 
 ```bash
 sudo zypper addrepo -f $R/openSUSE_Tumbleweed/home:joba1:chordsplay.repo
@@ -158,17 +158,26 @@ If port 8081 is taken on that computer, put `AMP_AGENT_PORT=8091` into
 `~/.config/chordsplay/amp-agent.env`. Equal loudness of all presets needs one
 measurement: `chordsplay-match-levels` (docs/web.md, "Guitar tone").
 
-**openSUSE Leap 16.0** itself has no `opus-tools` (`opusenc`, needed for recording takes;
-everything else works without). The openSUSE multimedia project builds it for Leap 16.0:
+**openSUSE Leap** itself has no `opus-tools` (`opusenc`, needed for recording takes;
+everything else works without). The openSUSE multimedia project builds it (for Leap 16.1 put `16.1` in place of `16.0`):
 
 ```bash
 sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo
 sudo zypper install opus-tools
 ```
 
-**BlueZ 5.84 or newer** is needed by the amp agent. Tumbleweed and Arch have it. openSUSE
-Leap 16.0 ships 5.79, Debian 13 and Raspberry Pi OS 13 ship 5.82: the packages install
-there, but the agent cannot connect to the amp until BlueZ is newer.
+**BlueZ 5.84 or newer** is needed by the amp agent. Tumbleweed and Arch have it.
+
+* **openSUSE Leap 16.0 and 16.1** ship an older one (5.79, 5.82). The repository has a
+  current `bluez` for them, a build of openSUSE's own development package. It replaces a
+  part of the system, so zypper asks before changing the vendor:
+
+  ```bash
+  sudo zypper install --from home_joba1_chordsplay --allow-vendor-change bluez
+  ```
+
+* **Debian 13 and Raspberry Pi OS 13** ship 5.82 and the repository has no newer one: the
+  packages install there, but the agent cannot connect to the amp until BlueZ is newer.
 
 ## The Mustang parts from a checkout
 
