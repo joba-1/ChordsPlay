@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.2.2'
+__version__ = '1.3'
 
 log = logging.getLogger(__name__)
 
