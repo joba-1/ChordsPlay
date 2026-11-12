@@ -3,7 +3,7 @@
 # Maintainer: joba1 <joba-1@users.noreply.github.com>
 pkgbase=chordsplay
 pkgname=(chordsplay chordsplay-mmp)
-pkgver=1.2.1
+pkgver=1.2.2
 pkgrel=1
 pkgdesc="Play your music in the browser with lyrics and guitar chords"
 arch=('any')
@@ -38,7 +38,7 @@ package_chordsplay() {
 
 package_chordsplay-mmp() {
     pkgdesc="ChordsPlay amp control for the Fender Mustang Micro Plus"
-    depends=('python>=3.11' 'maneline-mmp' 'python-numpy' 'libpulse' 'pipewire' 'opus-tools')
+    depends=('python>=3.11' 'maneline-mmp' 'python-numpy' 'libpulse' 'pipewire-audio' 'opus-tools')
     cd "$pkgbase-$pkgver"
     packaging/mmp/install.sh "$pkgdir"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/chordsplay-mmp/LICENSE"

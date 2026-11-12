@@ -1,6 +1,6 @@
-chordsplay (1.2.1-1) unstable; urgency=medium
+chordsplay (1.2.2-1) unstable; urgency=medium
 
-  * Packaging only (RPM: opus-tools is recommended, not required).
+  * Packaging only (RPM: opus-tools is recommended, not required; Arch: pw-record is in pipewire-audio).
 
  -- joba1 <joba-1@users.noreply.github.com>  Thu, 12 Nov 2026 05:00:00 +0000
 
