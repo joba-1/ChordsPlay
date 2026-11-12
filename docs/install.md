@@ -148,8 +148,18 @@ sudo zypper install chordsplay-mmp        # Arch: pacman -Syu, Debian: apt insta
 Both parts run as systemd units of **your** user, the one whose session has the amp's
 Bluetooth audio:
 
-1. Pair the amp for audio and over Bluetooth LE, with `Experimental = true` in BlueZ's
-   `main.conf`: `MUSTANG_MICRO_PLUS_LINUX.md` in the documentation of `maneline-mmp`.
+1. Prepare BlueZ once: put `Experimental = true` into the `[General]` section of
+   `/etc/bluetooth/main.conf`, `sudo systemctl restart bluetooth`, and pair the amp for
+   audio as usual. Then, with the amp switched on:
+
+   ```bash
+   sudo mmp-bluez-setup AA:BB:CC:DD:EE:FF        # the amp's address (bluetoothctl devices)
+   ```
+
+   This is maneline's setup script: it pairs the amp over Bluetooth LE as well and removes
+   one entry from BlueZ's cache that the amp does not answer. It restarts Bluetooth once,
+   so all Bluetooth devices reconnect. What it does and why, and the same by hand:
+   `MUSTANG_MICRO_PLUS_LINUX.md` in the documentation of `maneline-mmp`.
 2. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
    into `~/.config/chordsplay/bridge.env` (mode 600: the token in it is the bridge's key).
 3. `systemctl --user enable --now chordsplay-amp-bridge`. The bridge starts the amp
@@ -191,7 +201,9 @@ contrib/install.sh mmp
 ```
 
 The first run installs the amp agent (maneline's `mmp_web.py`, with a venv, in
-`~/.local/share/chordsplay/`) and tells you the one step left by hand:
+`~/.local/share/chordsplay/`). Prepare BlueZ once as in step 1 above; the script is
+`~/.local/share/chordsplay/maneline/scripts/bluez_setup.sh` here. Then the one step
+left by hand:
 
 1. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
    into `~/.config/chordsplay/bridge.env`.

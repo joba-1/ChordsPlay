@@ -61,8 +61,10 @@ fi
 cat <<MSG
 Installed $UNIT (not enabled: the amp bridge starts it while the amp is connected).
 
-One-time BlueZ setup (Experimental = true, pairing over LE as well):
-  $DEST/docs/MUSTANG_MICRO_PLUS_LINUX.md
+One-time BlueZ setup: "Experimental = true" in /etc/bluetooth/main.conf, then with the
+amp on (pairs it over LE as well, fixes BlueZ's cache, restarts Bluetooth once):
+  sudo $DEST/scripts/bluez_setup.sh <the amp's Bluetooth address>
+What it does, and the same by hand: $DEST/docs/MUSTANG_MICRO_PLUS_LINUX.md
 
 Next: the amp bridge, $HERE/install-amp-bridge.sh (see docs/web.md, "Guitar tone").
 MSG
