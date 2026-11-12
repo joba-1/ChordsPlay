@@ -189,9 +189,21 @@ sudo zypper install opus-tools
   sudo zypper install --from home_joba1_chordsplay --allow-vendor-change bluez
   ```
 
-* **Debian 13 and Raspberry Pi OS 13** ship 5.82 and the repository has no newer one: the
-  packages install there, but the agent cannot connect to the amp until BlueZ is newer.
-  Debian testing has 5.88: use the `Debian_Testing` repository on such a system.
+* **Debian 13 and Raspberry Pi OS 13** ship 5.82. A separate, opt-in repository has Debian
+  testing's BlueZ 5.88 rebuilt for them, with Raspberry Pi OS's own audio patch. It replaces
+  the system's Bluetooth stack, so add it only on the computer the amp is paired with:
+
+  ```bash
+  B=https://download.opensuse.org/repositories/home:/joba1:/chordsplay:/bluez/Debian_13
+  curl -fsSL $B/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay-bluez.gpg > /dev/null
+  echo "deb [signed-by=/etc/apt/keyrings/chordsplay-bluez.gpg] $B/ /" | sudo tee /etc/apt/sources.list.d/chordsplay-bluez.list
+  sudo apt update && sudo apt upgrade
+  ```
+
+  For 32-bit Raspberry Pi OS put `Raspbian_13` in place of `Debian_13`; 64-bit Raspberry
+  Pi OS (the default on a Pi 4 and 5) uses `Debian_13`. It is not an official package and
+  has not run on a real Pi yet; remove the repository once your system ships 5.86 or newer.
+  Debian testing has 5.88 itself: use the `Debian_Testing` repository on such a system.
 
 ## The Mustang parts from a checkout
 
