@@ -102,7 +102,7 @@ then
 ```bash
 curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | sudo pacman-key --add -
 sudo pacman-key --lsign-key "$(curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | gpg --show-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
-sudo pacman -Sy chordsplay
+sudo pacman -Syu chordsplay       # -Syu: Arch does not support installing onto a partly updated system
 ```
 
 Debian 13 and Raspberry Pi OS based on it (there `Raspbian_13` in place of `Debian_13`;
@@ -142,7 +142,7 @@ The same repositories as for [the web server](#the-web-server-from-a-package) ha
 amp is paired with, after adding the repository as described there:
 
 ```bash
-sudo zypper install chordsplay-mmp        # Arch: pacman -S, Debian: apt install
+sudo zypper install chordsplay-mmp        # Arch: pacman -Syu, Debian: apt install
 ```
 
 Both parts run as systemd units of **your** user, the one whose session has the amp's
