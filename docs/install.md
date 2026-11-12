@@ -166,8 +166,9 @@ sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/li
 sudo zypper install opus-tools
 ```
 
-**Debian 13 and Raspberry Pi OS 13** ship BlueZ 5.82. The amp agent needs 5.84 or newer;
-the packages install there, but the agent cannot connect until BlueZ is newer.
+**BlueZ 5.84 or newer** is needed by the amp agent. Tumbleweed and Arch have it. openSUSE
+Leap 16.0 ships 5.79, Debian 13 and Raspberry Pi OS 13 ship 5.82: the packages install
+there, but the agent cannot connect to the amp until BlueZ is newer.
 
 ## The Mustang parts from a checkout
 
