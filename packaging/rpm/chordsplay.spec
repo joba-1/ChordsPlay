@@ -8,7 +8,7 @@
 %define appdir %{_datadir}/%{name}
 
 Name:           chordsplay
-Version:        1.2
+Version:        1.2.1
 Release:        0
 Summary:        Play your music in the browser with lyrics and guitar chords
 License:        AGPL-3.0-or-later AND Apache-2.0
@@ -48,7 +48,8 @@ The bundled PDF viewer PDF.js is under the Apache License 2.0.
 %package mmp
 Summary:        ChordsPlay amp control for the Fender Mustang Micro Plus
 Requires:       maneline-mmp
-Requires:       opus-tools
+# opusenc, for recording takes; Leap 16.0 has no opus-tools
+Recommends:     opus-tools
 Requires:       pipewire-tools
 Requires:       pulseaudio-utils
 Requires:       python3 >= 3.11
