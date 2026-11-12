@@ -105,7 +105,8 @@ sudo pacman-key --lsign-key "$(curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_A
 sudo pacman -Sy chordsplay
 ```
 
-Debian 13 and Raspberry Pi OS based on it (there `Raspbian_13` in place of `Debian_13`):
+Debian 13 and Raspberry Pi OS based on it (there `Raspbian_13` in place of `Debian_13`;
+for Debian testing `Debian_Testing`):
 
 ```bash
 curl -fsSL $R/Debian_13/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay.gpg > /dev/null
@@ -179,6 +180,7 @@ sudo zypper install opus-tools
 
 * **Debian 13 and Raspberry Pi OS 13** ship 5.82 and the repository has no newer one: the
   packages install there, but the agent cannot connect to the amp until BlueZ is newer.
+  Debian testing has 5.88: use the `Debian_Testing` repository on such a system.
 
 ## The Mustang parts from a checkout
 
