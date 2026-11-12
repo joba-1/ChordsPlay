@@ -48,7 +48,7 @@ The bundled PDF viewer PDF.js is under the Apache License 2.0.
 %package mmp
 Summary:        ChordsPlay amp control for the Fender Mustang Micro Plus
 Requires:       maneline-mmp
-# opusenc, for recording takes; Leap 16.0 has no opus-tools
+# opusenc, for recording takes; Leap 16.0 has opus-tools only in the OBS project multimedia:libs
 Recommends:     opus-tools
 Requires:       pipewire-tools
 Requires:       pulseaudio-utils

@@ -158,8 +158,13 @@ If port 8081 is taken on that computer, put `AMP_AGENT_PORT=8091` into
 `~/.config/chordsplay/amp-agent.env`. Equal loudness of all presets needs one
 measurement: `chordsplay-match-levels` (docs/web.md, "Guitar tone").
 
-**openSUSE Leap 16.0** has no `opus-tools`: everything works except recording takes, which
-needs `opusenc` from elsewhere.
+**openSUSE Leap 16.0** itself has no `opus-tools` (`opusenc`, needed for recording takes;
+everything else works without). The openSUSE multimedia project builds it for Leap 16.0:
+
+```bash
+sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo
+sudo zypper install opus-tools
+```
 
 **Debian 13 and Raspberry Pi OS 13** ship BlueZ 5.82. The amp agent needs 5.84 or newer;
 the packages install there, but the agent cannot connect until BlueZ is newer.
