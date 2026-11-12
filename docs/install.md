@@ -25,7 +25,7 @@ For the web server:
 
 For the Mustang parts, on the amp computer:
 
-* BlueZ 5.84 or newer with `Experimental = true`, and the amp paired for audio and over
+* BlueZ 5.86 or newer with `Experimental = true`, and the amp paired for audio and over
   Bluetooth LE: see `docs/MUSTANG_MICRO_PLUS_LINUX.md` in maneline (the installer says
   where it put it).
 * PipeWire with `pactl` (finding the amp) and, for recording takes, `pw-record` and
@@ -167,7 +167,7 @@ sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/li
 sudo zypper install opus-tools
 ```
 
-**BlueZ 5.84 or newer** is needed by the amp agent. Tumbleweed and Arch have it.
+**BlueZ 5.86 or newer** is needed by the amp agent. Tumbleweed and Arch have it.
 
 * **openSUSE Leap 16.0 and 16.1** ship an older one (5.79, 5.82). The repository has a
   current `bluez` for them, a build of openSUSE's own development package, and
