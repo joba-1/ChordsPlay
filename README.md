@@ -43,7 +43,7 @@ users behind a reverse proxy …): see the head of [web/app.py](web/app.py).
 | `ChordsPlay/` | shared modules: database (`db.py`), library scan (`scan.py`, `song.py`), Ultimate Guitar fetch (`chords.py`, `http.py`), text layout (`textfit.py`), amp logic (`amp.py`) |
 | `mmp/` | the optional Mustang Micro Plus parts for the computer the amp is paired with: the amp bridge (`bridge.py`), the units, the level-matching script. Design: [docs/spec-amp.md](docs/spec-amp.md) |
 | `contrib/` | install script (`install.sh`), service unit, settings template, Apache example |
-| `packaging/` | what the distribution packages install: system unit, service user, settings file, the `chordsplay` command; RPM spec in `rpm/`, Arch `PKGBUILD` in `arch/` |
+| `packaging/` | what the distribution packages install: system unit, service user, settings file, the `chordsplay` command; RPM spec in `rpm/`, Arch `PKGBUILD` in `arch/`, Debian files in `debian/` |
 | `tests/` | unit tests; hardware tests are described in [docs/test.md](docs/test.md) |
 
 ## Tests

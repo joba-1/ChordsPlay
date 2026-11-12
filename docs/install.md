@@ -68,7 +68,7 @@ To see what the script would do, without doing it: `contrib/install.sh -n web`.
 
 ## The web server from a package
 
-The package `chordsplay` (RPM for openSUSE: `packaging/rpm/`; Arch: `packaging/arch/`) installs the
+The package `chordsplay` (openSUSE: `packaging/rpm/`; Arch: `packaging/arch/`; Debian, Raspberry Pi OS: `packaging/debian/`) installs the
 server as the system service `chordsplay.service` with a user of its own, and takes
 Flask, waitress, mutagen and qrcode from the distribution: no venv, no PyPI.
 
@@ -77,7 +77,41 @@ Flask, waitress, mutagen and qrcode from the distribution: no venv, no PyPI.
 | settings | `/etc/chordsplay/chordsplay.env` |
 | database, takes, PDF tabs | `/var/lib/chordsplay` (`chordsplay.db`, `takes/`, `pdf/`) |
 | program | `/usr/share/chordsplay`, command `chordsplay` |
-| every setting, Apache example, these docs | `/usr/share/doc/packages/chordsplay` (Arch: `/usr/share/doc/chordsplay`) |
+| every setting, Apache example, these docs | `/usr/share/doc/packages/chordsplay` (Arch, Debian: `/usr/share/doc/chordsplay`) |
+
+The packages are built on the openSUSE Build Service, project
+[home:joba1:chordsplay](https://build.opensuse.org/project/show/home:joba1:chordsplay).
+`R` below is `https://download.opensuse.org/repositories/home:/joba1:/chordsplay`.
+
+openSUSE Tumbleweed (for Leap 16.0 put `16.0` in place of `openSUSE_Tumbleweed`):
+
+```bash
+sudo zypper addrepo -f $R/openSUSE_Tumbleweed/home:joba1:chordsplay.repo
+sudo zypper install chordsplay
+```
+
+Arch, CachyOS, Omarchy: add to `/etc/pacman.conf`
+
+```ini
+[home_joba1_chordsplay_Arch]
+Server = https://download.opensuse.org/repositories/home:/joba1:/chordsplay/Arch/$arch
+```
+
+then
+
+```bash
+curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | sudo pacman-key --add -
+sudo pacman-key --lsign-key "$(curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | gpg --show-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
+sudo pacman -Sy chordsplay
+```
+
+Debian 13 and Raspberry Pi OS based on it (there `Raspbian_13` in place of `Debian_13`):
+
+```bash
+curl -fsSL $R/Debian_13/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay.gpg > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/chordsplay.gpg] $R/Debian_13/ /" | sudo tee /etc/apt/sources.list.d/chordsplay.list
+sudo apt update && sudo apt install chordsplay
+```
 
 After installing the package:
 
