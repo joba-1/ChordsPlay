@@ -3,3 +3,5 @@ build/
 *.egg-info
 venv
 *.env
+# the packages' settings file is a template, not a site's own
+!packaging/chordsplay.env

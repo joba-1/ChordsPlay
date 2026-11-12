@@ -8,8 +8,9 @@ Two parts, installed separately:
   the amp is paired with (it may be the server or another one): the amp agent and the
   amp bridge.
 
-This page is the install from a git checkout, for the current user, without root.
-Distribution packages are planned but not available yet.
+There are two ways to install: from a git checkout, for the current user and without
+root (most of this page), or the web server [from a package](#the-web-server-from-a-package)
+as a system service.
 
 ## What you need
 
@@ -33,7 +34,7 @@ For the Mustang parts, on the amp computer:
   from GitHub, `bleak` and `dbus-fast` from PyPI).
 * A web server installed as above, reachable from the amp computer.
 
-## The web server
+## The web server from a checkout
 
 ```bash
 git clone https://github.com/joba-1/ChordsPlay.git
@@ -64,6 +65,39 @@ the progress.
   `CHORDSPLAY_MUSIC_MOUNT` there.
 
 To see what the script would do, without doing it: `contrib/install.sh -n web`.
+
+## The web server from a package
+
+The package `chordsplay` (RPM for openSUSE; spec in `packaging/rpm/`) installs the
+server as the system service `chordsplay.service` with a user of its own, and takes
+Flask, waitress, mutagen and qrcode from the distribution: no venv, no PyPI.
+
+| What | Where |
+|---|---|
+| settings | `/etc/chordsplay/chordsplay.env` |
+| database, takes, PDF tabs | `/var/lib/chordsplay` (`chordsplay.db`, `takes/`, `pdf/`) |
+| program | `/usr/share/chordsplay`, command `chordsplay` |
+| every setting, Apache example, these docs | `/usr/share/doc/packages/chordsplay` |
+
+After installing the package:
+
+1. Set `CHORDSPLAY_MUSIC_DIRS` in `/etc/chordsplay/chordsplay.env`. The user `chordsplay`
+   must be able to read the folders.
+2. `sudo systemctl enable --now chordsplay`, then open <http://127.0.0.1:8616/>.
+   `journalctl -u chordsplay -f` shows the progress of the first scan.
+
+* **A network share** for the music that is mounted late: `sudo systemctl edit chordsplay`
+  and add `[Unit]` with `RequiresMountsFor=/mnt/music` (your mount point).
+* **From other devices:** a reverse proxy with a login, as for the checkout install below.
+* **Updating:** with the system's package updates; the service is restarted, settings and
+  data are kept.
+* **Removing** the package keeps `/var/lib/chordsplay` and a changed settings file.
+* **Moving from a checkout install** to the package: stop both services, copy
+  `~/.local/share/chordsplay-web/chordsplay.db`, `takes/` and `pdf/` to `/var/lib/chordsplay`,
+  give them to the user `chordsplay` (`chown -R chordsplay:chordsplay /var/lib/chordsplay`),
+  carry your settings over from `~/.config/chordsplay/web.env`, and set `CHORDSPLAY_USER`
+  to your former user name: that is the database user the server used so far. Then
+  `contrib/install.sh --uninstall web` and start `chordsplay`.
 
 ## The Mustang parts
 

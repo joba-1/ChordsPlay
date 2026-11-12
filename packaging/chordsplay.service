@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# ChordsPlay web server as installed from a package: a system service with its own
+# user. Settings: /etc/chordsplay/chordsplay.env. Data (database, takes, PDF tabs):
+# /var/lib/chordsplay. A reverse proxy publishes it and does the login (example in the
+# package's documentation: apache-chordsplay-web.conf).
+#
+# The user chordsplay must be able to read the music folders. If they are on a share
+# that is mounted late, name it in a drop-in (systemctl edit chordsplay):
+#   [Unit]
+#   RequiresMountsFor=/mnt/music
+[Unit]
+Description=ChordsPlay web server
+Documentation=https://github.com/joba-1/ChordsPlay
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=chordsplay
+Group=chordsplay
+StateDirectory=chordsplay
+StateDirectoryMode=0750
+EnvironmentFile=-/etc/chordsplay/chordsplay.env
+ExecStart=/usr/bin/chordsplay
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

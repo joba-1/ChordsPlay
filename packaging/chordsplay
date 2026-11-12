@@ -1,0 +1,24 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# ChordsPlay as installed from a package: the server and its tools.
+#
+#   chordsplay                 run the web server (what chordsplay.service does)
+#   chordsplay migrate ARGS    take over a database of the old desktop app (web/migrate.py)
+#   chordsplay presets ARGS    amp presets and level surveys (web/presets.py)
+#
+# The tools work on the database named by CHORDSPLAY_WEB_DB; for the service's own run
+# them as its user with its settings, for example:
+#   sudo -u chordsplay sh -c 'set -a; . /etc/chordsplay/chordsplay.env; chordsplay presets --help'
+case ${1:-} in
+    '') module=web.app ;;
+    migrate|presets) module=web.$1; shift ;;
+    -h|--help) sed -n '4,12s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    *) echo "chordsplay: unknown command '$1' (see --help)" >&2; exit 2 ;;
+esac
+: "${CHORDSPLAY_WEB_DB:=/var/lib/chordsplay/chordsplay.db}"
+: "${CHORDSPLAY_TAKES_DIR:=/var/lib/chordsplay/takes}"
+: "${CHORDSPLAY_PDF_DIRS:=/var/lib/chordsplay/pdf}"
+export CHORDSPLAY_WEB_DB CHORDSPLAY_TAKES_DIR CHORDSPLAY_PDF_DIRS
+PYTHONPATH=/usr/share/chordsplay${PYTHONPATH:+:$PYTHONPATH} PYTHONDONTWRITEBYTECODE=1 \
+    exec python3 -m "$module" "$@"
