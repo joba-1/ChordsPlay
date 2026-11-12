@@ -169,8 +169,9 @@ sudo zypper install opus-tools
 **BlueZ 5.84 or newer** is needed by the amp agent. Tumbleweed and Arch have it.
 
 * **openSUSE Leap 16.0 and 16.1** ship an older one (5.79, 5.82). The repository has a
-  current `bluez` for them, a build of openSUSE's own development package. It replaces a
-  part of the system, so zypper asks before changing the vendor:
+  current `bluez` for them, a build of openSUSE's own development package, and
+  `maneline-mmp` requires it. It replaces a part of the system, so zypper asks whether to
+  change the vendor of `bluez` when you install `chordsplay-mmp`: accept that, or do it first:
 
   ```bash
   sudo zypper install --from home_joba1_chordsplay --allow-vendor-change bluez
