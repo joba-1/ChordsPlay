@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2016-2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Maintainer: joba1 <joba-1@users.noreply.github.com>
+pkgname=chordsplay
+pkgver=1.1
+pkgrel=1
+pkgdesc="Play your music in the browser with lyrics and guitar chords"
+arch=('any')
+url="https://github.com/joba-1/ChordsPlay"
+license=('AGPL-3.0-or-later AND Apache-2.0')
+depends=('python>=3.11' 'python-flask' 'python-waitress' 'python-mutagen' 'python-qrcode')
+backup=('etc/chordsplay/chordsplay.env')
+source=("$pkgname-$pkgver.tar.xz")
+sha256sums=('SKIP')
+
+check() {
+    cd "$pkgname-$pkgver"
+    python -m unittest discover -s tests
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -d "$pkgdir/usr/share/chordsplay"
+    cp -a ChordsPlay web "$pkgdir/usr/share/chordsplay/"
+    find "$pkgdir/usr/share/chordsplay" -name __pycache__ -prune -exec rm -rf {} +
+    find "$pkgdir/usr/share/chordsplay" -name '*.py' -exec chmod 0644 {} +
+    rm -f "$pkgdir/usr/share/chordsplay/web/requirements.txt"
+    install -Dm755 packaging/chordsplay "$pkgdir/usr/bin/chordsplay"
+    install -Dm644 packaging/chordsplay.service "$pkgdir/usr/lib/systemd/system/chordsplay.service"
+    install -Dm644 packaging/chordsplay.sysusers "$pkgdir/usr/lib/sysusers.d/chordsplay.conf"
+    install -Dm644 packaging/chordsplay.env "$pkgdir/etc/chordsplay/chordsplay.env"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/chordsplay/LICENSE"
+    install -Dm644 -t "$pkgdir/usr/share/doc/chordsplay" README.md docs/install.md docs/web.md \
+        contrib/chordsplay.env.example contrib/apache-chordsplay-web.conf
+}

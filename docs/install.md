@@ -68,7 +68,7 @@ To see what the script would do, without doing it: `contrib/install.sh -n web`.
 
 ## The web server from a package
 
-The package `chordsplay` (RPM for openSUSE; spec in `packaging/rpm/`) installs the
+The package `chordsplay` (RPM for openSUSE: `packaging/rpm/`; Arch: `packaging/arch/`) installs the
 server as the system service `chordsplay.service` with a user of its own, and takes
 Flask, waitress, mutagen and qrcode from the distribution: no venv, no PyPI.
 
@@ -77,7 +77,7 @@ Flask, waitress, mutagen and qrcode from the distribution: no venv, no PyPI.
 | settings | `/etc/chordsplay/chordsplay.env` |
 | database, takes, PDF tabs | `/var/lib/chordsplay` (`chordsplay.db`, `takes/`, `pdf/`) |
 | program | `/usr/share/chordsplay`, command `chordsplay` |
-| every setting, Apache example, these docs | `/usr/share/doc/packages/chordsplay` |
+| every setting, Apache example, these docs | `/usr/share/doc/packages/chordsplay` (Arch: `/usr/share/doc/chordsplay`) |
 
 After installing the package:
 
