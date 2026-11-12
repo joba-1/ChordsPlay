@@ -144,7 +144,7 @@ dialog h2 { margin: 0 0 8px; font-size: 17px; }
   #bar { flex-wrap: wrap; gap: 4px 8px; }
   .title { order: 3; flex-basis: 100%; }
   #side { flex-basis: 100%; border-right: 0; }
-  body:not(.no-list) #sheet { display: none; }
+  body:not(.no-list):not(.display) #sheet { display: none; }   /* the controller on a phone: list or song */
   #b-audio, #b-full { display: none; }
 }
 
