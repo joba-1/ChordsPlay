@@ -149,8 +149,9 @@ Both parts run as systemd units of **your** user, the one whose session has the 
 Bluetooth audio:
 
 1. Prepare BlueZ once: put `Experimental = true` into the `[General]` section of
-   `/etc/bluetooth/main.conf`, `sudo systemctl restart bluetooth`, and pair the amp for
-   audio as usual. Then, with the amp switched on:
+   `/etc/bluetooth/main.conf` (openSUSE ships no such file: create it with the two lines
+   `[General]` and `Experimental = true`), `sudo systemctl restart bluetooth`, and pair
+   the amp for audio as usual. Then, with the amp switched on:
 
    ```bash
    sudo mmp-bluez-setup AA:BB:CC:DD:EE:FF        # the amp's address (bluetoothctl devices)
