@@ -14,6 +14,17 @@ allows. One server holds the songs, chords and history; any browser is the playe
   the song, its artist or a part of the song; all presets equally loud; knobs per song;
   recording takes of song and guitar through the amp's USB.
 
+Screenshots (made-up demo songs; the simulated amp shows Fender's factory preset names):
+
+| | |
+|---|---|
+| ![Playlist and chords](docs/screenshots/main.png) | ![Guitar tone of a song: a preset from the start, a louder one for the solo](docs/screenshots/tone.png) |
+| Playlist and chords, as large as the screen allows | Guitar tone: a preset from the start, a louder one for the solo |
+| ![Filter with live count](docs/screenshots/filter.png) | ![A PDF tab instead of the text](docs/screenshots/pdf.png) |
+| Filter with a live count | A PDF tab next to the song, cropped |
+| ![The display on a phone](docs/screenshots/display-phone.png) | ![The display on a TV](docs/screenshots/display-tv.png) |
+| The song on a phone (display link) | The same on a TV, here with the PDF tab |
+
 ## Installing
 
 Packages for openSUSE Tumbleweed and Leap, Arch and CachyOS, Debian and Raspberry Pi OS:
