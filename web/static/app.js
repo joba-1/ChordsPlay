@@ -496,6 +496,7 @@ let ampSeen = 0;            // when (ms): a bridge reports at least every 10 s
 let ampTones = [];
 let ampSounds = [];         // [{category, slot}]: the preset per suggested sound
 let suggestAuto = false;    // play suggestions without asking
+let audioAuto = false;      // the bridge routes the song to the Mustang whenever one plays
 let cueList = null;         // the song's cues: {cues, artist, artist_preset}
 const BRIDGE_GONE_MS = 30000;
 
@@ -529,7 +530,25 @@ function ampText() {
   else if (st.asleep) text = st.preset ? `Mustang idle · ${st.preset} ${st.name || ''}` : 'Mustang idle';
   else text = st.phase === 'connecting' ? 'Mustang: connecting…' : 'Mustang not connected';
   if (amp.warning || amp.error) text += ' – ' + (amp.warning || plainAmpError(amp.error));
+  const au = amp.audio;
+  if (au && !au.error) {
+    if (au.busy) text += ' · ♪ connecting…';
+    else if (au.routed) text += ' · ♪ via Mustang';
+    else if (au.browser) text += ' · ♪ not via Mustang';
+  }
   return text.trim();
+}
+
+// where the song goes, as the bridge sees it on the amp computer (tone dialog)
+function audioText(au) {
+  if (!au) return '';
+  if (au.busy) return 'Connecting the Mustang\'s Bluetooth audio…';
+  let t = au.routed ? 'The song goes through the Mustang (Bluetooth).'
+    : !au.bluetooth ? 'The Mustang\'s Bluetooth audio is not connected on the amp computer.'
+    : au.browser ? 'A browser plays on the amp computer, but not to the Mustang.'
+    : 'The Mustang is connected for audio; no browser plays on the amp computer right now.';
+  if (au.error) t += ` Last try: ${au.error}.`;
+  return t;
 }
 
 function showAmp() {
@@ -580,6 +599,11 @@ function chosen(quiet = false) {
 function renderAmp() {
   const names = presetNames();
   const st = amp?.state || {};
+  const au = ampOnline() ? amp.audio : null;
+  $('#amp-audio').hidden = !au;
+  $('#amp-audio-text').textContent = audioText(au);
+  $('#amp-audio-go').disabled = !!(au && (au.busy || au.routed));
+  $('#amp-audio-auto').checked = audioAuto;
   $('#amp-status').textContent = amp ? ampText() + (!ampOnline()
     ? ' – amp control isn\'t running on the computer the Mustang is connected to (see Help, Guitar tone)'
     : st.asleep ? ' – the control link sleeps after 5 minutes without a switch; sound is not affected, ' +
@@ -653,6 +677,7 @@ async function openAmp() {
     ampTones = state.tones;
     ampSounds = state.sounds;
     suggestAuto = state.suggest_auto;
+    audioAuto = state.audio_auto;
     $('#amp-suggest-auto').checked = suggestAuto;
     cueList = cues;
   } catch (e) { toast('Loading failed: ' + e.message); return; }
@@ -1079,6 +1104,21 @@ $('#amp-suggest').addEventListener('click', async (e) => {
     } else return;
     renderAmp();
   } catch (err) { toast('Failed: ' + err.message); }
+});
+
+$('#amp-audio-go').addEventListener('click', async () => {
+  try {
+    const r = await api('amp/audio', { method: 'POST' });
+    toast(r.bridge ? 'Amp control: connecting the Mustang\'s audio and moving the browser\'s sound there…'
+      : 'Amp control isn\'t running on the amp computer');
+  } catch (e) { toast('Failed: ' + e.message); }
+});
+
+$('#amp-audio-auto').addEventListener('change', async (e) => {
+  try {
+    audioAuto = (await api('amp/audio-auto', { method: 'PUT', body: { on: e.target.checked } })).audio_auto;
+    renderAmp();
+  } catch (err) { toast('Saving failed: ' + err.message); e.target.checked = audioAuto; }
 });
 
 $('#amp-suggest-auto').addEventListener('change', async (e) => {

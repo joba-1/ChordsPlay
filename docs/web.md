@@ -40,7 +40,7 @@ Most of it is keyboard-driven:
 | f | filter dialog: choose what to play (see below) |
 | t | tags of the song; press a tag's key to switch it |
 | l | show or hide the playlist |
-| a / A | choose / switch the audio output (Chrome only) |
+| a / A | choose / switch the audio output (browsers with output selection, e.g. Chrome) |
 | d | show the song on a TV or tablet (display link, see below) |
 | v / V | the song's text or one of its PDF tabs (cycles) / all PDFs and their songs |
 | Page Down / Up | turn the PDF's pages |
@@ -202,6 +202,13 @@ every device plays them.
   Mustang parts": the package `chordsplay-mmp`, the one-time Bluetooth setup, and the
   line from `g` → *Set up amp control…* in `~/.config/chordsplay/bridge.env`. The bridge
   starts the amp agent while the amp is connected. Making a new line ends the previous one.
+* **The song through the Mustang:** the tone dialog says where the song goes, as the bridge
+  sees it on the amp computer, and *Play through the Mustang* has the bridge connect the
+  amp's Bluetooth audio if needed and move the browser's sound there (PipeWire; all of the
+  browser's tabs, since a browser plays through one stream). *always* does that whenever a
+  song plays and the browser on the amp computer doesn't play to the Mustang. It works for
+  a browser on the amp computer only; the top right adds `♪ via Mustang` or
+  `♪ not via Mustang`.
 * The top right shows what the bridge reports: `Mustang 19 80S Rock`, `Mustang ▶ <tone>`,
   `Mustang idle · 19 80S Rock`, `Mustang not connected`, or `amp control off` (nothing
   heard from the bridge for 30 s). *Idle*: after 5 minutes without a switch **and with no

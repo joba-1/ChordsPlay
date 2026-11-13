@@ -29,7 +29,7 @@ chmod 600 "$ENV_FILE"       # the token is the bridge's only key
 mkdir -p "$DEST/ChordsPlay" "$DEST/mmp"
 rm -f "$DEST/bridge.py"     # where it was before the Mustang parts moved to mmp/
 install -m 644 "$HERE/ChordsPlay/__init__.py" "$HERE/ChordsPlay/amp.py" "$DEST/ChordsPlay/"
-install -m 644 "$HERE/mmp/__init__.py" "$HERE/mmp/bridge.py" "$DEST/mmp/"
+install -m 644 "$HERE/mmp/__init__.py" "$HERE/mmp/bridge.py" "$HERE/mmp/audio.py" "$DEST/mmp/"
 install -D -m 644 "$HERE/mmp/$UNIT" "$HOME/.config/systemd/user/$UNIT"
 
 systemctl --user daemon-reload

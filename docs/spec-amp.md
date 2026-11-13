@@ -71,6 +71,18 @@ server's reply for the song (`SongPlan` in `mmp/bridge.py`).
   `COMMIT_INTERVAL`), so storing a cue never waits long for SQLite's write lock (a scan over
   NFS is slow).
 
+## The song's way to the amp
+
+`mmp/audio.py` (in the bridge, every 2 s): is the amp a Bluetooth output (`pactl`, sink
+`bluez_output.*` whose description contains `AMP_SINK`), does a browser play on this computer
+(a playback stream whose `application.process.binary` is a known browser), and does it play
+to the amp. Reported to the server with the amp's state (`audio`). On the command from the
+page (`POST api/amp/audio` → `cmd {audio}`) or with *always* (`PUT api/amp/audio-auto`, kept
+channel `conf` to the bridge) while a song plays: `bluetoothctl connect <amp>` if the amp is
+no output, then `pactl move-sink-input` for the browser's streams. WirePlumber remembers the
+amp as the browser's output while it is there. *Always* tries again at most once a minute
+after a failure.
+
 ## Data model (SQLite, the server's database)
 
 ```sql

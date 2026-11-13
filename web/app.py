@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.4'
+__version__ = '1.5'
 
 log = logging.getLogger(__name__)
 
@@ -783,7 +783,8 @@ def amp():
     '''The amp's state (from the bridge) and the saved tones.'''
     db = get_db()
     return jsonify(amp=amp_state(db.user), tones=db.getTones(), live_slot=LIVE_SLOT,
-                   sounds=suggestmod.sound_presets(db.conn), suggest_auto=bool(get_state(db, 'suggest_auto')))
+                   sounds=suggestmod.sound_presets(db.conn), suggest_auto=bool(get_state(db, 'suggest_auto')),
+                   audio_auto=bool(get_state(db, 'audio_auto')))
 
 
 @app.route('/api/amp/suggest-auto', methods=['PUT'])
@@ -1015,7 +1016,34 @@ def bridge_user(token):
 
 @app.route('/d/bridge/<token>/events')
 def bridge_events(token):
-    return sse(get_db(bridge_user(token)), ('now', 'plan', 'cmd'))
+    db = get_db(bridge_user(token))
+    if hub.get(db.user, 'conf') is None:        # after a server start: the stored settings
+        publish_conf(db)
+    return sse(db, ('now', 'plan', 'cmd', 'conf'))
+
+
+def publish_conf(db):
+    '''The user's settings the bridge acts on, as the kept channel 'conf'.'''
+    hub.publish(db.user, {'audio_auto': bool(get_state(db, 'audio_auto'))}, 'conf')
+
+
+@app.route('/api/amp/audio', methods=['POST'])
+def amp_audio():
+    '''The song through the Mustang: the bridge connects the amp's Bluetooth audio if
+    needed and moves the browser's playback there (on the computer the amp is paired with).'''
+    db = get_db()
+    hub.publish(db.user, {'audio': 'mustang', 'at': time.time()}, 'cmd')
+    amp = amp_state(db.user)
+    return jsonify(ok=True, bridge=bool(amp and amp['online']))
+
+
+@app.route('/api/amp/audio-auto', methods=['PUT'])
+def amp_audio_auto():
+    '''"Always": the bridge routes the song to the Mustang whenever a song plays.'''
+    db = get_db()
+    set_state(db, 'audio_auto', bool((request.get_json(silent=True) or {}).get('on')))
+    publish_conf(db)
+    return jsonify(audio_auto=bool(get_state(db, 'audio_auto')))
 
 
 @app.route('/d/bridge/<token>/song/<int:song_id>')
@@ -1102,7 +1130,7 @@ def bridge_amp(token):
     if not isinstance(data, dict):
         abort(400)
     report = {key: data.get(key) for key in ('state', 'error', 'busy', 'pending', 'warning', 'tone',
-                                             'recording', 'record_error', 'written')}
+                                             'recording', 'record_error', 'written', 'audio')}
     # every report, also an unchanged one (at most every REPORT_S in the bridge): the
     # pages see from it that the bridge is still there
     hub.publish(user, dict(report, at=time.time()), 'amp')

@@ -1,3 +1,10 @@
+chordsplay (1.5-1) unstable; urgency=medium
+
+  * The song through the Mustang: the amp bridge connects the amp's Bluetooth
+    audio and moves the browser's sound there, on a button or always.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 13 Nov 2026 21:30:00 +0000
+
 chordsplay (1.4-1) unstable; urgency=medium
 
   * Tone dialog: cue editor with the song's waveform, exact positions,

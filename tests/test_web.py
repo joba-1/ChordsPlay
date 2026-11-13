@@ -403,6 +403,50 @@ class Amp(Api):
         b.step()
         self.assertEqual(agent.requests[-1], ('tone', 'Soft', -8.0))
 
+    def test_song_through_the_mustang(self):
+        from mmp import bridge as bridgemod
+
+        class FakeAudio(object):
+            busy = False
+
+            def __init__(self):
+                self.routed, self.kept = 0, []
+
+            def state(self):
+                return {'bluetooth': True, 'browser': True, 'routed': self.routed > 0, 'busy': False, 'error': None}
+
+            def route_async(self):
+                self.routed += 1
+
+            def keep(self, state):
+                self.kept.append(state)
+        path, opener = self.bridge()
+        audio = FakeAudio()
+        b = bridgemod.Bridge('http://localhost' + path, FakeAgentClient(), opener=opener, audio=audio)
+        # the button: a command for the bridge
+        self.assertTrue('ok' in self.client.post('/api/amp/audio').get_json())
+        b.session.update('cmd', self.app.hub.get('jo', 'cmd'))
+        b.step()
+        self.assertEqual(audio.routed, 1)
+        # the bridge reports where the song goes; the page gets it with the amp state
+        self.assertTrue(self.client.get('/api/amp').get_json()['amp']['audio']['routed'])
+        # "always": stored, sent to the bridge as 'conf', acted on only while a song plays
+        self.assertFalse(self.client.get('/api/amp').get_json()['audio_auto'])
+        self.assertTrue(self.client.put('/api/amp/audio-auto', json={'on': True}).get_json()['audio_auto'])
+        b.session.update('conf', self.app.hub.get('jo', 'conf'))
+        b.audio_checked = 0
+        b.step()
+        self.assertEqual(audio.kept, [])                                # nothing plays
+        b.session.update('now', {'id': self.song_ids()[0], 't': 1, 'playing': True, 'at': 1, 'server_time': 1})
+        b.audio_checked = 0
+        b.step()
+        self.assertEqual(len(audio.kept), 1)
+        # after a server start the bridge gets the stored setting when it connects
+        self.app.hub.states.pop(('jo', 'conf'), None)
+        r = self.client.get(path + 'events', buffered=False)
+        r.close()
+        self.assertEqual(self.app.hub.get('jo', 'conf')['audio_auto'], True)
+
     def test_try_wins_over_a_cue_edit_in_the_same_tick(self):
         from mmp import bridge as bridgemod
         alpha = self.song_ids()[0]

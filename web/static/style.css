@@ -169,6 +169,8 @@ body.display.idle, body.display.idle * { cursor: none; }
 .cues td.t { font-variant-numeric: tabular-nums; }
 .cues button { padding: 0 6px; }
 .cues tr.sel td { background: var(--current); }
+.amp-audio { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.amp-audio button { padding: 1px 8px; }
 .amp-pos { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0 8px; }
 .amp-pos-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
 .amp-pos-row button { padding: 1px 7px; }

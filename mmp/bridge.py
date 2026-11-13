@@ -39,6 +39,7 @@ import urllib.error
 import urllib.request
 
 from ChordsPlay import amp as ampmod
+from mmp import audio as audiomod
 
 log = logging.getLogger('bridge')
 
@@ -48,6 +49,7 @@ REPORT_S = 10           # report the amp's state at least this often (server: BR
 COMMAND_MAX_AGE_S = 10  # a "try now" older than this (e.g. from before a reconnect) is ignored
 RECONNECT_S = (3, 60)   # wait before reconnecting the event stream, growing to the max
 TAKE_MAX_S = 20 * 60    # a recording nobody stopped ends after this
+AUDIO_CHECK_S = 2       # how often the song's way to the amp (Bluetooth output, browser stream) is checked
 AMP_SOURCE_HINT = 'Fender_Mustang_Micro_Plus'   # the amp's USB recording in PipeWire
 
 
@@ -183,7 +185,8 @@ class Session(object):
         self.lock = threading.Lock()
         self.now = None         # (song_id, t at `since`, playing, since (monotonic))
         self.plan_rev = None
-        self.commands = []      # try now / fetch a preset / write a slot / record, in order
+        self.commands = []      # try now / fetch a preset / write a slot / record / audio, in order
+        self.conf = {}          # the user's settings for the bridge (audio_auto)
 
     def update(self, channel, data):
         with self.lock:
@@ -201,6 +204,8 @@ class Session(object):
             elif channel == 'cmd':
                 if time.time() - float(data.get('at') or 0) < COMMAND_MAX_AGE_S:
                     self.commands.append(data)
+            elif channel == 'conf':
+                self.conf = dict(data)
 
     def position(self):
         '''(song_id, ms, playing) or None.'''
@@ -238,7 +243,8 @@ def read_events(response, on_event):
 
 class Bridge(object):
 
-    def __init__(self, url, client, lead_ms=ampmod.LEAD_MS, default_slot=None, opener=urllib.request.urlopen):
+    def __init__(self, url, client, lead_ms=ampmod.LEAD_MS, default_slot=None, opener=urllib.request.urlopen,
+                 audio=None):
         self.url = url.rstrip('/') + '/'
         self.client = client
         self.open = opener
@@ -252,6 +258,9 @@ class Bridge(object):
         self.writing = []           # (command, until): sounds to write into an amp slot
         self.written = None         # result of the last write, for the report
         self.reported = (None, 0)   # (report, monotonic)
+        self.audio = audio or audiomod.AmpAudio()
+        self.audio_state = None     # the song's way to the amp, for the report
+        self.audio_checked = 0.0    # monotonic
         self.connected = False
         self.quit = threading.Event()
 
@@ -314,6 +323,9 @@ class Bridge(object):
                 self.writing.append((command, time.monotonic() + 30))
             elif 'fetch' in command:
                 self.fetching[int(command['fetch'])] = time.monotonic() + 30
+            elif 'audio' in command:
+                self.audio.route_async()
+                self.audio_checked = 0.0
             else:
                 self.trying = (command, time.monotonic() + 30)
         if self.trying is not None:
@@ -321,8 +333,23 @@ class Bridge(object):
         self.send_presets()
         self.write_slots()
         self.recorder.check()
+        self.check_audio(where is not None and where[2])
         self.report()
         return wait
+
+    def check_audio(self, playing):
+        '''Every AUDIO_CHECK_S: is the song on its way to the amp? With "always" on and a
+        song playing, route it there if not.'''
+        if time.monotonic() - self.audio_checked < AUDIO_CHECK_S and not self.audio.busy:
+            return
+        self.audio_checked = time.monotonic()
+        try:
+            self.audio_state = self.audio.state()
+        except Exception as e:      # noqa: BLE001 - pactl missing or broken: report, go on
+            self.audio_state = {'error': str(e)}
+            return
+        if playing and self.session.conf.get('audio_auto'):
+            self.audio.keep(self.audio_state)
 
     def upload_take(self, take_id, path, seconds):
         with open(path, 'rb') as f:
@@ -412,7 +439,7 @@ class Bridge(object):
     def report(self):
         snap = self.client.snapshot()
         report = dict(snap, warning=self.cues.warning, recording=self.recorder.state(),
-                      record_error=self.recorder.error, written=self.written)
+                      record_error=self.recorder.error, written=self.written, audio=self.audio_state)
         last, when = self.reported
         if report == last and time.monotonic() - when < REPORT_S:
             return
@@ -466,6 +493,7 @@ def main(argv=None):
     client = ampmod.AmpClient(agent, control=control).start()
     default = os.environ.get('AMP_DEFAULT_SLOT')
     bridge = Bridge(url, client, lead_ms=int(os.environ.get('AMP_LEAD_MS', str(ampmod.LEAD_MS))),
+                    audio=audiomod.AmpAudio(os.environ.get('AMP_SINK', 'Mustang Micro Plus')),
                     default_slot=int(default) if default else None)
     signal.signal(signal.SIGTERM, lambda *_: bridge.quit.set())
     try:
