@@ -284,8 +284,8 @@ def main():
         json.dump(result, f, indent=1)
 
     # the new sound starts when the noisy preset's noise comes up (the amp mutes ~50 ms
-    # before, which a switch to the quiet preset shows); the first switch is left out: the
-    # Bluetooth stream's delay still grows in the first seconds of playing
+    # before, which a switch to the quiet preset shows); the first switch is left out, so a
+    # glitch right after the playback starts cannot shift the result
     starts = [v for k, v in enumerate(lags) if k > 0 and noisy_at(k)]
     stops = [v for k, v in enumerate(lags) if not noisy_at(k)]
     result['new_sound'] = stats(starts)
