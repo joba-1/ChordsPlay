@@ -86,7 +86,7 @@ class AmpAudio(unittest.TestCase):
         a.keep(a.state())
         self.assertFalse(a.busy)
         self.assertFalse(any(c[:2] == ['pactl', 'move-sink-input'] for c in sys_.calls[calls:]))
-        a.tried = 0.0
+        a.tried = None
         a.keep(a.state())
         deadline = time.monotonic() + 2
         while a.busy and time.monotonic() < deadline:

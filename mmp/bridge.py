@@ -260,7 +260,7 @@ class Bridge(object):
         self.reported = (None, 0)   # (report, monotonic)
         self.audio = audio or audiomod.AmpAudio()
         self.audio_state = None     # the song's way to the amp, for the report
-        self.audio_checked = 0.0    # monotonic
+        self.audio_checked = None   # monotonic (None: not yet)
         self.connected = False
         self.quit = threading.Event()
 
@@ -325,7 +325,7 @@ class Bridge(object):
                 self.fetching[int(command['fetch'])] = time.monotonic() + 30
             elif 'audio' in command:
                 self.audio.route_async()
-                self.audio_checked = 0.0
+                self.audio_checked = None
             else:
                 self.trying = (command, time.monotonic() + 30)
         if self.trying is not None:
@@ -340,7 +340,8 @@ class Bridge(object):
     def check_audio(self, playing):
         '''Every AUDIO_CHECK_S: is the song on its way to the amp? With "always" on and a
         song playing, route it there if not.'''
-        if time.monotonic() - self.audio_checked < AUDIO_CHECK_S and not self.audio.busy:
+        if self.audio_checked is not None and time.monotonic() - self.audio_checked < AUDIO_CHECK_S \
+                and not self.audio.busy:
             return
         self.audio_checked = time.monotonic()
         try:

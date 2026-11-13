@@ -434,11 +434,11 @@ class Amp(Api):
         self.assertFalse(self.client.get('/api/amp').get_json()['audio_auto'])
         self.assertTrue(self.client.put('/api/amp/audio-auto', json={'on': True}).get_json()['audio_auto'])
         b.session.update('conf', self.app.hub.get('jo', 'conf'))
-        b.audio_checked = 0
+        b.audio_checked = None
         b.step()
         self.assertEqual(audio.kept, [])                                # nothing plays
         b.session.update('now', {'id': self.song_ids()[0], 't': 1, 'playing': True, 'at': 1, 'server_time': 1})
-        b.audio_checked = 0
+        b.audio_checked = None
         b.step()
         self.assertEqual(len(audio.kept), 1)
         # after a server start the bridge gets the stored setting when it connects

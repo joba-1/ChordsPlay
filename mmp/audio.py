@@ -42,7 +42,8 @@ class AmpAudio(object):
         self.lock = threading.Lock()
         self.busy = False
         self.error = None
-        self.tried = 0.0            # monotonic, last routing attempt
+        self.tried = None           # monotonic, last routing attempt (None: never; the clock
+                                    # starts at boot, so 0 would mean "just now" on a fresh machine)
 
     def _json(self, kind):
         try:
@@ -132,5 +133,5 @@ class AmpAudio(object):
         '''"Always": route again when a browser plays here and its sound doesn't go to the
         amp, at most every AUTO_RETRY_S after a failed try.'''
         if state['browser'] and not state['routed'] and not state['busy'] \
-                and time.monotonic() - self.tried > AUTO_RETRY_S:
+                and (self.tried is None or time.monotonic() - self.tried > AUTO_RETRY_S):
             self.route_async()
