@@ -14,7 +14,8 @@ from mmp import audio as audiomod          # noqa: E402
 
 class FakeSystem(object):
     def __init__(self, sinks=(), streams=(), paired='Device 84:17:15:2B:2A:FA Mustang Micro Plus\n',
-                 connect_adds=None):
+                 connect_adds=None, default=None):
+        self.default = default if default is not None else (AMP['name'] if AMP in sinks else USB['name'])
         self.sinks = list(sinks)
         self.streams = list(streams)
         self.paired = paired
@@ -25,6 +26,11 @@ class FakeSystem(object):
         self.calls.append(args)
         if args[:4] == ['pactl', '-f', 'json', 'list']:
             return json.dumps(self.sinks if args[4] == 'sinks' else self.streams)
+        if args[:2] == ['pactl', 'get-default-sink']:
+            return self.default + '\n'
+        if args[:2] == ['pactl', 'set-default-sink']:
+            self.default = args[2]
+            return ''
         if args[:2] == ['bluetoothctl', 'devices']:
             return self.paired
         if args[:2] == ['bluetoothctl', 'connect'] and self.connect_adds:
@@ -62,8 +68,17 @@ class AmpAudio(unittest.TestCase):
         a = audiomod.AmpAudio(runner=sys_)
         self.assertIsNone(a.route())
         self.assertIn(['bluetoothctl', 'connect', '84:17:15:2B:2A:FA'], sys_.calls)
+        self.assertEqual(sys_.default, AMP['name'])                    # the volume keys: now the amp
         self.assertIn(['pactl', 'move-sink-input', '5', AMP['name']], sys_.calls)
         self.assertNotIn(['pactl', 'move-sink-input', '6', AMP['name']], sys_.calls)
+        self.assertTrue(a.state()['routed'])
+
+    def test_routed_only_as_the_default_output(self):
+        sys_ = FakeSystem(sinks=[USB, AMP], streams=[stream(5, 70)], default=USB['name'])
+        a = audiomod.AmpAudio(runner=sys_)
+        self.assertFalse(a.state()['routed'])          # the browser plays there, the volume keys don't
+        self.assertIsNone(a.route())
+        self.assertEqual(sys_.default, AMP['name'])
         self.assertTrue(a.state()['routed'])
 
     def test_old_error_goes(self):

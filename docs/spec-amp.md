@@ -79,7 +79,8 @@ server's reply for the song (`SongPlan` in `mmp/bridge.py`).
 to the amp. Reported to the server with the amp's state (`audio`). On the command from the
 page (`POST api/amp/audio` → `cmd {audio}`) or with *always* (`PUT api/amp/audio-auto`, kept
 channel `conf` to the bridge) while a song plays: `bluetoothctl connect <amp>` if the amp is
-no output, then `pactl move-sink-input` for the browser's streams. WirePlumber remembers the
+no output, `pactl set-default-sink` (the volume keys act on the default output), then
+`pactl move-sink-input` for the browser's streams. WirePlumber remembers the
 amp as the browser's output while it is there. *Always* tries again at most once a minute
 after a failure.
 

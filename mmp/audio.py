@@ -10,6 +10,10 @@ can connect the amp with bluetoothctl and move the browser's stream with pactl. 
 plays all its tabs through one stream, so the browser's whole sound moves; WirePlumber
 then remembers the amp as the browser's output while the amp is there.
 
+The amp also becomes the system's default output: the computer's volume keys change the
+default output, so they then set the song's volume (the user's choice; other sounds of
+the computer go to the amp too while it is connected, and back when it goes).
+
 Standard library only; the commands run through run(args, timeout) so tests can fake them.
 '''
 
@@ -65,11 +69,19 @@ class AmpAudio(object):
         return [(s.get('index'), s.get('sink')) for s in self._json('sink-inputs')
                 if (s.get('properties') or {}).get('application.process.binary') in BROWSERS]
 
+    def default(self):
+        '''The name of the system's default output.'''
+        try:
+            return self.run(['pactl', 'get-default-sink'], 10).strip()
+        except (OSError, subprocess.SubprocessError):
+            return ''
+
     def state(self):
         '''For the page: bluetooth (the amp is an output), browser (a browser plays here),
-        routed (every browser stream goes to the amp), busy, error.'''
+        routed (every browser stream goes to the amp, and it is the default output), busy, error.'''
         sink, streams = self.sink(), self.streams()
-        routed = bool(sink and streams and all(out == sink[0] for _, out in streams))
+        routed = bool(sink and streams and all(out == sink[0] for _, out in streams)
+                      and self.default() == sink[1])
         with self.lock:
             if self.error and (routed or time.monotonic() - self.error_at > ERROR_KEEP_S):
                 self.error = None       # an old failure is no news any more
@@ -103,6 +115,10 @@ class AmpAudio(object):
                 sink = self.sink()
             if sink is None:
                 return 'the Mustang\'s Bluetooth audio did not connect (is it on?)'
+        if self.default() != sink[1]:
+            # the volume keys change the default output: now the song's volume
+            self.run(['pactl', 'set-default-sink', sink[1]], 10)
+            log.info('audio: %s is the default output now', sink[1])
         streams = self.streams()
         if not streams:
             return 'no browser plays on this computer (start the song here, then try again)'

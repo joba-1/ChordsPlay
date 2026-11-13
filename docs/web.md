@@ -218,7 +218,9 @@ every device plays them.
 * **The song through the Mustang:** the tone dialog says where the song goes, as the bridge
   sees it on the amp computer, and *Play through the Mustang* has the bridge connect the
   amp's Bluetooth audio if needed and move the browser's sound there (PipeWire; all of the
-  browser's tabs, since a browser plays through one stream). *always* does that whenever a
+  browser's tabs, since a browser plays through one stream), and makes the amp the system's
+  default output, so the computer's volume keys set the song's volume (other sounds of that
+  computer then go to the amp too while it is connected). *always* does that whenever a
   song plays and the browser on the amp computer doesn't play to the Mustang. It works for
   a browser on the amp computer only; the top right adds `♪ via Mustang` or
   `♪ not via Mustang`.

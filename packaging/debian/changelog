@@ -1,3 +1,10 @@
+chordsplay (1.6.5-1) unstable; urgency=medium
+
+  * The song through the Mustang also makes the amp the default output, so
+    the computer's volume keys set the song's volume.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 14 Nov 2026 01:45:00 +0000
+
 chordsplay (1.6.4-1) unstable; urgency=medium
 
   * Paired TV remote: the buttons hide 15 s after the last press also in TV
