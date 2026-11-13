@@ -91,9 +91,14 @@
 <dialog id="d-pdf">
   <form method="dialog">
     <h2 id="pdf-title">PDF tabs</h2>
+    <h3 id="pdf-views-head">This song shows <span class="hint">(the same as key v)</span></h3>
     <div id="pdf-views" class="views"></div>
-    <p class="hint">All PDFs found in <span id="pdf-folders"></span>. A file named "Artist - Title" or
-      "Artist - Title - Part" is linked to its song by itself; for the others choose the song.</p>
+    <h3>All PDF tabs <span id="pdf-unlinked" class="err"></span></h3>
+    <p class="hint">Every PDF found next to the songs and in <span id="pdf-folders"></span>. A PDF next to its
+      song file (<i>13 Cruz.pdf</i> for <i>13 Cruz.mp3</i>) or named <i>Artist - Title.pdf</i> or
+      <i>Artist - Title - Part.pdf</i> links itself to its song. The others are listed first: <b>Choose song…</b>
+      links one to its song (with a part name such as Solo, if you like), or marks it as <b>No song</b> (an album
+      booklet, say). A choice made here is never changed by a later scan.</p>
     <table class="pdf-list"><thead><tr><th>File</th><th>Song</th><th></th></tr></thead>
       <tbody id="pdf-list"></tbody></table>
     <div class="dlg-buttons"><span class="grow"></span><button value="close">Close</button></div>

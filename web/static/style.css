@@ -203,6 +203,9 @@ code.copy { user-select: all; word-break: break-all; }
 .pdf-list .none { color: var(--muted); }
 .pdf-assign { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 0; }
 .pdf-assign input { min-width: 12em; }
+#d-pdf h3 { font-size: 14px; margin: 10px 0 4px; }
+#d-pdf h3 .hint, #d-pdf h3 .err { font-weight: normal; font-size: 13px; margin-left: 6px; }
+#d-pdf h3 .err { color: var(--error); }
 .views { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 
 /* help */

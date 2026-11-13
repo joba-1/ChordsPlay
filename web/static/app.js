@@ -1212,13 +1212,20 @@ async function openPdfs() {
 
 function renderPdfs() {
   $('#pdf-title').textContent = song ? `PDF tabs: ${song.title} – ${song.artist}` : 'PDF tabs';
+  $('#pdf-views-head').hidden = !song;
+  const open = pdfAll.filter((p) => !p.song && !p.manual).length;
+  $('#pdf-unlinked').textContent = open ? `${open} not linked to a song yet` : '';
+  // not linked first, then those marked "no song", then by song
+  const rank = (p) => (p.song ? 2 : p.manual ? 1 : 0);
+  const key = (p) => (p.song ? `${p.song.artist} ${p.song.title}` : p.name).toLowerCase();
+  pdfAll = [...pdfAll].sort((a, b) => rank(a) - rank(b) || key(a).localeCompare(key(b)));
   $('#pdf-views').innerHTML = song ? [`<label><input type="radio" name="view" value="" ${song.view ? '' : 'checked'}> Song text</label>`,
     ...(song.pdfs || []).map((p) => `<label><input type="radio" name="view" value="${p.id}" ${song.view === p.id ? 'checked' : ''}> ` +
       `PDF: ${esc(pdfLabel(p))}</label>`)].join('') : '';
   $('#pdf-list').innerHTML = pdfAll.map((p) => `<tr data-id="${p.id}"><td>${esc(p.name)}</td>` +
     `<td>${p.song ? esc(`${p.song.artist} – ${p.song.title}`) + (p.part ? ` <span class="none">(${esc(p.part)})</span>` : '')
                  : `<span class="none">${p.manual ? 'no song' : 'not matched'}</span>`}</td>` +
-    `<td><button type="button" data-assign="${p.id}">Choose song…</button></td></tr>`).join('') ||
+    `<td><button type="button" data-assign="${p.id}">${p.song ? 'Change…' : 'Choose song…'}</button></td></tr>`).join('') ||
     '<tr><td colspan="3" class="none">No PDFs found.</td></tr>';
 }
 

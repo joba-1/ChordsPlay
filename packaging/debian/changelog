@@ -1,3 +1,11 @@
+chordsplay (1.5.2-1) unstable; urgency=medium
+
+  * PDF tabs dialog: explains what to do, PDFs not linked to a song first.
+  * Amp audio: an old failed try is no longer shown once the song reaches
+    the amp, or after a minute.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 13 Nov 2026 22:15:00 +0000
+
 chordsplay (1.5.1-1) unstable; urgency=medium
 
   * "Always" routing also works on a machine booted less than a minute ago.
