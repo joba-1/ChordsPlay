@@ -167,7 +167,8 @@ every device plays them.
   or a pause is easy to see. Set the position by clicking into the waveform, dragging it
   or the mouse wheel, the slider over the whole song, the steps (±1 s, ±0.1 s, ±0.01 s;
   with the waveform focused also ← → with Shift or Alt), by typing `m:ss.cc`, or with
-  *Now* (where the song is). *▶ Around* plays from 1–8 s before the position to 2 s
+  *Now* (where the song is). With *follow the song* the waveform stays centred on where the
+  song is and scrolls while it plays (dragging or the wheel switches it off). *▶ Around* plays from 1–8 s before the position to 2 s
   after it and pauses; *▶ On* keeps playing. Put a cue where the part starts as you hear
   it: the timing is set for a song played to the amp over Bluetooth, so the new sound
   starts at that moment (measured: within about ±50 ms).

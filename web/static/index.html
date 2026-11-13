@@ -161,6 +161,7 @@
         <input id="amp-pos-input" class="t" size="9" title="Position in the song: m:ss.cc (Enter)">
         <button type="button" id="amp-pos-new" hidden title="Stop editing this cue: the position is then for a new one">New cue instead</button>
         <span class="grow"></span>
+        <label class="hint" title="The waveform stays centred on where the song is and scrolls while it plays; dragging or the wheel switches it off"><input type="checkbox" id="amp-follow"> follow the song</label>
         <label class="hint">window <select id="amp-zoom"><option value="2000">2 s</option><option value="5000" selected>5 s</option><option value="10000">10 s</option><option value="30000">30 s</option></select></label>
       </div>
       <canvas id="amp-wave" tabindex="0" title="Click: set the position · drag or mouse wheel: scroll · ← →: 0.1 s (Shift: 1 s, Alt: 0.01 s)"></canvas>

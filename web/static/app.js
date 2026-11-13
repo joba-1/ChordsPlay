@@ -782,9 +782,21 @@ async function loadWave() {
   drawWave();
 }
 
+function waveFollow() { return $('#amp-follow').checked && !!player.src; }
+
+// the window shown: around the position, or around the song's position while following it
 function waveWindow() {
   const span = Number($('#amp-zoom').value);
-  return { span, from: cuePos - span / 2 };
+  const center = waveFollow() ? player.currentTime * 1000 : cuePos;
+  return { span, from: center - span / 2 };
+}
+
+function stopFollowing() {
+  if (!$('#amp-follow').checked) return null;
+  const { span, from } = waveWindow();
+  $('#amp-follow').checked = false;
+  try { localStorage.setItem('waveFollow', ''); } catch (e) { /* ignore */ }
+  return from + span / 2;
 }
 
 function drawWave() {
@@ -876,6 +888,11 @@ $('#amp-zoom').addEventListener('change', () => drawWave());
 $('#amp-listen').addEventListener('click', () => listen(true));
 $('#amp-listen-on').addEventListener('click', () => listen(false));
 $('#amp-listen-stop').addEventListener('click', () => { listenTo = null; player.pause(); });
+$('#amp-follow').addEventListener('change', (e) => {
+  try { localStorage.setItem('waveFollow', e.target.checked ? '1' : ''); } catch (err) { /* ignore */ }
+  drawWave();
+});
+try { $('#amp-follow').checked = !!localStorage.getItem('waveFollow'); } catch (e) { /* ignore */ }
 $('#amp-wave').addEventListener('pointerdown', (e) => {
   waveDrag = { x: e.clientX, pos: cuePos, moved: false };
   e.target.setPointerCapture(e.pointerId);
@@ -883,7 +900,11 @@ $('#amp-wave').addEventListener('pointerdown', (e) => {
 $('#amp-wave').addEventListener('pointermove', (e) => {
   if (!waveDrag) return;
   const dx = e.clientX - waveDrag.x;
-  if (Math.abs(dx) > 3) waveDrag.moved = true;
+  if (Math.abs(dx) > 3 && !waveDrag.moved) {
+    waveDrag.moved = true;
+    const center = stopFollowing();       // dragging scrolls by hand from what is shown
+    if (center !== null) waveDrag.pos = center;
+  }
   if (waveDrag.moved) setPos(waveDrag.pos - dx / e.target.clientWidth * waveWindow().span);
 });
 $('#amp-wave').addEventListener('pointerup', (e) => {
@@ -896,7 +917,8 @@ $('#amp-wave').addEventListener('pointerup', (e) => {
 });
 $('#amp-wave').addEventListener('wheel', (e) => {
   e.preventDefault();
-  setPos(cuePos + Math.sign(e.deltaY || e.deltaX) * waveWindow().span / 25);
+  const center = stopFollowing();
+  setPos((center ?? cuePos) + Math.sign(e.deltaY || e.deltaX) * waveWindow().span / 25);
 }, { passive: false });
 $('#amp-wave').addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
