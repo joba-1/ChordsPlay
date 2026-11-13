@@ -54,9 +54,12 @@ def main():
     control = AgentControl(UNIT)
     client = AmpClient(URL, poll=0.5, control=control, live_slot=100).start()
     try:
-        state = wait(lambda: client.snapshot()['state'] if client.snapshot()['state'].get('connected')
-                     else None, 60, 'the agent to connect to the amp')
-        original = state['preset']
+        first = wait(lambda: client.snapshot()['state'] or None, 15, 'the agent')
+        # slot 100 is where tones are auditioned: not a preset to go back to
+        original = first.get('preset') if first.get('preset') not in (None, 100) else base_slot
+        if not first.get('connected'):
+            client.request(original)        # the agent sleeps after 5 idle minutes; a switch wakes it
+        wait(lambda: client.snapshot()['state'].get('connected'), 60, 'the agent to connect to the amp')
         base = wait(lambda: client.preset(base_slot), 30, 'the base preset')
         print('Base {} "{}", amp on preset {}'.format(base_slot, base['info']['displayName'], original))
         levels = []
