@@ -195,10 +195,13 @@ player.addEventListener('seeked', pushNow);
 
 // tell the server what plays and where: it remembers the song for every device,
 // and displays (key d) follow it
+// this page among the open controller pages: a paired TV's remote goes to the one that played last
+const ctlId = Math.random().toString(36).slice(2, 12);
+
 function pushNow() {
   if (!song) return;
   api('now', { method: 'PUT', body: { id: song.id, pos, t: player.currentTime || 0, playing: !player.paused,
-                                     pdf: song.view || null, page: pdfPage } })
+                                     pdf: song.view || null, page: pdfPage, ctl: ctlId } })
     .catch(() => {});
 }
 setInterval(() => { if (!player.paused) pushNow(); }, 15000);   // displays correct their clock
@@ -618,6 +621,16 @@ setInterval(showAmp, 5000);     // notices a bridge that went away
 
 function followAmp() {
   const events = new EventSource('api/events');
+  // a paired TV's remote: only for this page, and only fresh (a reconnect repeats the last one)
+  events.addEventListener('remote', (e) => {
+    let r;
+    try { r = JSON.parse(e.data); } catch (err) { return; }
+    if (r.ctl !== ctlId || (r.server_time || 0) - (r.at || 0) > 10) return;
+    const act = { prev, next, toggle: togglePause }[r.action];
+    if (!act) return;
+    act();
+    toast({ prev: 'TV: previous song', next: 'TV: next song', toggle: 'TV: play/pause' }[r.action]);
+  });
   events.addEventListener('amp', (e) => {
     try { amp = JSON.parse(e.data); } catch (err) { return; }
     ampSeen = Date.now();

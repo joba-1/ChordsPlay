@@ -169,6 +169,16 @@ body.display #bar { padding: 4px 12px; }
 body.display .empty .code { font: 600 clamp(32px, 8vw, 96px) var(--sheet-font); letter-spacing: 0.15em; margin: 0.4em 0; }
 body.display #bar.offline .time::after { content: " · offline"; color: var(--error); }
 body.display.idle, body.display.idle * { cursor: none; }
+/* a paired TV's remote: big, for a cursor moved with the D-pad; shown when it moves */
+#remote { position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%); display: flex; gap: 3vw;
+          align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 10; }
+#remote.show { opacity: 1; pointer-events: auto; }
+#remote button { font-size: clamp(36px, 7vh, 84px); line-height: 1; padding: 0.2em 0.55em; border-radius: 18px;
+                 background: rgb(0 0 0 / 0.7); color: #fff; border: 2px solid rgb(255 255 255 / 0.55); cursor: pointer; }
+#remote button:hover, #remote button:focus { background: var(--accent); outline: none; }
+#remote-msg { position: absolute; left: 50%; top: -1.6em; transform: translateX(-50%); white-space: nowrap;
+              font-size: clamp(16px, 2.6vh, 30px); color: #fff; text-shadow: 0 0 6px #000; }
+body.display.idle #remote.show, body.display.idle #remote.show * { cursor: pointer; }
 #display-qr { width: 220px; height: 220px; background: #fff; padding: 6px; border-radius: 6px; }
 .display-link { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .display-link code { font: 15px var(--sheet-font); word-break: break-all; }

@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.5.5'
+__version__ = '1.6'
 
 log = logging.getLogger(__name__)
 
@@ -349,7 +349,9 @@ def now():
              't': float(data.get('t') or 0), 'playing': bool(data.get('playing')),
              # what the song shows: its text (pdf None) or a PDF, and the PDF's first page shown
              'pdf': data.get('pdf') if isinstance(data.get('pdf'), int) else None,
-             'page': int(data.get('page') or 1)}
+             'page': int(data.get('page') or 1),
+             # which open controller page plays: a paired TV's remote goes to that one only
+             'ctl': data['ctl'][:40] if isinstance(data.get('ctl'), str) else None}
     previous = hub.get(db.user)
     if previous is None or previous.get('id') != state['id']:
         set_state(db, 'now', {'id': state['id'], 'pos': state['pos'], 'at': state['at']})
@@ -454,8 +456,8 @@ def sse(db, channels=('now',), expires=None):
 
 @app.route('/api/events')
 def events():
-    '''The controller page: other controllers' state and the amp's.'''
-    return sse(get_db(), ('now', 'amp'))
+    '''The controller page: other controllers' state, the amp's, and a paired TV's remote.'''
+    return sse(get_db(), ('now', 'amp', 'remote'))
 
 
 @app.route('/api/display', methods=['POST', 'DELETE'])
@@ -637,6 +639,26 @@ def tv_events():
     if user is None:
         abort(401)
     return sse(get_db(user))
+
+
+REMOTE_ACTIONS = ('prev', 'next', 'toggle')
+
+
+@app.route('/d/tv/remote', methods=['POST'])
+def tv_remote():
+    '''A paired TV's remote: {action: prev|next|toggle} for the controller page that plays
+    (it does it, being the device that plays the sound). Code links (d/<code>/) can't.'''
+    user = tv_user()
+    if user is None:
+        abort(401)
+    action = (request.get_json(silent=True) or {}).get('action')
+    if action not in REMOTE_ACTIONS:
+        abort(400)
+    now = hub.get(user)
+    if not now or not now.get('ctl'):
+        return jsonify(ok=False, error='No ChordsPlay page plays at the moment.')
+    hub.publish(user, {'action': action, 'ctl': now['ctl'], 'at': time.time()}, 'remote')
+    return jsonify(ok=True, playing=bool(now.get('playing')))
 
 
 @app.route('/d/tv/pdf/<int:pdf_id>')

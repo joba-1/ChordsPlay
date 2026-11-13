@@ -151,7 +151,7 @@ function toggleFull() {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(() => {});
 }
-document.addEventListener('click', toggleFull);
+document.addEventListener('click', (e) => { if (!e.target.closest('#remote')) toggleFull(); });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === 'f' || e.key === 'F11') { e.preventDefault(); toggleFull(); }
 });
@@ -164,6 +164,57 @@ document.addEventListener('mousemove', () => {
   hideTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
 });
 
+// --- a paired TV's remote: previous, play/pause, next for the controller page -------
+// Only on d/tv/ (a TV paired once), not on a code link. TV Bro steers with a cursor that
+// the D-pad moves: big buttons that appear when it moves (and with any key), clicked with
+// OK. In browsers that pass the keys on: ← →, play/pause and the media keys.
+const paired = /\/d\/tv\/?$/.test(location.pathname);
+let remoteTimer = null;
+
+function remoteShow() {
+  if (!paired || pairCode || expired) return;
+  $('#remote').classList.add('show');
+  clearTimeout(remoteTimer);
+  remoteTimer = setTimeout(() => {
+    if (!$('#remote').matches(':hover')) $('#remote').classList.remove('show');
+    else remoteShow();
+  }, 5000);
+}
+
+async function remote(action) {
+  remoteShow();
+  const msg = $('#remote-msg');
+  msg.textContent = '…';
+  try {
+    const res = await fetch('remote', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ action }) });
+    const r = await res.json().catch(() => ({}));
+    msg.textContent = res.ok && r.ok ? { prev: '⏮', next: '⏭', toggle: r.playing ? '⏸' : '▶' }[action]
+      : r.error || 'Not possible (' + res.status + ')';
+  } catch (e) { msg.textContent = 'Cannot reach the server.'; }
+  clearTimeout(remote.clear);
+  remote.clear = setTimeout(() => { msg.textContent = ''; }, 2500);
+}
+
+if (paired) {
+  document.body.insertAdjacentHTML('beforeend', '<div id="remote">' +
+    '<button type="button" data-act="prev" title="Previous song">⏮</button>' +
+    '<button type="button" data-act="toggle" title="Play / pause">⏯</button>' +
+    '<button type="button" data-act="next" title="Next song">⏭</button>' +
+    '<span id="remote-msg"></span></div>');
+  $('#remote').addEventListener('click', (e) => {
+    const act = e.target.closest('button')?.dataset.act;
+    if (act) remote(act);
+  });
+  document.addEventListener('mousemove', remoteShow);
+  document.addEventListener('keydown', (e) => {
+    const act = { ArrowLeft: 'prev', ArrowRight: 'next', MediaTrackPrevious: 'prev', MediaTrackNext: 'next',
+                  MediaPlayPause: 'toggle', MediaPlay: 'toggle', MediaPause: 'toggle', ' ': 'toggle' }[e.key];
+    remoteShow();
+    // on a focused button Space (and OK/Enter) press that button; the other keys act everywhere
+    if (act && !(e.key === ' ' && e.target.closest('#remote button'))) { e.preventDefault(); remote(act); }
+  });
+}
 loadState().then(() => { if (!expired && !pairCode) follow(); })
   .catch(() => { fail('Cannot reach the server.'); setTimeout(() => location.reload(), 10000); });
 keepAwake();

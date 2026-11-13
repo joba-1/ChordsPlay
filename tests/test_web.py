@@ -194,6 +194,30 @@ class Display(Api):
         self.assertEqual(tv.get('/d/tv/state').status_code, 401)
         self.assertEqual(tv.get('/d/tv/events').status_code, 401)
 
+    def test_paired_tv_remote(self):
+        sid = self.client.get('/api/state').get_json()['playlist'][1]['id']
+        tv = self.app.app.test_client()
+        code = tv.get('/d/tv/state').get_json()['pair']
+        self.client.post('/api/tv', json={'code': code, 'name': 'Living room'})
+        tv.get('/d/tv/pair', query_string={'code': code})
+        user = self.app.DEFAULT_USER
+        # no controller page has played yet
+        r = tv.post('/d/tv/remote', json={'action': 'next'}).get_json()
+        self.assertFalse(r['ok'])
+        self.assertIn('plays', r['error'])
+        # the page that played last gets it
+        self.client.put('/api/now', json={'id': sid, 't': 3, 'playing': True, 'ctl': 'page-a'})
+        self.client.put('/api/now', json={'id': sid, 't': 4, 'playing': True, 'ctl': 'page-b'})
+        r = tv.post('/d/tv/remote', json={'action': 'next'}).get_json()
+        self.assertEqual((r['ok'], r['playing']), (True, True))
+        sent = self.app.hub.get(user, 'remote')
+        self.assertEqual((sent['action'], sent['ctl']), ('next', 'page-b'))
+        self.assertEqual(tv.post('/d/tv/remote', json={'action': 'shutdown'}).status_code, 400)
+        # only a paired TV: not without its cookie, not with a code link
+        self.assertEqual(self.app.app.test_client().post('/d/tv/remote', json={'action': 'next'}).status_code, 401)
+        link = self.client.post('/api/display').get_json()['code']
+        self.assertEqual(self.client.post('/d/{}/remote'.format(link), json={'action': 'next'}).status_code, 404)
+
     def test_qr(self):
         r = self.client.get('/api/qr.svg', query_string={'text': 'https://example.org/d/abc/'})
         self.assertEqual(r.mimetype, 'image/svg+xml')
