@@ -106,7 +106,8 @@ Press `d` (or *Display*). The dialog shows a link, its QR code and the short cod
 Open the link on the TV's browser, a tablet on the music stand or a second screen: it
 shows the song this page plays, as large as that screen allows, with its title, capo
 and the time in the song, and follows every change within about a second. Click it,
-or press Enter or OK on the remote, for full screen; it keeps the screen on.
+or press Enter or OK on the remote, for full screen (a paired TV: its ⛶ button, see
+below); it keeps the screen on.
 
 * The display plays no sound and can change nothing; the audio stays on the controller
   (the device paired with the Mustang).
@@ -122,10 +123,12 @@ or press Enter or OK on the remote, for full screen; it keeps the screen on.
   opened, no new link needed. *Pair a TV* lists the paired TVs; ✕ removes one (it has
   to pair again). A code is valid for 10 minutes and can only be approved by the
   logged-in page.
-* **Remote from a paired TV** (not from a code link): moving the cursor (TV Bro: the
-  remote's D-pad) or pressing a key shows big buttons ⏮ ⏯ ⏭ at the bottom for a few
-  seconds; OK on one steps through the playlist or pauses. Browsers that pass keys on also
-  take ← →, Space and the media keys. The command goes to the controller page that played
+* **Remote from a paired TV** (not from a code link): OK (a click or tap) anywhere on the
+  page shows big buttons ⏮ ⏯ ⏭ ⛶ at the bottom for 15 s, OK on the page again hides them;
+  OK on a button steps through the playlist, pauses, or switches full screen. Made for TV
+  Bro, whose cursor tells the page nothing while it moves. Where the keys reach the page
+  (TV Bro's direct navigation mode, left with a long press of Back; other browsers):
+  ← → previous/next, OK play/pause, ↑ ↓ show the buttons, the media keys. The command goes to the controller page that played
   last, which does it (it plays the sound), so cues and the displays follow as usual.
 
 ## Takes: recording yourself

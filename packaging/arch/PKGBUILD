@@ -3,7 +3,7 @@
 # Maintainer: joba1 <joba-1@users.noreply.github.com>
 pkgbase=chordsplay
 pkgname=(chordsplay chordsplay-mmp)
-pkgver=1.6.1
+pkgver=1.6.2
 pkgrel=1
 pkgdesc="Play your music in the browser with lyrics and guitar chords"
 arch=('any')

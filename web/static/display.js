@@ -15,6 +15,7 @@ let wakeLock = null;
 let expired = false;    // the pairing code is unknown or expired
 let pairCode = null;    // a TV (d/tv/) not paired yet: the code it shows
 let pairTimer = null;
+const paired = /\/d\/tv\/?$/.test(location.pathname);   // a TV paired once (not a code link): it has a remote
 
 // the controller's view: the song text, or one of its PDFs from a page on
 let shownPdf = null;    // 'pdf/page' rendered last
@@ -151,9 +152,10 @@ function toggleFull() {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(() => {});
 }
-document.addEventListener('click', (e) => { if (!e.target.closest('#remote')) toggleFull(); });
+// (a paired TV: a click shows its remote instead, see below)
+document.addEventListener('click', (e) => { if (!paired) toggleFull(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === 'f' || e.key === 'F11') { e.preventDefault(); toggleFull(); }
+  if ((e.key === 'Enter' && !paired) || e.key === 'f' || e.key === 'F11') { e.preventDefault(); toggleFull(); }
 });
 
 // hide the mouse pointer when it rests
@@ -166,9 +168,12 @@ document.addEventListener('mousemove', () => {
 
 // --- a paired TV's remote: previous, play/pause, next for the controller page -------
 // Only on d/tv/ (a TV paired once), not on a code link. TV Bro steers with a cursor that
-// the D-pad moves: big buttons that appear when it moves (and with any key), clicked with
-// OK. In browsers that pass the keys on: ← →, play/pause and the media keys.
-const paired = /\/d\/tv\/?$/.test(location.pathname);
+// the D-pad moves; by default it tells the page nothing while it moves and OK arrives as a
+// tap. So OK anywhere shows big buttons (for 15 s, time to move the cursor there) and OK
+// on the page again hides them; OK on a button presses it. Fullscreen is a button of its
+// own here. Where the keys reach the page (TV Bro's direct navigation mode, other
+// browsers): ← → previous/next, OK play/pause, ↑ ↓ show the buttons, media keys.
+const REMOTE_SHOW_MS = 15000;
 let remoteTimer = null;
 
 function remoteShow() {
@@ -178,7 +183,12 @@ function remoteShow() {
   remoteTimer = setTimeout(() => {
     if (!$('#remote').matches(':hover')) $('#remote').classList.remove('show');
     else remoteShow();
-  }, 5000);
+  }, REMOTE_SHOW_MS);
+}
+
+function remoteHide() {
+  clearTimeout(remoteTimer);
+  $('#remote').classList.remove('show');
 }
 
 async function remote(action) {
@@ -201,18 +211,27 @@ if (paired) {
     '<button type="button" data-act="prev" title="Previous song">⏮</button>' +
     '<button type="button" data-act="toggle" title="Play / pause">⏯</button>' +
     '<button type="button" data-act="next" title="Next song">⏭</button>' +
+    '<button type="button" data-act="full" class="small" title="Full screen">⛶</button>' +
     '<span id="remote-msg"></span></div>');
-  $('#remote').addEventListener('click', (e) => {
-    const act = e.target.closest('button')?.dataset.act;
-    if (act) remote(act);
+  document.addEventListener('click', (e) => {
+    const button = e.target.closest('#remote button');
+    if (button) {
+      if (button.dataset.act === 'full') { remoteShow(); toggleFull(); } else remote(button.dataset.act);
+    } else if (!e.target.closest('#remote')) {
+      if ($('#remote').classList.contains('show')) remoteHide(); else remoteShow();
+    }
   });
-  document.addEventListener('mousemove', remoteShow);
+  // a real mouse, or TV Bro's desktop view; not the mousemove a tap also produces (that one and
+  // the click right after it would show and hide the buttons at once)
+  document.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') remoteShow(); });
   document.addEventListener('keydown', (e) => {
+    const onButton = e.target.closest('#remote button');
     const act = { ArrowLeft: 'prev', ArrowRight: 'next', MediaTrackPrevious: 'prev', MediaTrackNext: 'next',
-                  MediaPlayPause: 'toggle', MediaPlay: 'toggle', MediaPause: 'toggle', ' ': 'toggle' }[e.key];
+                  MediaPlayPause: 'toggle', MediaPlay: 'toggle', MediaPause: 'toggle', ' ': 'toggle',
+                  Enter: 'toggle' }[e.key];
     remoteShow();
-    // on a focused button Space (and OK/Enter) press that button; the other keys act everywhere
-    if (act && !(e.key === ' ' && e.target.closest('#remote button'))) { e.preventDefault(); remote(act); }
+    // OK/Space on a focused button press that button (the browser does); other keys act everywhere
+    if (act && !((e.key === ' ' || e.key === 'Enter') && onButton)) { e.preventDefault(); remote(act); }
   });
 }
 loadState().then(() => { if (!expired && !pairCode) follow(); })

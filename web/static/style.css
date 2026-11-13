@@ -176,6 +176,7 @@ body.display.idle, body.display.idle * { cursor: none; }
 #remote button { font-size: clamp(36px, 7vh, 84px); line-height: 1; padding: 0.2em 0.55em; border-radius: 18px;
                  background: rgb(0 0 0 / 0.7); color: #fff; border: 2px solid rgb(255 255 255 / 0.55); cursor: pointer; }
 #remote button:hover, #remote button:focus { background: var(--accent); outline: none; }
+#remote button.small { font-size: clamp(24px, 4.5vh, 54px); align-self: flex-end; }
 #remote-msg { position: absolute; left: 50%; top: -1.6em; transform: translateX(-50%); white-space: nowrap;
               font-size: clamp(16px, 2.6vh, 30px); color: #fff; text-shadow: 0 0 6px #000; }
 body.display.idle #remote.show, body.display.idle #remote.show * { cursor: pointer; }

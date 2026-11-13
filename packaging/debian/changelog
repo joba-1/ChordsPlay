@@ -1,3 +1,11 @@
+chordsplay (1.6.2-1) unstable; urgency=medium
+
+  * Paired TV remote made for TV Bro: OK anywhere shows the buttons (its
+    cursor sends nothing while it moves), full screen as a button; in direct
+    navigation mode the remote's keys work.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 14 Nov 2026 00:30:00 +0000
+
 chordsplay (1.6.1-1) unstable; urgency=medium
 
   * Takes dialog: the record button says it makes a new take.
