@@ -596,6 +596,17 @@ function chosen(quiet = false) {
   return null;
 }
 
+// A list box is rebuilt only when its content changed (the dialog redraws on every report
+// of the amp), and then keeps its choice and where it is scrolled to.
+function fillList(list, html) {
+  if (list.dataset.html === html) return;
+  const value = list.value, top = list.scrollTop;
+  list.innerHTML = html;
+  list.dataset.html = html;
+  list.value = value;
+  list.scrollTop = top;
+}
+
 function renderAmp() {
   const names = presetNames();
   const st = amp?.state || {};
@@ -648,17 +659,11 @@ function renderAmp() {
   const pick = Number($('#amp-presets').value);
   $('#amp-level-hint').textContent = pick && $('#amp-level').value !== '' && !(cueList?.measured || []).includes(pick)
     ? 'not measured: its own volume plus this' : '';
-  const presets = $('#amp-presets');
-  const keep = presets.value;
-  presets.innerHTML = Array.from({ length: 100 }, (_, i) =>
-    `<option value="${i + 1}">${i + 1} ${esc(names[i] || '')}${st.preset === i + 1 && !st.audition ? ' ◀' : ''}</option>`).join('');
-  presets.value = keep;
-  const tones = $('#amp-tones');
-  const keepTone = tones.value;
-  tones.innerHTML = ampTones.map((t) =>
+  fillList($('#amp-presets'), Array.from({ length: 100 }, (_, i) =>
+    `<option value="${i + 1}">${i + 1} ${esc(names[i] || '')}${st.preset === i + 1 && !st.audition ? ' ◀' : ''}</option>`).join(''));
+  fillList($('#amp-tones'), ampTones.map((t) =>
     `<option value="${t.id}">${esc(t.name)} (${t.base_slot} ${esc(t.base_name || '')}, ` +
-    `${t.level_db >= 0 ? '+' : ''}${t.level_db} dB)</option>`).join('');
-  tones.value = keepTone;
+    `${t.level_db >= 0 ? '+' : ''}${t.level_db} dB)</option>`).join(''));
   $('#amp-here').textContent = `Save as new cue at ${fmtMs(cuePos)}`;
   if (cueSel !== null && !cues.some((c) => c.start === cueSel)) cueSel = null;     // deleted meanwhile
   $('#amp-update').hidden = cueSel === null;

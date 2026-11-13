@@ -118,6 +118,8 @@ dialog {
   width: 100%;
 }
 dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+/* the tone dialog holds the cue editor, two lists and a row of buttons: as wide as the screen allows */
+#d-amp { max-width: min(1180px, calc(100vw - 32px)); }
 dialog h2 { margin: 0 0 8px; font-size: 17px; }
 .hint { color: var(--muted); margin: 6px 0; font-size: 13px; }
 .fields { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; align-items: center; }

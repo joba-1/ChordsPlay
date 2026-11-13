@@ -1,3 +1,11 @@
+chordsplay (1.5.3-1) unstable; urgency=medium
+
+  * Tone dialog: wider; the preset and tone lists keep their scroll position
+    when the amp reports.
+  * PDF tabs dialog: the view choice says it is what the song shows.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 13 Nov 2026 22:40:00 +0000
+
 chordsplay (1.5.2-1) unstable; urgency=medium
 
   * PDF tabs dialog: explains what to do, PDFs not linked to a song first.
