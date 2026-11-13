@@ -66,6 +66,17 @@ class AmpAudio(unittest.TestCase):
         self.assertNotIn(['pactl', 'move-sink-input', '6', AMP['name']], sys_.calls)
         self.assertTrue(a.state()['routed'])
 
+    def test_old_error_goes(self):
+        sys_ = FakeSystem(sinks=[AMP], streams=[stream(5, 59)])
+        a = audiomod.AmpAudio(runner=sys_)
+        a.error, a.error_at = 'no browser plays', time.monotonic()
+        self.assertEqual(a.state()['error'], 'no browser plays')
+        a.error_at -= audiomod.ERROR_KEEP_S + 1
+        self.assertIsNone(a.state()['error'])                       # a minute later
+        a.error, a.error_at = 'no browser plays', time.monotonic()
+        sys_.streams[0]['sink'] = 70
+        self.assertIsNone(a.state()['error'])                       # the song reaches the amp
+
     def test_route_errors(self):
         a = audiomod.AmpAudio(runner=FakeSystem(sinks=[USB], paired=''))
         self.assertIn('not paired', a.route())

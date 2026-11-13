@@ -26,6 +26,7 @@ BROWSERS = {'chromium', 'chromium-browser', 'chrome', 'google-chrome', 'google-c
             'brave-browser', 'msedge', 'microsoft-edge', 'vivaldi', 'vivaldi-bin', 'opera',
             'firefox', 'firefox-bin', 'firefox-esr', 'librewolf', 'floorp', 'zen', 'zen-bin'}
 CONNECT_WAIT_S = 15         # how long a new Bluetooth audio link may take to show up as an output
+ERROR_KEEP_S = 60           # a failed try is reported this long (or until the song reaches the amp)
 AUTO_RETRY_S = 60           # "always": don't try again sooner after a failure
 
 
@@ -42,6 +43,7 @@ class AmpAudio(object):
         self.lock = threading.Lock()
         self.busy = False
         self.error = None
+        self.error_at = 0.0         # monotonic, when error was set
         self.tried = None           # monotonic, last routing attempt (None: never; the clock
                                     # starts at boot, so 0 would mean "just now" on a fresh machine)
 
@@ -67,9 +69,11 @@ class AmpAudio(object):
         '''For the page: bluetooth (the amp is an output), browser (a browser plays here),
         routed (every browser stream goes to the amp), busy, error.'''
         sink, streams = self.sink(), self.streams()
+        routed = bool(sink and streams and all(out == sink[0] for _, out in streams))
         with self.lock:
-            return {'bluetooth': sink is not None, 'browser': bool(streams),
-                    'routed': bool(sink and streams and all(out == sink[0] for _, out in streams)),
+            if self.error and (routed or time.monotonic() - self.error_at > ERROR_KEEP_S):
+                self.error = None       # an old failure is no news any more
+            return {'bluetooth': sink is not None, 'browser': bool(streams), 'routed': routed,
                     'busy': self.busy, 'error': self.error}
 
     def address(self):
@@ -124,6 +128,7 @@ class AmpAudio(object):
             with self.lock:
                 self.busy = False
                 self.error = error
+                self.error_at = time.monotonic()
             if error:
                 log.warning('audio: %s', error)
         threading.Thread(target=work, name='audio', daemon=True).start()
