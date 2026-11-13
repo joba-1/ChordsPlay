@@ -53,6 +53,7 @@ On the amp computer, amp on and connected by Bluetooth audio (and USB for takes)
 | Takes | `r`, play a few seconds, `r`; `R` plays it back with song and guitar |
 | Levels | `chordsplay-match-levels` (signal cable, or `PLAYED=1`): the corrections arrive on the server |
 | Amp check | `mmp-backup`, then `mmp-check <backup dir> --all`: all checks pass |
+| Switch lag | `mmp/measure_switch_lag.py` (bridge stopped, agent running, amp on USB and, for `--via bluetooth`, Bluetooth audio; nothing in the guitar input or the guitar at volume zero): plays a test song with beeps, switches between a clean and a driven preset at the beeps with the bridge's cue logic, records the amp's USB output and prints when each switch landed relative to the song you hear. Use the result for `AMP_LEAD_MS` |
 | Tone levels | `mmp/manual_tone_level_test.py` (amp on Bluetooth and USB, instrument at volume zero, bridge stopped): every offset (+3, +6, −3, −6 dB) within 1 dB, the amp ends on its starting preset |
 
 ## After a Mustang firmware update
