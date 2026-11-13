@@ -37,6 +37,9 @@ On a desktop browser and a phone (1600×900, 1920×1080, 390×844):
 * a display page next to the controller follows next/pause/play within a second and shows
   the expired message after *End all display links*; a paired TV follows;
 * PDF tab: `v`, page turns, the display shows the same pages.
+* Tone dialog (`g`): the waveform appears; ✎ on a cue, steps, typed position and a click
+  into the waveform move the position; *▶ Around* pauses 2 s after it; *Update cue* moves
+  the cue and keeps or changes its sound.
 
 ## With the amp (after changing the bridge, the agent or the packages)
 

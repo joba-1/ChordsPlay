@@ -168,6 +168,17 @@ body.display.idle, body.display.idle * { cursor: none; }
 .cues td { padding: 2px 8px 2px 0; }
 .cues td.t { font-variant-numeric: tabular-nums; }
 .cues button { padding: 0 6px; }
+.cues tr.sel td { background: var(--current); }
+.amp-pos { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0 8px; }
+.amp-pos-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.amp-pos-row button { padding: 1px 7px; }
+.amp-pos-row .grow { flex: 1; }
+.amp-pos-row label.hint { display: flex; gap: 4px; align-items: center; }
+#amp-pos-input { font: 14px var(--sheet-font); width: 7.5em; }
+#amp-wave { display: block; width: 100%; height: 110px; margin: 6px 0 2px; background: var(--panel); border-radius: 4px; cursor: crosshair; }
+#amp-wave:focus { outline: 2px solid var(--accent); }
+#amp-pos-range { width: 100%; margin: 2px 0 6px; }
+#amp-wave-hint { margin: 4px 0 0; }
 .amp-pick { display: flex; gap: 12px; flex-wrap: wrap; }
 .amp-pick label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; font-size: 13px; color: var(--muted); }
 .amp-pick select { width: 100%; }

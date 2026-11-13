@@ -662,15 +662,15 @@ WHERE s.lyrics_chords IS NOT NULL
     def moveSongPreset(self, song_id, old_start_ms, new_start_ms):
         '''Change a cue's time; an existing cue at the new time is replaced.'''
         row = self.conn.execute(
-            "SELECT slot, slot_name, tone_id FROM song_presets WHERE song_id = ? AND start_ms = ?",
+            "SELECT slot, slot_name, tone_id, level_db, params FROM song_presets WHERE song_id = ? AND start_ms = ?",
             (song_id, old_start_ms)).fetchone()
         if row is None:
             return False
         self.conn.execute("DELETE FROM song_presets WHERE song_id = ? AND start_ms IN (?, ?)",
                           (song_id, old_start_ms, new_start_ms))
         self.conn.execute(
-            "INSERT INTO song_presets (song_id, start_ms, slot, slot_name, tone_id) VALUES (?, ?, ?, ?, ?)",
-            (song_id, int(new_start_ms), row[0], row[1], row[2]))
+            "INSERT INTO song_presets (song_id, start_ms, slot, slot_name, tone_id, level_db, params) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)", (song_id, int(new_start_ms), *row))
         self.conn.commit()
         return True
 

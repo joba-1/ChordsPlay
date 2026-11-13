@@ -146,6 +146,27 @@
     <h2 id="amp-title">Guitar tone</h2>
     <p id="amp-status" class="hint"></p>
     <table id="amp-cues" class="cues"></table>
+    <div id="amp-pos" class="amp-pos">
+      <div class="amp-pos-row">
+        <span id="amp-pos-what">New cue at</span>
+        <input id="amp-pos-input" class="t" size="9" title="Position in the song: m:ss.cc (Enter)">
+        <button type="button" id="amp-pos-new" hidden title="Stop editing this cue: the position is then for a new one">New cue instead</button>
+        <span class="grow"></span>
+        <label class="hint">window <select id="amp-zoom"><option value="2000">2 s</option><option value="5000" selected>5 s</option><option value="10000">10 s</option><option value="30000">30 s</option></select></label>
+      </div>
+      <canvas id="amp-wave" tabindex="0" title="Click: set the position · drag or mouse wheel: scroll · ← →: 0.1 s (Shift: 1 s, Alt: 0.01 s)"></canvas>
+      <input type="range" id="amp-pos-range" min="0" max="1000" step="10" value="0" title="The whole song">
+      <div class="amp-pos-row">
+        <button type="button" data-step="-1000">−1 s</button><button type="button" data-step="-100">−0.1</button><button type="button" data-step="-10">−0.01</button><button type="button" data-step="10">+0.01</button><button type="button" data-step="100">+0.1</button><button type="button" data-step="1000">+1 s</button>
+        <button type="button" id="amp-pos-now" title="Where the song is now">Now</button>
+        <span class="grow"></span>
+        <label class="hint">from <select id="amp-preroll"><option value="1000">1 s</option><option value="2000" selected>2 s</option><option value="4000">4 s</option><option value="8000">8 s</option></select> before</label>
+        <button type="button" id="amp-listen" title="Play around the position: from before it to 2 s after it, then pause">▶ Around</button>
+        <button type="button" id="amp-listen-on" title="Play from before the position and keep playing">▶ On</button>
+        <button type="button" id="amp-listen-stop" title="Pause">❚❚</button>
+      </div>
+      <p id="amp-wave-hint" class="hint"></p>
+    </div>
     <p id="amp-artist" class="hint"></p>
     <p id="amp-suggest" class="hint"></p>
     <details id="amp-sounds-box">
@@ -179,7 +200,8 @@
     <div class="dlg-buttons wrap">
       <button type="button" id="amp-try" title="Switch the amp now; nothing is stored">Try now</button>
       <button type="button" id="amp-start">Save from start</button>
-      <button type="button" id="amp-here">Save from here</button>
+      <button type="button" id="amp-here" title="A new cue at the position above, with the chosen sound">Save as new cue</button>
+      <button type="button" id="amp-update" hidden title="The cue being edited: move it to the position above and give it the chosen sound">Update cue</button>
       <button type="button" id="amp-tone-save" title="Keep the chosen preset with its level and knobs as a named tone">Save as tone…</button>
       <button type="button" id="amp-write" title="Write it into a free slot of the amp (72–99), for the amp's own buttons">Write to amp slot…</button>
       <button type="button" id="amp-artist-save" title="For every song of this artist without its own start preset">Save for artist</button>
@@ -189,8 +211,8 @@
     </div>
     <div id="amp-bridge-box" hidden>
       <p class="hint">Amp control runs on the computer the Mustang is connected to and switches it for you. To set it up,
-        that computer needs this line (technically: in <code>~/.config/chordsplay/bridge.env</code>, then
-        <code>contrib/install.sh mmp</code>). A new line replaces the previous one: amp control with the old line stops
+        that computer needs this line in <code>~/.config/chordsplay/bridge.env</code>, then
+        <code>systemctl --user enable --now chordsplay-amp-bridge</code> (package <code>chordsplay-mmp</code>). A new line replaces the previous one: amp control with the old line stops
         until it gets the new one.</p>
       <p><code id="amp-bridge-line" class="copy"></code></p>
     </div>

@@ -298,6 +298,24 @@ class Amp(Api):
         # every edit tells the bridge to reload
         self.assertIsNotNone(self.app.hub.get('jo', 'plan'))
 
+    def test_cue_moved_to_an_exact_position(self):
+        alpha = self.song_ids()[0]
+        cue = '/api/song/{}/cues/{}'.format
+        self.client.put(cue(alpha, 12340), json={'slot': 7, 'level': 3, 'params': {'reverb.wetlvl': 0.4}})
+        # move only: the sound goes along, to the millisecond
+        r = self.client.put(cue(alpha, 12340), json={'to': 12870}).get_json()
+        self.assertEqual([(c['start'], c['slot'], c['level'], c['params']) for c in r['cues']],
+                         [(12870, 7, 3.0, {'reverb.wetlvl': 0.4})])
+        # move and change the sound in one go
+        r = self.client.put(cue(alpha, 12870), json={'to': 11005, 'slot': 9, 'level': -2}).get_json()
+        self.assertEqual([(c['start'], c['slot'], c['level'], c['params']) for c in r['cues']], [(11005, 9, -2.0, None)])
+        self.assertIsNotNone(self.app.hub.get('jo', 'plan'))
+        # nothing to move, a bad position, nothing at all
+        self.assertEqual(self.client.put(cue(alpha, 5000), json={'to': 6000}).status_code, 404)
+        self.assertEqual(self.client.put(cue(alpha, 11005), json={'to': -1}).status_code, 400)
+        self.assertEqual(self.client.put(cue(alpha, 11005), json={'to': 1.5}).status_code, 400)
+        self.assertEqual(self.client.put(cue(alpha, 11005), json={}).status_code, 400)
+
     def test_learn_needs_a_bridge_and_a_connected_amp(self):
         alpha = self.song_ids()[0]
         r = self.client.post('/api/amp/learn', json={'id': alpha, 't': 65.7})

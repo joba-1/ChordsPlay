@@ -160,9 +160,20 @@ every device plays them.
 
 * `g` (or *Tone*, or the amp status at the top right): the song's cues, the amp's 100
   presets (◀ = the current one) and the saved tones. *Try now* switches the amp without
-  storing anything; *Save from start*, *Save from m:ss* (where the song is) and *Save for
-  artist* store it. ▶ plays a cue from 2 s before, ✕ deletes it. A cue's time can't be changed: delete
-  it and save it again at the new position.
+  storing anything; *Save from start*, *Save as new cue at m:ss.cc* and *Save for artist*
+  store it. ▶ plays a cue from a little before it, ✕ deletes it.
+* **Placing a cue exactly:** the editor under the cues shows the song's waveform around a
+  position (window 2 to 30 s; light: peaks, dark: loudness), so the start of a loud part
+  or a pause is easy to see. Set the position by clicking into the waveform, dragging it
+  or the mouse wheel, the slider over the whole song, the steps (±1 s, ±0.1 s, ±0.01 s;
+  with the waveform focused also ← → with Shift or Alt), by typing `m:ss.cc`, or with
+  *Now* (where the song is). *▶ Around* plays from 1–8 s before the position to 2 s
+  after it and pauses; *▶ On* keeps playing. The amp switches about 0.3 s before a cue
+  to make up for its delay, so put a cue where the part starts.
+* **Changing a cue:** ✎ in its row puts its position and sound into the editor (the row is
+  highlighted). Move the position, change preset, level or knobs (or choose a tone), then
+  *Update cue* stores both; ⤓ stores only the sound. *New cue instead* leaves the cue as
+  it is and makes the position one for a new cue.
 * **Level** (next to the presets): *original* plays the preset as stored in the amp. A
   number plays it **level-matched**: with the correction from your level measurement
   (`chordsplay-match-levels`, see below), so every preset at *matched* (0 dB) is equally

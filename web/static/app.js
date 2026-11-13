@@ -499,8 +499,10 @@ let suggestAuto = false;    // play suggestions without asking
 let cueList = null;         // the song's cues: {cues, artist, artist_preset}
 const BRIDGE_GONE_MS = 30000;
 
+// a cue's time: m:ss, with hundredths when it is not on a whole second
 function fmtMs(ms) {
-  return fmt(ms / 1000) + (ms % 1000 >= 500 ? '.5' : '');
+  const cs = Math.round(ms / 10) % 100;
+  return fmt(Math.floor(Math.round(ms / 10) / 100)) + (cs ? '.' + String(cs).padStart(2, '0') : '');
 }
 
 function ampOnline() { return amp && Date.now() - ampSeen < BRIDGE_GONE_MS; }
@@ -565,13 +567,13 @@ function levelText(level) {
   return level === null || level === undefined ? '' : level === 0 ? ' · matched' : ` · ${level > 0 ? '+' : ''}${level} dB`;
 }
 
-function chosen() {
+function chosen(quiet = false) {
   const slot = Number($('#amp-presets').value), tone = Number($('#amp-tones').value);
   const level = $('#amp-level').value === '' ? null : Number($('#amp-level').value);
   const params = slot && slot === knobSlot && Object.keys(knobParams).length ? { ...knobParams } : null;
   if (slot) return { slot, level, params };
   if (tone) return { tone_id: tone };
-  toast('Choose a preset or a tone first');
+  if (!quiet) toast('Choose a preset or a tone first');
   return null;
 }
 
@@ -590,10 +592,10 @@ function renderAmp() {
       : `${c.slot} ${esc(c.name || '')}${levelText(c.level)}${c.params ? ' · tuned' : ''}`;
     const now = !c.tone_id && names[c.slot - 1] && c.name && names[c.slot - 1].trim() !== c.name.trim()
       ? ` <span class="err">slot is now "${esc(names[c.slot - 1])}": save it again</span>` : '';
-    return `<tr><td class="t">${fmtMs(c.start)}</td><td>${what}${now}</td>` +
-      `<td><button type="button" data-play="${c.start}" title="Play from 2 s before">▶</button>` +
-      (c.tone_id ? '' : `<button type="button" data-edit="${c.start}" title="Load into the choice and the knobs, to change it">✎</button>` +
-        `<button type="button" data-store="${c.start}" title="Store the current choice in this cue">⤓</button>`) +
+    return `<tr${c.start === cueSel ? ' class="sel"' : ''}><td class="t">${fmtMs(c.start)}</td><td>${what}${now}</td>` +
+      `<td><button type="button" data-play="${c.start}" title="Play from before it">▶</button>` +
+      `<button type="button" data-edit="${c.start}" title="Edit: its position and sound go into the editor below">✎</button>` +
+      (c.tone_id ? '' : `<button type="button" data-store="${c.start}" title="Store the current choice in this cue">⤓</button>`) +
       `<button type="button" data-del="${c.start}" title="Delete this cue">✕</button></td></tr>`;
   }).join('') : '<tr><td class="hint">No cues for this song yet.</td></tr>';
   const base = cueList?.artist_preset;
@@ -633,7 +635,14 @@ function renderAmp() {
     `<option value="${t.id}">${esc(t.name)} (${t.base_slot} ${esc(t.base_name || '')}, ` +
     `${t.level_db >= 0 ? '+' : ''}${t.level_db} dB)</option>`).join('');
   tones.value = keepTone;
-  $('#amp-here').textContent = `Save from ${fmtMs(Math.floor((player.currentTime || 0) * 2) * 500)}`;
+  $('#amp-here').textContent = `Save as new cue at ${fmtMs(cuePos)}`;
+  if (cueSel !== null && !cues.some((c) => c.start === cueSel)) cueSel = null;     // deleted meanwhile
+  $('#amp-update').hidden = cueSel === null;
+  $('#amp-update').textContent = cueSel === null ? 'Update cue'
+    : cueSel === cuePos ? `Update cue at ${fmtMs(cueSel)}` : `Move cue ${fmtMs(cueSel)} → ${fmtMs(cuePos)}`;
+  $('#amp-pos-what').textContent = cueSel === null ? 'New cue at' : `Cue ${fmtMs(cueSel)}, position`;
+  $('#amp-pos-new').hidden = cueSel === null;
+  drawWave();
 }
 
 async function openAmp() {
@@ -651,8 +660,12 @@ async function openAmp() {
   $('#amp-presets').value = '';
   $('#amp-tones').value = '';
   $('#amp-bridge-box').hidden = true;
+  cueSel = null;
+  setPos((player.currentTime || 0) * 1000, false);
   renderAmp();
   $('#d-amp').showModal();
+  loadWave();
+  startWaveTick();
 }
 
 async function saveCue(start) {
@@ -660,10 +673,220 @@ async function saveCue(start) {
   if (!what) return;
   try {
     cueList = await api(`song/${song.id}/cues/${start}`, { method: 'PUT', body: what });
+    cueSel = start;
     renderAmp();
     toast(`Stored from ${fmtMs(start)}`);
   } catch (e) { toast('Saving failed: ' + e.message); }
 }
+
+// --- cue position editor: the song's waveform around a position, exact to 10 ms ---
+
+let cuePos = 0;             // ms: where a new cue goes, or where the edited cue moves to
+let cueSel = null;          // start (ms) of the cue being edited, null: a new cue
+let wave = null;            // {id, step: ms per bucket, peak, rms (Float32Array, 0..1)}
+let waveDrag = null;        // pointer drag on the waveform: {x, pos, moved}
+let listenTo = null;        // ms: pause there (▶ Around)
+const WAVE_STEP = 5;        // ms per bucket
+
+function songMs() { return isFinite(player.duration) ? Math.round(player.duration * 1000) : 0; }
+
+function setPos(ms, redraw = true) {
+  const end = songMs();
+  cuePos = Math.max(0, Math.round(ms / 10) * 10);
+  if (end) cuePos = Math.min(cuePos, Math.floor(end / 10) * 10);
+  $('#amp-pos-range').max = String(end || 1000);
+  $('#amp-pos-range').value = String(cuePos);
+  if (document.activeElement !== $('#amp-pos-input')) $('#amp-pos-input').value = fmtPos(cuePos);
+  if (redraw) renderAmp();
+}
+
+function fmtPos(ms) {     // always with hundredths, for the editor
+  const cs = Math.round(ms / 10);
+  return fmt(Math.floor(cs / 100)) + '.' + String(cs % 100).padStart(2, '0');
+}
+
+function parsePos(text) {   // "1:23.45", "83.45", "1:23"
+  const m = /^\s*(?:(\d+):)?(\d+(?:[.,]\d*)?)\s*$/.exec(text);
+  if (!m) return null;
+  return Math.round(((Number(m[1] || 0) * 60) + Number(m[2].replace(',', '.'))) * 1000);
+}
+
+// The song's audio decoded once in the browser, reduced to peak and loudness per 5 ms.
+async function loadWave() {
+  if (!song || wave?.id === song.id) { drawWave(); return; }
+  const id = song.id;
+  wave = { id, step: WAVE_STEP, peak: null, rms: null };
+  $('#amp-wave-hint').textContent = 'Loading the waveform…';
+  try {
+    const data = await (await fetch('api/audio/' + id)).arrayBuffer();
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const audio = await new Ctx(1, 1, 44100).decodeAudioData(data);
+    const per = Math.max(1, Math.round(audio.sampleRate * WAVE_STEP / 1000));
+    const n = Math.ceil(audio.length / per);
+    const peak = new Float32Array(n), rms = new Float32Array(n);
+    const chans = Array.from({ length: audio.numberOfChannels }, (_, c) => audio.getChannelData(c));
+    for (let b = 0; b < n; b++) {
+      let p = 0, sum = 0;
+      const end = Math.min(audio.length, (b + 1) * per);
+      for (let i = b * per; i < end; i++) {
+        let v = 0;
+        for (const ch of chans) v += ch[i];
+        v /= chans.length;
+        const a = Math.abs(v);
+        if (a > p) p = a;
+        sum += v * v;
+      }
+      peak[b] = p;
+      rms[b] = Math.sqrt(sum / Math.max(1, end - b * per));
+    }
+    if (wave?.id !== id) return;          // another song meanwhile
+    wave = { id, step: WAVE_STEP, peak, rms };
+    $('#amp-wave-hint').textContent = 'Light: peaks, dark: loudness, red: the position, orange: the other cues, ' +
+      'blue: where the song is. The amp switches about 0.3 s before a cue to make up for its delay, ' +
+      'so put the cue where the part starts.';
+  } catch (e) {
+    if (wave?.id === id) wave = { id, step: WAVE_STEP, peak: null, rms: null, error: true };
+    $('#amp-wave-hint').textContent = 'No waveform: this browser cannot decode the song (' + e.message + '). ' +
+      'The position still works by ear.';
+  }
+  drawWave();
+}
+
+function waveWindow() {
+  const span = Number($('#amp-zoom').value);
+  return { span, from: cuePos - span / 2 };
+}
+
+function drawWave() {
+  const cv = $('#amp-wave');
+  if (!$('#d-amp').open || !cv.clientWidth) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d');
+  const css = getComputedStyle(document.documentElement);
+  const color = (name) => css.getPropertyValue(name).trim();
+  g.clearRect(0, 0, w, h);
+  const { span, from } = waveWindow();
+  const x = (ms) => (ms - from) / span * w;
+  const mid = h / 2 - 7 * dpr, amp = mid - 2 * dpr;
+  // seconds (and tenths when the window is short)
+  g.font = `${10 * dpr}px system-ui, sans-serif`;
+  g.fillStyle = color('--muted');
+  const tick = span <= 2000 ? 100 : span <= 10000 ? 1000 : 5000;
+  for (let t = Math.ceil(from / tick) * tick; t <= from + span; t += tick) {
+    if (t < 0) continue;
+    const whole = t % 1000 === 0;
+    g.fillRect(Math.round(x(t)), h - (whole ? 12 : 8) * dpr, dpr, (whole ? 12 : 8) * dpr);
+    if (whole && (tick >= 1000 || span <= 2000)) g.fillText(fmt(t / 1000), x(t) + 3 * dpr, h - 2 * dpr);
+  }
+  // the waveform: square root, so quiet parts are visible too
+  if (wave?.peak) {
+    const n = wave.peak.length;
+    for (let px = 0; px < w; px++) {
+      const a = Math.floor((from + px / w * span) / wave.step), b = Math.max(a + 1, Math.floor((from + (px + 1) / w * span) / wave.step));
+      if (b <= 0 || a >= n) continue;
+      let p = 0, r = 0;
+      for (let i = Math.max(0, a); i < Math.min(n, b); i++) { if (wave.peak[i] > p) p = wave.peak[i]; if (wave.rms[i] > r) r = wave.rms[i]; }
+      const ph = Math.sqrt(p) * amp, rh = Math.sqrt(r) * amp;
+      g.fillStyle = color('--line');
+      g.fillRect(px, mid - ph, 1, 2 * ph || 1);
+      g.fillStyle = color('--muted');
+      g.fillRect(px, mid - rh, 1, 2 * rh || 1);
+    }
+  } else if (!wave?.error) {
+    g.fillStyle = color('--muted');
+    g.fillText('loading…', 8 * dpr, mid);
+  }
+  // the other cues, the song's position, the position being set
+  const line = (ms, c, width) => { const X = x(ms); if (X >= -width && X <= w + width) { g.fillStyle = c; g.fillRect(Math.round(X - width / 2), 0, width, h - 14 * dpr); } };
+  for (const c of cueList?.cues || []) if (c.start !== cueSel) line(c.start, '#e08a1e', 2 * dpr);
+  if (player.src) line(player.currentTime * 1000, color('--accent'), 2 * dpr);
+  line(cuePos, color('--error'), 2 * dpr);
+}
+
+// the song's position moves the blue line; ▶ Around pauses at its end
+let waveTicking = false;
+function waveTick() {
+  if (!$('#d-amp').open) { waveTicking = false; return; }
+  if (listenTo !== null && player.currentTime * 1000 >= listenTo) { player.pause(); listenTo = null; }
+  drawWave();
+  waveTicking = !player.paused;
+  if (waveTicking) requestAnimationFrame(waveTick);
+}
+function startWaveTick() {
+  if (!waveTicking) { waveTicking = true; requestAnimationFrame(waveTick); }
+}
+player.addEventListener('play', startWaveTick);
+player.addEventListener('seeked', () => drawWave());
+
+function listen(stop) {
+  if (!player.src) return;
+  const pre = Number($('#amp-preroll').value);
+  player.currentTime = Math.max(0, cuePos - pre) / 1000;
+  listenTo = stop ? cuePos + 2000 : null;
+  player.play().then(startWaveTick).catch(() => {});
+}
+
+$('#amp-pos-range').addEventListener('input', (e) => setPos(Number(e.target.value)));
+$('#amp-pos-input').addEventListener('change', (e) => {
+  const ms = parsePos(e.target.value);
+  if (ms === null) { toast('Position as m:ss.cc, e.g. 1:23.45'); e.target.value = fmtPos(cuePos); return; }
+  setPos(ms);
+  e.target.value = fmtPos(cuePos);
+});
+$('#amp-pos-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+$('#amp-pos').addEventListener('click', (e) => {
+  const step = e.target.dataset.step;
+  if (step !== undefined) setPos(cuePos + Number(step));
+});
+$('#amp-pos-now').addEventListener('click', () => setPos((player.currentTime || 0) * 1000));
+$('#amp-pos-new').addEventListener('click', () => { cueSel = null; renderAmp(); });
+$('#amp-zoom').addEventListener('change', () => drawWave());
+$('#amp-listen').addEventListener('click', () => listen(true));
+$('#amp-listen-on').addEventListener('click', () => listen(false));
+$('#amp-listen-stop').addEventListener('click', () => { listenTo = null; player.pause(); });
+$('#amp-wave').addEventListener('pointerdown', (e) => {
+  waveDrag = { x: e.clientX, pos: cuePos, moved: false };
+  e.target.setPointerCapture(e.pointerId);
+});
+$('#amp-wave').addEventListener('pointermove', (e) => {
+  if (!waveDrag) return;
+  const dx = e.clientX - waveDrag.x;
+  if (Math.abs(dx) > 3) waveDrag.moved = true;
+  if (waveDrag.moved) setPos(waveDrag.pos - dx / e.target.clientWidth * waveWindow().span);
+});
+$('#amp-wave').addEventListener('pointerup', (e) => {
+  if (waveDrag && !waveDrag.moved) {
+    const r = e.target.getBoundingClientRect();
+    const { span, from } = waveWindow();
+    setPos(from + (e.clientX - r.left) / r.width * span);
+  }
+  waveDrag = null;
+});
+$('#amp-wave').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  setPos(cuePos + Math.sign(e.deltaY || e.deltaX) * waveWindow().span / 25);
+}, { passive: false });
+$('#amp-wave').addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  e.stopPropagation();
+  const by = e.shiftKey ? 1000 : e.altKey ? 10 : 100;
+  setPos(cuePos + (e.key === 'ArrowLeft' ? -by : by));
+});
+window.addEventListener('resize', () => drawWave());
+
+$('#amp-update').addEventListener('click', async () => {
+  if (cueSel === null) return;
+  const what = chosen(true) || {};
+  try {
+    cueList = await api(`song/${song.id}/cues/${cueSel}`, { method: 'PUT', body: { ...what, to: cuePos } });
+    toast(cueSel === cuePos ? `Cue at ${fmtMs(cuePos)} updated` : `Cue moved to ${fmtMs(cuePos)}`);
+    cueSel = cuePos;
+    renderAmp();
+  } catch (e) { toast('Saving failed: ' + e.message); }
+});
 
 // one of the two lists: choosing in one clears the other
 $('#amp-presets').addEventListener('change', () => { $('#amp-tones').value = ''; renderAmp(); loadKnobs(); });
@@ -747,7 +970,7 @@ $('#amp-try').addEventListener('click', async () => {
   } catch (e) { toast('Failed: ' + e.message); }
 });
 $('#amp-start').addEventListener('click', () => saveCue(0));
-$('#amp-here').addEventListener('click', () => saveCue(Math.floor((player.currentTime || 0) * 2) * 500));
+$('#amp-here').addEventListener('click', () => saveCue(cuePos));
 function soundName(what) {
   const names = presetNames();
   const base = names[what.slot - 1] || 'Slot ' + what.slot;
@@ -808,15 +1031,22 @@ $('#d-amp').addEventListener('click', async (e) => {
   try {
     if (editAt !== undefined) {
       const c = cueList.cues.find((x) => x.start === Number(editAt));
-      $('#amp-presets').value = c.slot;
-      $('#amp-tones').value = '';
-      $('#amp-level').value = c.level === null ? '' : String(c.level);
-      knobSlot = c.slot;
-      knobParams = { ...(c.params || {}) };
-      $('#amp-knobs-box').open = true;
+      cueSel = c.start;
+      setPos(c.start, false);
+      if (c.tone_id) {
+        $('#amp-presets').value = '';
+        $('#amp-tones').value = c.tone_id;
+      } else {
+        $('#amp-presets').value = c.slot;
+        $('#amp-tones').value = '';
+        $('#amp-level').value = c.level === null ? '' : String(c.level);
+        knobSlot = c.slot;
+        knobParams = { ...(c.params || {}) };
+        $('#amp-knobs-box').open = true;
+      }
       renderAmp();
-      loadKnobs();
-      toast(`Cue at ${fmtMs(c.start)} loaded: change it, then ⤓ in its row stores it`);
+      if (!c.tone_id) loadKnobs();
+      toast(`Editing the cue at ${fmtMs(c.start)}: change position or sound, then "Update cue"`);
     } else if (storeAt !== undefined) {
       const what = chosen();
       if (!what) return;
@@ -824,7 +1054,8 @@ $('#d-amp').addEventListener('click', async (e) => {
       renderAmp();
       toast(`Stored at ${fmtMs(Number(storeAt))}`);
     } else if (play !== undefined) {
-      player.currentTime = Math.max(0, Number(play) / 1000 - 2);
+      player.currentTime = Math.max(0, Number(play) - Number($('#amp-preroll').value)) / 1000;
+      listenTo = null;
       player.play().catch(() => {});
     } else if (del !== undefined) {
       cueList = await api(`song/${song.id}/cues/${del}`, { method: 'DELETE' });

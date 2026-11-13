@@ -831,9 +831,13 @@ def cues(song_id):
     return jsonify(song_cues(db, song_id))
 
 
+MAX_CUE_MS = 3 * 3600 * 1000     # a cue within three hours: guards against garbage, not a real limit
+
+
 @app.route('/api/song/<int:song_id>/cues/<int:start>', methods=['PUT', 'DELETE'])
 def cue(song_id, start):
-    '''PUT {slot} or {tone_id}: from start (ms) on the song uses this preset or tone.'''
+    '''PUT {slot} or {tone_id}: from start (ms) on the song uses this preset or tone.
+    With {to: ms} the cue at start moves there first (keeping its sound unless one is given).'''
     db = get_db()
     if db.getPlayInfo(song_id) is None:
         abort(404)
@@ -841,6 +845,14 @@ def cue(song_id, start):
         db.delSongPreset(song_id, start)
     else:
         data = request.get_json(silent=True) or {}
+        to = data.get('to')
+        if to is not None:
+            if type(to) is not int or not 0 <= to <= MAX_CUE_MS:
+                abort(400)
+            if to != start:
+                if not db.moveSongPreset(song_id, start, to):
+                    abort(404)
+                start = to
         replace = int(data.get('replace_within_ms') or 0)
         if data.get('tone_id') is not None:
             if db.getTone(data['tone_id']) is None:
@@ -852,7 +864,7 @@ def cue(song_id, start):
             name = names[data['slot'] - 1] if len(names) >= data['slot'] else data.get('name')
             db.setSongPreset(song_id, start, data['slot'], name or None, replace)
             db.setCueSound(song_id, start, level, params)
-        else:
+        elif to is None:
             abort(400)
     plan_changed(db.user, song_id)
     return jsonify(song_cues(db, song_id))
