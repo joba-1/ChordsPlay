@@ -1,3 +1,9 @@
+chordsplay (1.6.1-1) unstable; urgency=medium
+
+  * Takes dialog: the record button says it makes a new take.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 14 Nov 2026 00:05:00 +0000
+
 chordsplay (1.6-1) unstable; urgency=medium
 
   * A paired TV can step through the playlist and pause: big buttons for a

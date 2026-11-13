@@ -1377,7 +1377,7 @@ async function openTakes() {
     (t.state === 'ready' ? `<button type="button" data-take="${t.id}">▶</button>` : '<span class="none">recording…</span>') +
     `<button type="button" data-deltake="${t.id}" title="Delete this take">✕</button></td></tr>`).join('') ||
     '<tr><td class="hint">No takes of this song yet: r records one.</td></tr>';
-  $('#take-record').textContent = takeId || amp?.recording ? '■ Stop' : '● Record';
+  $('#take-record').textContent = takeId || amp?.recording ? '■ Stop take' : '● New take';
   if (!$('#d-takes').open) $('#d-takes').showModal();
 }
 
