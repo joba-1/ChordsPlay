@@ -212,10 +212,15 @@ body.display.idle #remote.show, body.display.idle #remote.show * { cursor: point
 .amp-pick label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; font-size: 13px; color: var(--muted); }
 .amp-pick select { width: 100%; }
 .amp-pick label.level { flex: 0 1 12em; }
-.knobs { display: grid; grid-template-columns: repeat(auto-fill, minmax(17em, 1fr)); gap: 4px 18px; margin: 6px 0; }
-.knobs label { display: grid; grid-template-columns: 9em 1fr 2.5em; align-items: center; gap: 6px; font-size: 13px; }
+.knobs { display: grid; grid-template-columns: repeat(auto-fill, minmax(16em, 1fr)); gap: 8px; margin: 6px 0; }
+.knob-group { border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px 6px; margin: 0; min-width: 0; }
+.knob-group legend { padding: 0 4px; font-size: 13px; font-weight: 600; }
+.knob-group legend label.switch { font-weight: 600; }
+.knob-head { font-weight: 600; }
+.knobs label { display: grid; grid-template-columns: 5.5em 1fr 2.5em; align-items: center; gap: 6px; font-size: 13px; }
 .knobs label.switch { grid-template-columns: auto 1fr; }
 .knobs output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+.knobs input[type=range] { min-width: 0; width: 100%; margin: 0; }
 .knobs .changed { font-weight: 600; }
 .dlg-buttons.wrap { flex-wrap: wrap; }
 #amp-sounds select { max-width: 16em; }

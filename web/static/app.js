@@ -1036,17 +1036,35 @@ async function loadKnobs(tries = 0) {
   renderKnobs();
 }
 
+// the knobs grouped by the amp's blocks, in the order the signal passes them
+const KNOB_GROUPS = [['stomp', 'Stomp'], ['amp', 'Amp'], ['mod', 'Modulation'], ['delay', 'Delay'], ['reverb', 'Reverb']];
+
+function knobHtml(k, label) {
+  const changed = k.key in knobParams;
+  if (k.kind === 'switch') {
+    const on = changed ? !knobParams[k.key] : k.value;     // stored as "bypass"
+    return `<label class="switch${changed ? ' changed' : ''}"><input type="checkbox" data-knob="${k.key}" ${on ? 'checked' : ''}>${esc(label)}</label>`;
+  }
+  const v = changed ? knobParams[k.key] : k.value;
+  return `<label${changed ? ' class="changed"' : ''}>${esc(label)}<input type="range" min="0" max="1" step="0.01" ` +
+    `value="${v}" data-knob="${k.key}"><output>${v.toFixed(2)}</output></label>`;
+}
+
 function renderKnobs() {
-  $('#amp-knobs').innerHTML = knobList.map((k) => {
-    const changed = k.key in knobParams;
-    if (k.kind === 'switch') {
-      const on = changed ? !knobParams[k.key] : k.value;     // stored as "bypass"
-      return `<label class="switch${changed ? ' changed' : ''}"><input type="checkbox" data-knob="${k.key}" ${on ? 'checked' : ''}>${esc(k.label)}</label>`;
-    }
-    const v = changed ? knobParams[k.key] : k.value;
-    return `<label${changed ? ' class="changed"' : ''}>${esc(k.label)}<input type="range" min="0" max="1" step="0.01" ` +
-      `value="${v}" data-knob="${k.key}"><output>${v.toFixed(2)}</output></label>`;
-  }).join('') || '<span class="hint">This preset has no adjustable knobs.</span>';
+  const groups = KNOB_GROUPS.map(([id, name]) => {
+    const ks = knobList.filter((k) => k.key.split('.')[0] === id);
+    if (!ks.length) return '';
+    const sw = ks.find((k) => k.kind === 'switch');
+    // "Reverb (FenderLargeHall) on" -> "Reverb (FenderLargeHall)"; "Reverb mix" -> "Mix"
+    const head = sw ? knobHtml(sw, sw.label.replace(/ on$/, '').replace(/^\w+/, name))
+      : `<span class="knob-head">${esc(name)}</span>`;
+    const rest = ks.filter((k) => k !== sw).map((k) => {
+      const short = k.label.replace(/^\S+\s+/, '');
+      return knobHtml(k, short.charAt(0).toUpperCase() + short.slice(1));
+    }).join('');
+    return `<fieldset class="knob-group"><legend>${head}</legend>${rest}</fieldset>`;
+  }).join('');
+  $('#amp-knobs').innerHTML = groups || '<span class="hint">This preset has no adjustable knobs.</span>';
 }
 
 let knobTimer = null;
