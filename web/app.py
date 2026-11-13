@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.6.2'
+__version__ = '1.6.3'
 
 log = logging.getLogger(__name__)
 
@@ -434,7 +434,7 @@ def event_stream(user, first, expires=None):
     while True:
         for channel, state in send.items():
             yield '{}data: {}\n\n'.format('' if channel == 'now' else 'event: {}\n'.format(channel),
-                                          json.dumps(dict(state or {}, server_time=time.time())))
+                                          json.dumps(dict(state or {}, server_time=time.time(), version=__version__)))
         while True:
             send = hub.wait(user, revs, KEEPALIVE_S, ended)
             if expires is not None and (time.time() > expires or hub.ended_count(user) != ended):
@@ -541,7 +541,8 @@ def follow_state(db):
     song = song_data(db, state['id']) if state else None
     if song:
         song = {key: song[key] for key in ('id', 'title', 'artist', 'capo', 'text', 'wrapped', 'pdfs')}
-    return jsonify(state=state, song=song, server_time=time.time())
+    # version: a display reloads itself when the server was updated (it plays nothing, so it can)
+    return jsonify(state=state, song=song, server_time=time.time(), version=__version__)
 
 
 @app.route('/d/<code>/pdf/<int:pdf_id>')

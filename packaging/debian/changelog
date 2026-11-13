@@ -1,3 +1,10 @@
+chordsplay (1.6.3-1) unstable; urgency=medium
+
+  * Displays (TV, tablet) load the new page by themselves after a server
+    update.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 14 Nov 2026 00:55:00 +0000
+
 chordsplay (1.6.2-1) unstable; urgency=medium
 
   * Paired TV remote made for TV Bro: OK anywhere shows the buttons (its

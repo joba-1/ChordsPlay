@@ -15,6 +15,7 @@ let wakeLock = null;
 let expired = false;    // the pairing code is unknown or expired
 let pairCode = null;    // a TV (d/tv/) not paired yet: the code it shows
 let pairTimer = null;
+let loadedVersion = null;   // the server's version this page came with
 const paired = /\/d\/tv\/?$/.test(location.pathname);   // a TV paired once (not a code link): it has a remote
 
 // the controller's view: the song text, or one of its PDFs from a page on
@@ -105,6 +106,10 @@ async function loadState() {
     return;
   }
   const data = await res.json();
+  // the server was updated meanwhile (its event stream broke off and this runs on the
+  // reconnect): load the new page; a display plays nothing, so nothing is lost
+  if (loadedVersion && data.version && data.version !== loadedVersion) { location.reload(); return; }
+  loadedVersion = loadedVersion || data.version;
   clockOffset = data.server_time - Date.now() / 1000;
   state = data.state;
   song = data.song;
@@ -117,6 +122,9 @@ function follow() {
   events = new EventSource('events');
   events.onmessage = (e) => {
     const next = JSON.parse(e.data);
+    // the browser reconnects by itself after a server restart: a new version means an update,
+    // so load the new page (a display plays nothing, nothing is lost)
+    if (loadedVersion && next.version && next.version !== loadedVersion) { location.reload(); return; }
     clockOffset = next.server_time - Date.now() / 1000;
     const changed = !song || next.id !== song.id;
     state = next;

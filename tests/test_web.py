@@ -155,6 +155,7 @@ class Display(Api):
         self.assertNotIn('played', r['song'])          # text only
         self.assertTrue(r['state']['playing'])
         self.assertEqual(r['state']['t'], 12.5)
+        self.assertEqual(r['version'], self.app.__version__)      # a display reloads after an update
         event = self.first_event(self.client.get('/d/{}/events'.format(code)))
         self.assertEqual(event['id'], sid)
         self.assertEqual(self.client.get('/d/{}/'.format(code)).status_code, 200)

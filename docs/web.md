@@ -113,6 +113,8 @@ below); it keeps the screen on.
   (the device paired with the Mustang).
 * A link is valid for 12 hours. *End all display links* stops every open display at once.
 * Several displays can follow the same controller.
+* After a server update a display loads the new page by itself (it plays nothing, so
+  nothing is lost); the controller page keeps playing and needs a reload by hand.
 * The display follows the user, not the browser tab: whatever page of yours plays last
   is what the displays show.
 * The display needs no login (a TV, a friend's TV): the code in the link is the key.
