@@ -203,6 +203,52 @@ function pushNow() {
 }
 setInterval(() => { if (!player.paused) pushNow(); }, 15000);   // displays correct their clock
 player.addEventListener('timeupdate', showTime);
+
+// --- the song's position as a thin bar under the top bar: click or drag to go there ---
+
+const seekBar = $('#seek');
+let seekDrag = false;
+
+function showSeek() {
+  const d = player.duration;
+  seekBar.hidden = !player.src;
+  $('#seek-fill').style.width = isFinite(d) && d > 0 ? (100 * player.currentTime / d) + '%' : '0';
+}
+
+function seekAt(e) {     // the time under the pointer, in seconds
+  const r = seekBar.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  return { t: f * (player.duration || 0), x: f * r.width };
+}
+
+function showSeekTip(e) {
+  if (!isFinite(player.duration)) return;
+  const { t, x } = seekAt(e);
+  $('#seek-tip').textContent = fmt(t);
+  $('#seek-tip').style.left = Math.min(Math.max(x, 24), seekBar.clientWidth - 24) + 'px';
+}
+
+seekBar.addEventListener('pointermove', (e) => {
+  showSeekTip(e);
+  if (seekDrag) $('#seek-fill').style.width = (100 * seekAt(e).t / player.duration) + '%';
+});
+seekBar.addEventListener('pointerdown', (e) => {
+  if (!isFinite(player.duration)) return;
+  seekDrag = true;
+  seekBar.classList.add('drag');
+  seekBar.setPointerCapture(e.pointerId);
+  showSeekTip(e);
+  $('#seek-fill').style.width = (100 * seekAt(e).t / player.duration) + '%';
+});
+seekBar.addEventListener('pointerup', (e) => {
+  if (!seekDrag) return;
+  seekDrag = false;
+  seekBar.classList.remove('drag');
+  player.currentTime = seekAt(e).t;       // one jump when released: the amp follows once
+});
+seekBar.addEventListener('pointercancel', () => { seekDrag = false; seekBar.classList.remove('drag'); showSeek(); });
+['timeupdate', 'durationchange', 'loadedmetadata', 'emptied', 'seeked'].forEach((ev) =>
+  player.addEventListener(ev, () => { if (!seekDrag) showSeek(); }));
 player.addEventListener('error', () => { if (player.src) toast('Audio error: the file cannot be played'); });
 
 function fmt(t) {

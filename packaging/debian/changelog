@@ -1,3 +1,10 @@
+chordsplay (1.5.5-1) unstable; urgency=medium
+
+  * A thin position line under the top bar: shows where the song is, click
+    or drag to go there.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 13 Nov 2026 23:20:00 +0000
+
 chordsplay (1.5.4-1) unstable; urgency=medium
 
   * Cue editor: "follow the song" keeps the waveform centred on the song's

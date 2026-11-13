@@ -118,6 +118,20 @@ dialog {
   width: 100%;
 }
 dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+
+/* the song's position under the top bar: 3 px in the layout; under the mouse it grows over
+   the content (not pushing it down, which would re-fit the song text) */
+.seek { position: relative; flex: none; height: 3px; cursor: pointer; touch-action: none; z-index: 4; }
+.seek::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 14px; }   /* easier to hit */
+.seek .track { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--line);
+               transition: height 0.12s; pointer-events: none; }
+.seek:hover .track, .seek.drag .track { height: 8px; }
+.seek[hidden] { display: none; }
+#seek-fill { height: 100%; width: 0; background: var(--accent); pointer-events: none; }
+#seek-tip { position: absolute; top: 10px; transform: translateX(-50%); padding: 1px 6px; border-radius: 4px;
+            background: var(--fg); color: var(--bg); font-size: 12px; font-variant-numeric: tabular-nums;
+            pointer-events: none; white-space: nowrap; display: none; z-index: 5; }
+.seek:hover #seek-tip, .seek.drag #seek-tip { display: block; }
 /* the tone dialog holds the cue editor, two lists and a row of buttons: as wide as the screen allows */
 #d-amp { max-width: min(1180px, calc(100vw - 32px)); }
 dialog h2 { margin: 0 0 8px; font-size: 17px; }

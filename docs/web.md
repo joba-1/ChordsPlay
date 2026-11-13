@@ -50,7 +50,9 @@ Most of it is keyboard-driven:
 | F11 | full screen |
 | ? | key overview |
 
-Double-click a song in the list to play it; click a column heading to sort.
+Double-click a song in the list to play it; click a column heading to sort. The thin line
+under the top bar shows where the song is; click or drag it to go there (it shows the time
+under the mouse).
 A song repeats until you go on, and each time it ends it counts as played. The page remembers the song you were at, on every device: after a reload
 press Space to go on. Hardware media keys and Bluetooth headset buttons work too
 (play/pause, next, previous).
