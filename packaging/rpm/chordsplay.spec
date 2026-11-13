@@ -47,7 +47,7 @@ The bundled PDF viewer PDF.js is under the Apache License 2.0.
 
 %package mmp
 Summary:        ChordsPlay amp control for the Fender Mustang Micro Plus
-Requires:       maneline-mmp
+Requires:       maneline
 # opusenc, for recording takes; Leap 16.0 has opus-tools only in the OBS project multimedia:libs
 Recommends:     opus-tools
 Requires:       pipewire-tools
@@ -64,7 +64,7 @@ loud (chordsplay-match-levels).
 
 Both run as systemd user units of the user whose session has the amp's
 Bluetooth audio: chordsplay-amp-bridge.service, which starts
-chordsplay-amp-agent.service (mmp-web from the package maneline-mmp) while
+chordsplay-amp-agent.service (mmp-web from the package maneline) while
 the amp is connected. See install.md in the documentation of chordsplay.
 
 %prep

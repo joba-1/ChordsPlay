@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2016-2026 joba1
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Mustang Micro Plus amp agent for ChordsPlay, as installed from the package
-# chordsplay-mmp: maneline's mmp-web (package maneline-mmp) owns the single
+# chordsplay-mmp: maneline's mmp-web (package maneline) owns the single
 # Bluetooth LE connection to the amp (see docs/spec-amp.md). A user unit without
 # [Install] section: the amp bridge starts it while the amp's audio sink exists.
 [Unit]

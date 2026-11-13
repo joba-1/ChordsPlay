@@ -22,7 +22,7 @@ Description: Play your music in the browser with lyrics and guitar chords
 
 Package: chordsplay-mmp
 Architecture: all
-Depends: ${misc:Depends}, python3 (>= 3.11), maneline-mmp, python3-numpy, pulseaudio-utils, pipewire-bin, opus-tools
+Depends: ${misc:Depends}, python3 (>= 3.11), maneline, python3-numpy, pulseaudio-utils, pipewire-bin, opus-tools
 Description: ChordsPlay amp control for the Fender Mustang Micro Plus
  The optional Mustang Micro Plus parts of ChordsPlay, for the computer the amp
  is paired with: the amp bridge, which follows the ChordsPlay page and switches
@@ -30,4 +30,4 @@ Description: ChordsPlay amp control for the Fender Mustang Micro Plus
  measures all presets so they are equally loud (chordsplay-match-levels).
  .
  Both run as systemd user units: chordsplay-amp-bridge.service, which starts
- chordsplay-amp-agent.service (mmp-web from the package maneline-mmp).
+ chordsplay-amp-agent.service (mmp-web from the package maneline).

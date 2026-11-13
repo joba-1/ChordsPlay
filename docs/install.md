@@ -4,7 +4,8 @@ Two parts, installed separately:
 
 * **The web server** (package `chordsplay`): everything except amp control. One computer
   that can read the music; any browser then plays.
-* **The Mustang parts** (package `chordsplay-mmp`, which brings `maneline-mmp`): only for a
+* **The Mustang parts** (package `chordsplay-mmp`, which needs `maneline` or `maneline-mmp`, see
+  [below](#maneline-mmp-or-maneline)): only for a
   Fender Mustang Micro Plus, on the computer the amp is paired with (the server or
   another one).
 
@@ -25,6 +26,7 @@ In the commands, `R=https://download.opensuse.org/repositories/home:/joba1:/chor
 | Debian 13, Raspberry Pi OS 13 64-bit (default on Pi 4 and 5, possible on Pi 3 and Zero 2) | `Debian_13` |
 | Raspberry Pi OS 13 32-bit | `Raspbian_13` |
 | Debian testing | `Debian_Testing` |
+| Ubuntu 26.04 (64-bit, amd64 and arm64) | `Ubuntu_26.04` |
 
 openSUSE:
 
@@ -46,7 +48,7 @@ curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | sudo pacman-key --add
 sudo pacman-key --lsign-key "$(curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | gpg --show-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
 ```
 
-Debian and Raspberry Pi OS:
+Debian, Ubuntu and Raspberry Pi OS (for Ubuntu use `Ubuntu_26.04` instead of `Debian_13`):
 
 ```bash
 curl -fsSL $R/Debian_13/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay.gpg > /dev/null
@@ -101,12 +103,20 @@ sudo zypper install chordsplay-mmp  # Arch: sudo pacman -Syu chordsplay-mmp   De
 |---|---|
 | Tumbleweed, Arch, Debian testing | the system's own is new enough |
 | Leap 16.0, 16.1 | our repository has a current `bluez` (openSUSE's own development package); zypper asks to change the vendor of `bluez`: accept |
-| Debian 13, Raspberry Pi OS 13 | add the opt-in repository below |
+| Debian 13, Raspberry Pi OS 13, Ubuntu 26.04 (BlueZ 5.85) | add the opt-in repository below |
 
-The opt-in repository for Debian 13 and Raspberry Pi OS 13 has Debian testing's BlueZ 5.88
+Why a separate repository: BlueZ replaces the system's Bluetooth stack, and apt takes any
+package with a higher version from a repository you have added. Had the main repository
+carried it, everyone who added that one for the web server would get the new BlueZ on the next
+`apt upgrade`. So it is **opt-in**: nothing installs it unless you add this second repository,
+which belongs only on the computer the amp is paired with. (On Leap the `bluez` in the main
+repository is safe: zypper asks before changing its vendor.)
+
+The opt-in repository for Debian 13, Raspberry Pi OS 13 and Ubuntu 26.04 has Debian testing's BlueZ 5.88
 with Raspberry Pi OS's own audio patch. It replaces the system's Bluetooth stack: add it
 only on the amp computer, and remove it once the system ships 5.86 or newer. It is not
-official and has not yet run on a real Pi. 32-bit Raspberry Pi OS: `Raspbian_13`.
+official and has not yet run on a real Pi. 32-bit Raspberry Pi OS: `Raspbian_13`;
+Ubuntu 26.04: use `Ubuntu_26.04` in place of `Debian_13` in the commands.
 
 ```bash
 B=https://download.opensuse.org/repositories/home:/joba1:/chordsplay:/bluez/Debian_13
@@ -139,10 +149,45 @@ Then, once:
   project: `sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo`
   (or `16.1`), then `sudo zypper install opus-tools`.
 
+### maneline-mmp or maneline
+
+Two packages carry the amp tools (`mmp-web`, `mmp-ble`, `mmp-bluez-setup`, same paths and
+commands), so only one can be installed at a time:
+
+| Package | Built from | Tools |
+|---|---|---|
+| `maneline-mmp` (install it first for all ChordsPlay amp features) | the fork `joba-1/maneline`, branch `micro-plus-preset-backup` | all of them, including `mmp-backup`, `mmp-restore`, `mmp-audition`, `mmp-check`, `mmp-level` |
+| `maneline` | the original `tim-littlefair/maneline`, branch `main` | only what upstream has: `mmp-web`, `mmp-ble`, `mmp-bluez-setup` |
+
+Each conflicts with the other. `chordsplay-mmp` depends on `maneline`, which `maneline-mmp`
+also provides, so it works with either and stays installed when you switch. Installing
+`chordsplay-mmp` on its own pulls in the plain `maneline`: to get the fork, install
+`maneline-mmp` first. The fork's extra tools (preset backup, audition, level survey,
+`chordsplay-match-levels`) are being migrated into `maneline` and are missing from it until
+then, so some ChordsPlay functions fail with plain `maneline`; that is expected for now, and
+a way to test what still works. When the migration is done, `maneline-mmp` goes away.
+
+Stop the amp agent before, and start it again after:
+
+```bash
+systemctl --user stop chordsplay-amp-bridge
+# to the original:
+sudo zypper install --force-resolution maneline     # Arch: sudo pacman -S maneline   Debian/Ubuntu: sudo apt install maneline
+# and back to the fork:
+sudo zypper install --force-resolution maneline-mmp # Arch: sudo pacman -S maneline-mmp   Debian/Ubuntu: sudo apt install maneline-mmp
+systemctl --user start chordsplay-amp-bridge
+```
+
+Settings, the amp's pairing and data in `~/.config/chordsplay` and `~/.local/share/chordsplay`
+stay. Backups made by the fork's `mmp-backup` are in `~/.local/share/maneline-mmp` and are
+not touched. Without the fork's tools, `mmp-backup`, `mmp-restore`, `mmp-audition`,
+`mmp-check` and `mmp-level` are missing: no preset backups, no level survey for
+`chordsplay-match-levels`, no firmware check ([web.md](web.md), "Operating it").
+
 ## Removing
 
 ```bash
-sudo zypper remove chordsplay chordsplay-mmp maneline-mmp     # Arch: sudo pacman -Rns …   Debian: sudo apt purge …
+sudo zypper remove chordsplay chordsplay-mmp maneline-mmp maneline     # Arch: sudo pacman -Rns …   Debian: sudo apt purge …
 ```
 
 The data stays, so a later install picks it up again. To remove it as well:
