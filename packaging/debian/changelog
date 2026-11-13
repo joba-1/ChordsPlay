@@ -1,3 +1,10 @@
+chordsplay (1.6.4-1) unstable; urgency=medium
+
+  * Paired TV remote: the buttons hide 15 s after the last press also in TV
+    Bro's direct navigation mode, and no button stays highlighted.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 14 Nov 2026 01:20:00 +0000
+
 chordsplay (1.6.3-1) unstable; urgency=medium
 
   * Displays (TV, tablet) load the new page by themselves after a server

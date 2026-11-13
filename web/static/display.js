@@ -188,15 +188,15 @@ function remoteShow() {
   if (!paired || pairCode || expired) return;
   $('#remote').classList.add('show');
   clearTimeout(remoteTimer);
-  remoteTimer = setTimeout(() => {
-    if (!$('#remote').matches(':hover')) $('#remote').classList.remove('show');
-    else remoteShow();
-  }, REMOTE_SHOW_MS);
+  // 15 s after the last press, also when the pointer rests on a button: TV Bro's direct
+  // navigation hides its cursor but leaves the page's hover state on the button below it
+  remoteTimer = setTimeout(remoteHide, REMOTE_SHOW_MS);
 }
 
 function remoteHide() {
   clearTimeout(remoteTimer);
   $('#remote').classList.remove('show');
+  if (document.activeElement?.closest('#remote')) document.activeElement.blur();   // no button stays lit
 }
 
 async function remote(action) {
@@ -219,7 +219,7 @@ if (paired) {
     '<button type="button" data-act="prev" title="Previous song">⏮</button>' +
     '<button type="button" data-act="toggle" title="Play / pause">⏯</button>' +
     '<button type="button" data-act="next" title="Next song">⏭</button>' +
-    '<button type="button" data-act="full" class="small" title="Full screen">⛶</button>' +
+    '<button type="button" data-act="full" class="small" title="Full screen on/off">⛶</button>' +
     '<span id="remote-msg"></span></div>');
   document.addEventListener('click', (e) => {
     const button = e.target.closest('#remote button');
@@ -238,6 +238,7 @@ if (paired) {
                   MediaPlayPause: 'toggle', MediaPlay: 'toggle', MediaPause: 'toggle', ' ': 'toggle',
                   Enter: 'toggle' }[e.key];
     remoteShow();
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); return; }   // only show them
     // OK/Space on a focused button press that button (the browser does); other keys act everywhere
     if (act && !((e.key === ' ' || e.key === 'Enter') && onButton)) { e.preventDefault(); remote(act); }
   });
