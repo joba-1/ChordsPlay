@@ -1,3 +1,13 @@
+chordsplay (1.4-1) unstable; urgency=medium
+
+  * Tone dialog: cue editor with the song's waveform, exact positions,
+    listening around a position, moving a cue and changing its sound.
+  * Amp bridge: cues applied exactly when due, timed for the song's delay
+    over Bluetooth (measured: the new sound starts within about 20 ms of the
+    cue).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 13 Nov 2026 20:30:00 +0000
+
 chordsplay (1.3.1-1) unstable; urgency=medium
 
   * A display on a screen narrower than 700 px (a phone in portrait) shows

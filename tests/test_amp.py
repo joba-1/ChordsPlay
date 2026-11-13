@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 
 import ChordsPlay.db
-from ChordsPlay.amp import (AgentControl, AmpClient, AmpCues, active_index, build_cues,
+from ChordsPlay.amp import (LEAD_MS, AgentControl, AmpClient, AmpCues, active_index, build_cues, next_due_ms,
                             describe, fmt_ms, name_mismatch, parse_ms)
 
 
@@ -53,6 +53,19 @@ class CueLogic(unittest.TestCase):
         self.assertEqual(active_index(cues, 59700, lead_ms=300), 1)
         self.assertIsNone(active_index([(10000, 3, None)], 5000))
         self.assertIsNone(active_index([], 5000))
+        # a negative lead: after the cue's time (the song reaches the amp late over Bluetooth)
+        self.assertEqual(active_index(cues, 60129, lead_ms=-130), 0)
+        self.assertEqual(active_index(cues, 60130, lead_ms=-130), 1)
+
+    def test_next_due(self):
+        cues = [(0, 1, None), (60000, 2, None)]
+        self.assertEqual(next_due_ms(cues, 0, lead_ms=-130), 60130)
+        self.assertEqual(active_index(cues, 0, lead_ms=-130), 0)     # the start cue at once
+        self.assertEqual(next_due_ms(cues, 60129, lead_ms=-130), 1)
+        self.assertIsNone(next_due_ms(cues, 60130, lead_ms=-130))
+        self.assertEqual(next_due_ms(cues, 59600, lead_ms=300), 100)
+        self.assertIsNone(next_due_ms([], 0))
+        self.assertLess(LEAD_MS, 0)         # timed for Bluetooth (measured, see LEAD_MS)
 
     def test_name_mismatch(self):
         names = ['A', 'Twin Trem ']
@@ -144,6 +157,16 @@ class Cues(TempDb):
         self.assertEqual(client.requests, [3, 9])      # each cue once
         cues.tick(self.song, 0)                         # song repeats or seek back
         self.assertEqual(client.requests, [3, 9, 3])
+
+    def test_due_in(self):
+        self.db.setSongPreset(self.song, 0, 3, None)
+        self.db.setSongPreset(self.song, 60000, 9, None)
+        cues = AmpCues(self.db, FakeClient(), lead_ms=-130)
+        self.assertIsNone(cues.due_in(self.song, 1000))       # nothing loaded yet
+        cues.tick(self.song, 1000)
+        self.assertEqual(cues.due_in(self.song, 59000), 1130)
+        self.assertIsNone(cues.due_in(self.song, 61000))
+        self.assertIsNone(cues.due_in(self.song + 1, 1000))   # another song
 
     def test_artist_then_default(self):
         client = FakeClient()

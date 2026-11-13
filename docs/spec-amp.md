@@ -99,8 +99,15 @@ preset_levels  (slot PK, name, correction_db, method, measured_at)
 2. `base` = the artist's slot, else a suggested preset (if switched on), else
    `AMP_DEFAULT_SLOT` of the bridge, else none.
 3. If there's a base and no cue at 0 ms, the base becomes the cue at 0 ms.
-4. Every 200 ms the active cue is the last one with `start_ms - lead_ms <= position`.
-   * `lead_ms` (default 300) makes up for the 0.1–0.6 s a switch takes while connected.
+4. The active cue is the last one with `start_ms - lead_ms <= position` (a cue at 0 applies from
+   the start). The bridge checks every 200 ms, and in between exactly when the next cue becomes
+   due, so a switch is not up to a tick late.
+   * `lead_ms` (default −220: 220 ms *after* the cue's time) is measured
+     (`mmp/measure_switch_lag.py`): a song played to the amp over Bluetooth reaches its output
+     270–320 ms after the player's position; the amp has a switch about 120 ms after it is asked
+     and mutes for about 50 ms before the new sound. Asked 220 ms after the cue's time, the new
+     sound starts when the cue's moment is heard, within about ±40 ms. Over USB the song is about
+     115 ms late: there about −20 is right.
 5. When the active cue `(song, index)` changes, the cue's slot is requested.
    * Seeking backwards, restarting a song (the player repeats a song when it ends) or skipping
      all switch correctly, because the active cue is always derived from the position.
@@ -122,7 +129,7 @@ The bridge's settings (`~/.config/chordsplay/bridge.env`):
 | `AMP_UNIT` | `chordsplay-amp-agent.service` | systemd user unit to start/stop; empty: don't manage |
 | `AMP_SINK` | `Mustang Micro Plus` | text in the audio sink's description that means "amp is connected" |
 | `AMP_DEFAULT_SLOT` | (unset) | slot for songs without cues, artist slot or suggestion |
-| `AMP_LEAD_MS` | `300` | switch this many ms before a cue |
+| `AMP_LEAD_MS` | `-220` | switch this many ms before a cue's time; negative: after it (see "Which slot plays when") |
 
 Slot 100 is reserved for tones (auditions) and never offered as a normal preset.
 

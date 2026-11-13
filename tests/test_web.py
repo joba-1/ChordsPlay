@@ -368,6 +368,13 @@ class Amp(Api):
         b.session.update('now', {'id': alpha, 't': 29.8, 'playing': True, 'at': 100.0, 'server_time': 100.0})
         b.step()
         self.assertEqual(agent.requests, [('slot', 19)])
+        # a cue due before the next tick: the bridge wakes exactly then (+2 ms), not 0.2 s later
+        b.cues.lead_ms = -130
+        b.session.update('now', {'id': alpha, 't': 30.05, 'playing': True, 'at': 100.0, 'server_time': 100.0})
+        b.cues.applied = None
+        wait = b.step()
+        self.assertAlmostEqual(wait, 0.082, delta=0.03)
+        b.cues.lead_ms = 300
         # Beta has no cue: the artist preset
         b.session.update('now', {'id': beta, 't': 1, 'playing': True, 'at': 1, 'server_time': 1})
         b.step()

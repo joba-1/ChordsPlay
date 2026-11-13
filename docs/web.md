@@ -168,8 +168,9 @@ every device plays them.
   or the mouse wheel, the slider over the whole song, the steps (±1 s, ±0.1 s, ±0.01 s;
   with the waveform focused also ← → with Shift or Alt), by typing `m:ss.cc`, or with
   *Now* (where the song is). *▶ Around* plays from 1–8 s before the position to 2 s
-  after it and pauses; *▶ On* keeps playing. The amp switches about 0.3 s before a cue
-  to make up for its delay, so put a cue where the part starts.
+  after it and pauses; *▶ On* keeps playing. Put a cue where the part starts as you hear
+  it: the timing is set for a song played to the amp over Bluetooth, so the new sound
+  starts at that moment (measured: within about ±50 ms).
 * **Changing a cue:** ✎ in its row puts its position and sound into the editor (the row is
   highlighted). Move the position, change preset, level or knobs (or choose a tone), then
   *Update cue* stores both; ⤓ stores only the sound. *New cue instead* leaves the cue as
@@ -320,7 +321,7 @@ folders of `CHORDSPLAY_MUSIC_DIRS`, local or a network share.
   `d/bridge/<token>/events` (song and position; `plan` when cues were edited; `cmd` for
   *Try now*, reading a slot for the knobs, writing an amp slot, starting and stopping a
   take), fetches the song's cues (`d/bridge/<token>/song/<id>`), picks the cue
-  (`AmpCues`, 0.3 s early) and switches or auditions through
+  (`AmpCues`, timed for the song's delay over Bluetooth, `AMP_LEAD_MS`) and switches or auditions through
   the agent (`AmpClient`). It reports the amp's state every 10 s or on a change
   (`PUT d/bridge/<token>/amp`), which the controller pages get as `amp` events, and
   uploads what the server asked for (`PUT …/preset/<slot>`, `PUT …/take/<id>`). The

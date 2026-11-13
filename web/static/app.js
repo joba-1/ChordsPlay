@@ -742,8 +742,8 @@ async function loadWave() {
     if (wave?.id !== id) return;          // another song meanwhile
     wave = { id, step: WAVE_STEP, peak, rms };
     $('#amp-wave-hint').textContent = 'Light: peaks, dark: loudness, red: the position, orange: the other cues, ' +
-      'blue: where the song is. The amp switches about 0.3 s before a cue to make up for its delay, ' +
-      'so put the cue where the part starts.';
+      'blue: where the song is. Put a cue where the part starts as you hear it: the switch is timed for ' +
+      'the song\'s delay over Bluetooth.';
   } catch (e) {
     if (wave?.id === id) wave = { id, step: WAVE_STEP, peak: null, rms: null, error: true };
     $('#amp-wave-hint').textContent = 'No waveform: this browser cannot decode the song (' + e.message + '). ' +

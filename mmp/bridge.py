@@ -22,7 +22,8 @@ Config via env:
                          (default chordsplay-amp-agent.service; empty: never)
   AMP_SINK               the amp's audio sink name (default "Mustang Micro Plus")
   AMP_DEFAULT_SLOT       preset for songs without one (default: leave the amp alone)
-  AMP_LEAD_MS            switch this much before a cue (default 300)
+  AMP_LEAD_MS            switch this many ms before a cue's time, negative: after it (default -220,
+                         right for the song reaching the amp over Bluetooth; over USB about -20)
 '''
 
 import json
@@ -42,6 +43,7 @@ from ChordsPlay import amp as ampmod
 log = logging.getLogger('bridge')
 
 TICK_S = 0.2            # how often the cue for the playing position is checked
+DUE_MARGIN_S = 0.002    # ... and once more just after the next cue is due
 REPORT_S = 10           # report the amp's state at least this often (server: BRIDGE_SEEN_S 30)
 COMMAND_MAX_AGE_S = 10  # a "try now" older than this (e.g. from before a reconnect) is ignored
 RECONNECT_S = (3, 60)   # wait before reconnecting the event stream, growing to the max
@@ -236,7 +238,7 @@ def read_events(response, on_event):
 
 class Bridge(object):
 
-    def __init__(self, url, client, lead_ms=300, default_slot=None, opener=urllib.request.urlopen):
+    def __init__(self, url, client, lead_ms=ampmod.LEAD_MS, default_slot=None, opener=urllib.request.urlopen):
         self.url = url.rstrip('/') + '/'
         self.client = client
         self.open = opener
@@ -281,7 +283,10 @@ class Bridge(object):
 
     def step(self):
         '''One tick: cues, then commands (a "try now" wins over a cue re-applied after an
-        edit in the same tick), then the report. Never raises for the network.'''
+        edit in the same tick), then the report. Never raises for the network. Returns
+        how long to wait until the next tick: TICK_S, or less when the next cue is due
+        earlier, so a cue is applied on time instead of up to a tick late.'''
+        wait = TICK_S
         if self.session.plan_rev != self.plan_rev:
             self.plan_rev = self.session.plan_rev
             self.plan.song = None
@@ -291,6 +296,9 @@ class Bridge(object):
             song_id, ms, _ = where
             try:
                 self.cues.tick(song_id, ms)
+                due = self.cues.due_in(song_id, ms)
+                if due is not None:
+                    wait = min(wait, due / 1000 + DUE_MARGIN_S)
             except (urllib.error.URLError, OSError, ValueError) as e:
                 # the song's cues could not be fetched: try again on the next tick
                 log.warning('bridge: cues of song %s not loaded (%s)', song_id, getattr(e, 'reason', e))
@@ -314,6 +322,7 @@ class Bridge(object):
         self.write_slots()
         self.recorder.check()
         self.report()
+        return wait
 
     def upload_take(self, take_id, path, seconds):
         with open(path, 'rb') as f:
@@ -420,8 +429,7 @@ class Bridge(object):
     def run(self):
         threading.Thread(target=self.follow, name='events', daemon=True).start()
         while not self.quit.is_set():
-            self.step()
-            self.quit.wait(TICK_S)
+            self.quit.wait(self.step())
 
 
 def send_levels(url, path, opener=urllib.request.urlopen):
@@ -457,7 +465,7 @@ def main(argv=None):
     agent = os.environ.get('AMP_URL') or 'http://localhost:{}'.format(os.environ.get('AMP_AGENT_PORT') or '8081')
     client = ampmod.AmpClient(agent, control=control).start()
     default = os.environ.get('AMP_DEFAULT_SLOT')
-    bridge = Bridge(url, client, lead_ms=int(os.environ.get('AMP_LEAD_MS', '300')),
+    bridge = Bridge(url, client, lead_ms=int(os.environ.get('AMP_LEAD_MS', str(ampmod.LEAD_MS))),
                     default_slot=int(default) if default else None)
     signal.signal(signal.SIGTERM, lambda *_: bridge.quit.set())
     try:

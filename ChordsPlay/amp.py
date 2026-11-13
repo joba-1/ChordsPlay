@@ -70,13 +70,37 @@ def build_cues(song_cues, base_slot):
     return cues
 
 
+# When the amp is asked to switch, relative to a cue's time (ms; positive: before it,
+# negative: after it). Measured on the amp with exact cue timing (mmp/measure_switch_lag.py):
+# a song played to the amp over Bluetooth reaches its output 270-320 ms after the player's
+# position, the amp has a switch about 120 ms after it is asked and then mutes for ~50 ms
+# before the new sound. Asking 220 ms after the cue's time makes the new sound start when
+# the cue's moment is heard (within about +-40 ms). Over USB the song is ~115 ms late:
+# there about -20 is right.
+LEAD_MS = -220
+
+
+def cue_edge(start_ms, lead_ms):
+    '''The song position (ms) from which a cue applies: lead_ms before its time; a cue at
+    the song's start applies from the start (never later, also with a negative lead).'''
+    return start_ms - lead_ms if start_ms > 0 else min(0, -lead_ms)
+
+
+def next_due_ms(cues, pos_ms, lead_ms=0):
+    '''Milliseconds from pos_ms until the next cue applies, or None after the last one.'''
+    for cue in cues:
+        due = cue_edge(cue[0], lead_ms) - pos_ms
+        if due > 0:
+            return due
+    return None
+
+
 def active_index(cues, pos_ms, lead_ms=0):
     '''Index of the cue that applies at pos_ms, or None before the first cue.'''
     pos_ms = max(0, pos_ms)
     index = None
     for i, cue in enumerate(cues):
-        start = cue[0]
-        if start - lead_ms <= pos_ms:
+        if cue_edge(cue[0], lead_ms) <= pos_ms:
             index = i
         else:
             break
@@ -527,10 +551,11 @@ def tone_document(db, client, tone):
 class AmpCues(object):
     '''
     Decides which slot or tone the playing song wants at its current position and
-    asks the client for it when that changes. Call tick() regularly (the bridge: every 0.2 s).
+    asks the client for it when that changes. Call tick() regularly (the bridge: every 0.2 s,
+    and exactly when due_in() says the next cue applies).
     '''
 
-    def __init__(self, db, client, lead_ms=300, default_slot=None):
+    def __init__(self, db, client, lead_ms=LEAD_MS, default_slot=None):
         self.db = db
         self.client = client
         self.lead_ms = lead_ms
@@ -556,6 +581,13 @@ class AmpCues(object):
     def reload(self):
         '''After cues were edited: re-read and re-apply at the current position.'''
         self.load(self.song_id)
+
+    def due_in(self, song_id, pos_ms):
+        '''Milliseconds until the next cue of the song applies, None if none follows (or
+        another song's cues are loaded): the caller ticks again exactly then.'''
+        if song_id != self.song_id:
+            return None
+        return next_due_ms(self.cues, max(0, pos_ms), self.lead_ms)
 
     def tick(self, song_id, pos_ms):
         if song_id != self.song_id:

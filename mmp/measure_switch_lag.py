@@ -16,7 +16,7 @@ Needs, on the computer the amp is paired with: the amp on, connected by Bluetoot
 and USB, the amp agent running, the amp bridge stopped (it would switch too), numpy,
 pactl, pw-play and pw-record.
 
-  python3 mmp/measure_switch_lag.py [--via bluetooth|usb] [--lead 300] [--switches 24] [--quiet 41] [--noisy 1]
+  python3 mmp/measure_switch_lag.py [--via bluetooth|usb] [--lead MS] [--switches 24] [--quiet 41] [--noisy 1]
 
 Writes the test song, the recording and the results to
 ~/.local/share/chordsplay/lagtest-<time>/ and prints the summary.
@@ -39,10 +39,11 @@ for base in (os.path.dirname(HERE), '/usr/share/chordsplay-mmp'):
     if os.path.isfile(os.path.join(base, 'ChordsPlay', 'amp.py')):
         sys.path.insert(0, base)
         break
-from ChordsPlay.amp import AmpClient, AmpCues          # noqa: E402
+from ChordsPlay.amp import LEAD_MS, AmpClient, AmpCues          # noqa: E402
 
 RATE = 48000
-TICK_S = 0.2                # as the bridge (mmp/bridge.py)
+TICK_S = 0.2                # as the bridge (mmp/bridge.py): every 0.2 s, and when a cue is due
+DUE_MARGIN_S = 0.002
 LEAD_IN_MS = 2000
 BEEP_MS = 15
 FRAME_MS = 2                # resolution of the noise level
@@ -193,8 +194,9 @@ def main():
     ap.add_argument('--period', type=int, default=3000, help='ms between switches (default 3000)')
     ap.add_argument('--quiet', type=int, default=41, help='a preset with a nearly silent idle input (default 41)')
     ap.add_argument('--noisy', type=int, default=1, help='a preset with audible idle noise (default 1)')
-    ap.add_argument('--lead', type=int, default=int(os.environ.get('AMP_LEAD_MS', '300')),
-                    help='switch this many ms before a cue, as the bridge (default AMP_LEAD_MS or 300)')
+    ap.add_argument('--lead', type=int, default=int(os.environ.get('AMP_LEAD_MS', str(LEAD_MS))),
+                    help='switch this many ms before a cue (negative: after it), as the bridge '
+                         '(default AMP_LEAD_MS or {})'.format(LEAD_MS))
     ap.add_argument('--agent', default='http://localhost:{}'.format(os.environ.get('AMP_AGENT_PORT') or '8081'))
     ap.add_argument('--name', default='Mustang Micro Plus', help='text in the amp\'s audio device names')
     ap.add_argument('--via', choices=('bluetooth', 'usb'), default='bluetooth',
@@ -259,8 +261,10 @@ def main():
         args.switches, args.quiet, args.noisy, args.period / 1000, args.lead,
         (LEAD_IN_MS + args.switches * args.period + 1500) / 1000))
     while player.poll() is None:
-        cue_logic.tick(1, (time.monotonic() - clock[0]) * 1000)
-        time.sleep(TICK_S)
+        pos = (time.monotonic() - clock[0]) * 1000
+        cue_logic.tick(1, pos)
+        due = cue_logic.due_in(1, pos)
+        time.sleep(TICK_S if due is None else min(TICK_S, due / 1000 + DUE_MARGIN_S))
     time.sleep(1.0)
     recorder.terminate()
     recorder.wait(timeout=5)
@@ -279,6 +283,15 @@ def main():
     with open(os.path.join(out, 'result.json'), 'w') as f:
         json.dump(result, f, indent=1)
 
+    # the new sound starts when the noisy preset's noise comes up (the amp mutes ~50 ms
+    # before, which a switch to the quiet preset shows); the first switch is left out: the
+    # Bluetooth stream's delay still grows in the first seconds of playing
+    starts = [v for k, v in enumerate(lags) if k > 0 and noisy_at(k)]
+    stops = [v for k, v in enumerate(lags) if not noisy_at(k)]
+    result['new_sound'] = stats(starts)
+    result['old_sound_stops'] = stats(stops)
+    with open(os.path.join(out, 'result.json'), 'w') as f:
+        json.dump(result, f, indent=1)
     s = result['lag']
     print()
     print('Noise of the idle input: {} dB (quiet) / {} dB (noisy)'.format(*levels))
@@ -291,9 +304,14 @@ def main():
             **result['agent']))
         print('Song: reaches the amp\'s output about {median} ms after it is played ({via}; '
               'the recorder start adds a little)'.format(via=args.via, **result['song_delay']))
-        print('With lead {} ms the cues come out {} ms late on average; a lead of about {} ms would center '
-              'them (AMP_LEAD_MS in the bridge settings).'.format(args.lead, s['median'],
-                                                                  int(round(args.lead + s['median'], -1))))
+        n, o = result['new_sound'], result['old_sound_stops']
+        if n and o:
+            print('New sound starts: median {median} ms, {min} … {max} ms (10–90 %: {p10} … {p90}); '
+                  'the old one stops about {stop} ms before'.format(stop=round(n['median'] - o['median']), **n))
+            print('With lead {} ms the new sound comes {} ms {} the cue; a lead of about {} ms would put it on '
+                  'the cue (AMP_LEAD_MS in the bridge settings).'.format(
+                      args.lead, abs(n['median']), 'after' if n['median'] > 0 else 'before',
+                      int(round(args.lead + n['median'], -1))))
     print('Files: ' + out)
 
 
