@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.6.6'
+__version__ = '1.6.7'
 
 log = logging.getLogger(__name__)
 
@@ -351,7 +351,9 @@ def now():
              'pdf': data.get('pdf') if isinstance(data.get('pdf'), int) else None,
              'page': int(data.get('page') or 1),
              # which open controller page plays: a paired TV's remote goes to that one only
-             'ctl': data['ctl'][:40] if isinstance(data.get('ctl'), str) else None}
+             'ctl': data['ctl'][:40] if isinstance(data.get('ctl'), str) else None,
+             # where the browser plays (its audio output's name), for the displays
+             'out': data['out'][:80] if isinstance(data.get('out'), str) else None}
     previous = hub.get(db.user)
     if previous is None or previous.get('id') != state['id']:
         set_state(db, 'now', {'id': state['id'], 'pos': state['pos'], 'at': state['at']})
@@ -561,7 +563,7 @@ def follow_pdf(db, pdf_id):
 @app.route('/d/<code>/events')
 def display_events(code):
     user, expires = display_user(code)
-    return sse(get_db(user), expires=expires)
+    return sse(get_db(user), ('now', 'sound'), expires=expires)
 
 
 # --- a paired TV: one bookmark, d/tv/, follows its user without a code in the URL ---
@@ -639,7 +641,7 @@ def tv_events():
     user = tv_user()
     if user is None:
         abort(401)
-    return sse(get_db(user))
+    return sse(get_db(user), ('now', 'sound'))
 
 
 REMOTE_ACTIONS = ('prev', 'next', 'toggle')
@@ -1157,7 +1159,25 @@ def bridge_amp(token):
     # every report, also an unchanged one (at most every REPORT_S in the bridge): the
     # pages see from it that the bridge is still there
     hub.publish(user, dict(report, at=time.time()), 'amp')
+    publish_sound(user, report)
     return jsonify(ok=True)
+
+
+def publish_sound(user, report):
+    '''What a display may know of the amp: the effect (preset or audition) and whether the
+    song goes through it. Only published when it changed (the bridge reports all the time).'''
+    state = report.get('state') or {}
+    audio = report.get('audio') or {}
+    effect = None
+    if state.get('connected') or state.get('asleep'):
+        if state.get('audition'):
+            effect = state['audition'].get('name') or 'tone'
+        elif state.get('preset'):
+            effect = '{} {}'.format(state['preset'], state.get('name') or '').strip()
+    sound = {'effect': effect, 'routed': bool(audio.get('routed'))}
+    previous = hub.get(user, 'sound') or {}
+    if any(previous.get(key) != value for key, value in sound.items()) or 'rev' not in previous:
+        hub.publish(user, sound, 'sound')
 
 
 # --- PDF tabs (web/pdfs.py) ------------------------------------------------------

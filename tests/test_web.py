@@ -245,6 +245,21 @@ class Display(Api):
         self.assertNotIn(b'event: amp', next(chunks))
         response.close()
 
+    def test_display_gets_effect_and_device_only(self):
+        code = self.client.post('/api/display').get_json()['code']
+        self.app.publish_sound('jo', {'state': {'connected': True, 'preset': 3, 'name': 'Twin', 'presets': [{'name': 'x'}]},
+                                      'audio': {'routed': True}})
+        response = self.client.get('/d/{}/events'.format(code))
+        chunks = iter(response.response)
+        next(chunks)
+        next(chunks)
+        sound = next(chunks)
+        response.close()
+        self.assertIn(b'event: sound', sound)
+        data = json.loads(sound.split(b'data: ')[1])
+        self.assertEqual((data['effect'], data['routed']), ('3 Twin', True))
+        self.assertNotIn('presets', data)
+
 
 class FakeAgentClient(object):
     '''ChordsPlay.amp.AmpClient without an agent: records what it is asked to do.'''

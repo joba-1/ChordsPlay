@@ -198,12 +198,26 @@ player.addEventListener('seeked', pushNow);
 // this page among the open controller pages: a paired TV's remote goes to the one that played last
 const ctlId = Math.random().toString(36).slice(2, 12);
 
+// the audio output's name for the displays (a browser that can't choose: the system's default)
+let sinkLabels = {};
+function sinkName() {
+  const id = player.sinkId || 'default';
+  return sinkLabels[id] || (id === 'default' ? 'Default output' : '');
+}
+async function learnSinks() {
+  try {
+    sinkLabels = Object.fromEntries((await outputs()).filter((d) => d.label).map((d) => [d.deviceId, d.label]));
+    pushNow();
+  } catch (e) { /* no device list */ }
+}
+
 function pushNow() {
   if (!song) return;
   api('now', { method: 'PUT', body: { id: song.id, pos, t: player.currentTime || 0, playing: !player.paused,
-                                     pdf: song.view || null, page: pdfPage, ctl: ctlId } })
+                                     pdf: song.view || null, page: pdfPage, ctl: ctlId, out: sinkName() } })
     .catch(() => {});
 }
+learnSinks();
 setInterval(() => { if (!player.paused) pushNow(); }, 15000);   // displays correct their clock
 player.addEventListener('timeupdate', showTime);
 
@@ -469,7 +483,7 @@ async function openAudio() {
 }
 
 $('#audio-list').addEventListener('change', async (e) => {
-  try { await player.setSinkId(e.target.value); toast('Audio output changed'); } catch (err) { toast('Switching failed: ' + err.message); }
+  try { await player.setSinkId(e.target.value); toast('Audio output changed'); learnSinks(); } catch (err) { toast('Switching failed: ' + err.message); }
 });
 
 $('#audio-names').addEventListener('click', async () => {
@@ -488,6 +502,7 @@ async function nextOutput() {
   const i = list.findIndex((d) => d.deviceId === (player.sinkId || 'default'));
   const out = list[(i + 1) % list.length];
   await player.setSinkId(out.deviceId);
+  learnSinks();
   toast('Audio: ' + (out.label || out.deviceId));
 }
 

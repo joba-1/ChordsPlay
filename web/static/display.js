@@ -15,6 +15,7 @@ let wakeLock = null;
 let expired = false;    // the pairing code is unknown or expired
 let pairCode = null;    // a TV (d/tv/) not paired yet: the code it shows
 let pairTimer = null;
+let sound = null;       // {effect, routed}: the amp's preset and whether the song goes through it
 let loadedVersion = null;   // the server's version this page came with
 const paired = /\/d\/tv\/?$/.test(location.pathname);   // a TV paired once (not a code link): it has a remote
 
@@ -61,6 +62,15 @@ function tick() {
   $('#state').textContent = state ? (state.playing ? fmt(songTime()) : 'paused ' + fmt(songTime())) : '';
 }
 setInterval(tick, 500);
+
+// the effect (the amp's preset) and where the sound goes
+function showSound() {
+  const parts = [];
+  if (sound?.effect) parts.push('🎸 ' + sound.effect);
+  const device = sound?.routed ? 'Mustang' : state?.out;
+  if (device) parts.push('🔊 ' + device);
+  $('#sound').textContent = parts.join(' · ');
+}
 
 function fail(text) {
   song = null;
@@ -131,8 +141,10 @@ function follow() {
     $('#bar').classList.remove('offline');
     if (changed && next.id !== undefined) loadState().catch(() => {});
     else render(false);     // the PDF or its page may have changed
+    showSound();
     tick();
   };
+  events.addEventListener('sound', (e) => { sound = JSON.parse(e.data); showSound(); });
   events.onerror = () => {
     $('#bar').classList.add('offline');
     // a closed stream (expired code) is not retried by the browser: check why
