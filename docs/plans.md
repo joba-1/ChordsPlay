@@ -22,6 +22,10 @@ Not promised; roughly in order of use.
   metre changes, even with a Viterbi pass over common metres (see spec-practice.md,
   *Finding the beats*). Try models aimed at that (*Skip That Beat*, 2025; *Explore This!*,
   2026) when code and weights are out; then a count-in of "the bar before" with its stress.
+  Seen at the Mustang in *Subdivisions* (2.1.6): most beats right, but where the beat moves
+  by half a beat (the "and" becomes the beat) the tracker keeps the old phase for a while.
+  A pass over an eighth-note grid that allows such a shift as a transition (as in the
+  Viterbi experiment for metres) could follow it sooner.
 * **Tap tempo for a section:** where the detected beats are wrong (the intro of
   *Subdivisions*: the clicks slower than the rhythm, the marks off the beat), tap the pulse
   a few times; the count-in and the snapping use it, kept with the section. Until then:
