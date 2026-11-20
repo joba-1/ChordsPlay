@@ -7,7 +7,8 @@
   --line: #d9d9d2;
   --panel: #f0f0ea;
   --accent: #2f6fdf;
-  --lead: rgba(230, 120, 0, 0.85);
+  --lead: rgb(245, 140, 20);
+  --lead-played: rgb(150, 60, 0);
   --current: #dbe7ff;
   --error: #c0392b;
   --sheet-font: "DejaVu Sans Mono", "Menlo", "Consolas", ui-monospace, monospace;
@@ -20,7 +21,8 @@
     --line: #34342f;
     --panel: #1e1e1b;
     --accent: #7aa7ff;
-    --lead: rgba(255, 160, 40, 0.85);
+    --lead: rgb(255, 170, 50);
+    --lead-played: rgb(170, 80, 10);
     --current: #26385c;
     --error: #ff8a7a;
   }
@@ -276,7 +278,7 @@ details.help li { margin: 3px 0; }
 .lanes label { display: flex; gap: 4px; align-items: center; }
 canvas.waves { display: block; width: 100%; height: 120px; cursor: crosshair; touch-action: none;
                border: 1px solid var(--line); border-radius: 4px; }
-#seek-lead, #seek-ab { position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none; }
+#seek-lead, #seek-lead-played, #seek-ab { position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none; }
 #seek-ab { box-shadow: inset 0 0 0 1px var(--fg, #000); background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .seek.rich .track, .seek.rich { height: 6px; }
 .seek.rich:hover .track, .seek.rich.drag .track { height: 10px; }

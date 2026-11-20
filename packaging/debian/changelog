@@ -1,3 +1,13 @@
+chordsplay (2.0.0-1) unstable; urgency=medium
+
+  * Practice mode (1.7.0 to 2.0.0): songs split into their instruments once on
+    the server, mixed live with mute and solo; the original file while not
+    mixing; waveforms of the song and its instruments; sections played once or
+    looped after a count-in; lead marks; splitting by tag at night.
+  * The seek bar shows the played part of the lead marks darker.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 00:00:00 +0000
+
 chordsplay (1.9.0-1) unstable; urgency=medium
 
   * Practice mix: "Play the instruments" switches between the original file

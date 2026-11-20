@@ -8,7 +8,7 @@
 %define appdir %{_datadir}/%{name}
 
 Name:           chordsplay
-Version:        1.9.0
+Version:        2.0.0
 Release:        0
 Summary:        Play your music in the browser with lyrics and guitar chords
 License:        AGPL-3.0-or-later AND Apache-2.0

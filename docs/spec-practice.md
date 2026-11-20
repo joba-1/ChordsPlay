@@ -3,7 +3,8 @@
 Status: 1.7.0 first version; 1.8.0 (2026-11-20): the guitar as one track again with a lead
 timeline, practice sections with a count-in, splitting by tag at night; 1.9.0: the original
 file while not mixing, waveforms of the song and its instruments to find and mark a
-section, a stricter lead rule.
+section, a stricter lead rule; 2.0.0: practice mode complete enough for a major
+version (the seek bar shows the played part of the lead marks darker).
 
 Play along with a song while hearing less (or none) of its guitar, or only the guitar to
 learn the part: the server splits a song once into its instruments ("stems"), and the

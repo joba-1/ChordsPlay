@@ -233,10 +233,16 @@ player.addEventListener('timeupdate', showTime);
 const seekBar = $('#seek');
 let seekDrag = false;
 
+// the played part: the fill, and the lead marks in a darker colour up to there
+function setSeekFill(pct) {
+  $('#seek-fill').style.width = pct + '%';
+  $('#seek-lead-played').style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+}
+
 function showSeek() {
   const d = player.duration;
   seekBar.hidden = !player.src;
-  $('#seek-fill').style.width = isFinite(d) && d > 0 ? (100 * player.currentTime / d) + '%' : '0';
+  setSeekFill(isFinite(d) && d > 0 ? 100 * player.currentTime / d : 0);
 }
 
 function seekAt(e) {     // the time under the pointer, in seconds
@@ -254,7 +260,7 @@ function showSeekTip(e) {
 
 seekBar.addEventListener('pointermove', (e) => {
   showSeekTip(e);
-  if (seekDrag) $('#seek-fill').style.width = (100 * seekAt(e).t / player.duration) + '%';
+  if (seekDrag) setSeekFill(100 * seekAt(e).t / player.duration);
 });
 seekBar.addEventListener('pointerdown', (e) => {
   if (!isFinite(player.duration)) return;
@@ -262,7 +268,7 @@ seekBar.addEventListener('pointerdown', (e) => {
   seekBar.classList.add('drag');
   seekBar.setPointerCapture(e.pointerId);
   showSeekTip(e);
-  $('#seek-fill').style.width = (100 * seekAt(e).t / player.duration) + '%';
+  setSeekFill(100 * seekAt(e).t / player.duration);
 });
 seekBar.addEventListener('pointerup', (e) => {
   if (!seekDrag) return;
@@ -1137,9 +1143,9 @@ function showAb() {
 // the lead timeline as colour in the seek bar
 function drawSeekMarks() {
   const tl = manifest()?.timeline, d = player.duration;
-  const lead = $('#seek-lead');
+  const lead = $('#seek-lead'), played = $('#seek-lead-played');
   seekBar.classList.toggle('rich', !!(tl?.lead || (ab.a !== null && ab.b !== null)));
-  if (!tl?.lead || !isFinite(d) || d <= 0) { lead.style.background = 'none'; showAb(); return; }
+  if (!tl?.lead || !isFinite(d) || d <= 0) { lead.style.background = played.style.background = 'none'; showAb(); return; }
   const stops = [];
   let i = 0;
   while (i < tl.lead.length) {
@@ -1147,10 +1153,12 @@ function drawSeekMarks() {
     let j = i;
     while (j < tl.lead.length && tl.lead[j]) j++;
     const x0 = (100 * i * tl.step / d).toFixed(2), x1 = (100 * Math.min(d, j * tl.step) / d).toFixed(2);
-    stops.push(`transparent ${x0}%, var(--lead) ${x0}%, var(--lead) ${x1}%, transparent ${x1}%`);
+    stops.push(`transparent ${x0}%, COLOR ${x0}%, COLOR ${x1}%, transparent ${x1}%`);
     i = j;
   }
-  lead.style.background = stops.length ? `linear-gradient(to right, ${stops.join(', ')})` : 'none';
+  const grad = (c) => stops.length ? `linear-gradient(to right, ${stops.join(', ').replaceAll('COLOR', c)})` : 'none';
+  lead.style.background = grad('var(--lead)');
+  played.style.background = grad('var(--lead-played)');
   showAb();
 }
 ['durationchange', 'loadedmetadata'].forEach((ev) => player.addEventListener(ev, drawSeekMarks));
