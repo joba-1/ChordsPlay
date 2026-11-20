@@ -802,6 +802,7 @@ $('#pr-reset').addEventListener('click', () => {
 // --- waveforms of the song and its instruments, to find and mark a section ---------------
 
 const LANE_H = 34, RULER_H = 18, MIN_SPAN_S = 2;
+const WHEEL_PAN = 0.5, WHEEL_ZOOM = 1.12;     // per wheel step (half of 2.1.5's: too sensitive)
 const LANE_NAMES = { song: 'Song', ...STEM_NAMES };
 let peaks = null;           // {id, rate, tracks: {name: Uint8Array}, max: {name}}
 let lanes = ['song', 'guitar', 'drums'];
@@ -1007,9 +1008,9 @@ $('#pr-wave').addEventListener('wheel', (e) => {
   if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
     // Shift+wheel arrives as deltaX in Chromium (deltaY 0), in others as deltaY
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    prView.start += d / $('#pr-wave').clientWidth * prView.span;
+    prView.start += WHEEL_PAN * d / $('#pr-wave').clientWidth * prView.span;
   } else {
-    const t = waveTime(e), f = e.deltaY > 0 ? 1.25 : 0.8;
+    const t = waveTime(e), f = e.deltaY > 0 ? WHEEL_ZOOM : 1 / WHEEL_ZOOM;
     const span = prView.span * f;
     prView.start = t - (t - prView.start) * f;
     prView.span = span;

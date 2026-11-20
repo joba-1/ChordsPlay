@@ -1,3 +1,9 @@
+chordsplay (2.1.6-1) unstable; urgency=medium
+
+  * Waveforms: the wheel scrolls and zooms half as much per step.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 04:10:00 +0000
+
 chordsplay (2.1.5-1) unstable; urgency=medium
 
   * Waveforms: Shift+wheel scrolls in Chromium, an impossible view resets
