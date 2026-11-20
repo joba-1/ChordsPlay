@@ -573,7 +573,7 @@ function routeAudio(manifest, force) {
     keep.offset.value = 0.001;
     keep.connect(ctx.destination);
     keep.start();
-    graph = { ctx, src: ctx.createMediaElementSource(player), master, nodes: [], gains: {} };
+    graph = { ctx, src: ctx.createMediaElementSource(player), master, keep, nodes: [], gains: {} };
     if (ctx.setSinkId && player.sinkId) ctx.setSinkId(player.sinkId === 'default' ? '' : player.sinkId).catch(() => {});
   }
   const { ctx, src } = graph;
@@ -600,8 +600,19 @@ function routeAudio(manifest, force) {
 // stream for the song, the instruments and the count-in clicks. A second stream for the clicks
 // would start on the system's default output, and an amp bridge moves new streams only every
 // few seconds: the clicks would be over by then.
+// the keep-alive rests after a long pause (it keeps the amp's Bluetooth link streaming)
+let keepRest = null;
+function keepAlive(on) {
+  clearTimeout(keepRest);
+  if (!graph) return;
+  if (on) graph.keep.offset.value = 0.001;
+  else keepRest = setTimeout(() => { if (player.paused && !counting && graph) graph.keep.offset.value = 0; }, KEEP_ALIVE_S * 1000);
+}
+player.addEventListener('pause', () => keepAlive(false));
+
 player.addEventListener('play', () => {
   if (practiceOffered && !graph) routeAudio(null, true);
+  keepAlive(true);
   fadeTo(1);
   if (graph?.ctx.state === 'suspended') graph.ctx.resume();
 });
@@ -1021,7 +1032,7 @@ let ab = { a: null, b: null };          // the unnamed section (keys b, e)
 let run = null;                         // the playing section: {a, b, loop}; null: plain playing
 let counting = null;                    // the count-in under way: {timer}
 let runWatch = null;
-let count = { beats: 4, each: false, factor: 1, mode: 'clicks', level: 0.8 };   // mode: clicks or lead (the song itself)
+let count = { beats: 4, each: false, factor: 1, mode: 'clicks', level: 0.5 };   // mode: clicks or lead (the song itself)
 try { Object.assign(count, JSON.parse(localStorage.getItem('practiceCount') || '{}')); } catch (e) { /* defaults */ }
 
 function saveCount() {
@@ -1066,14 +1077,17 @@ function clicks() {
 }
 
 const FADE_S = 0.025;        // a fade this long: no crack, no audible gap
+const SEAM_S = 0.06;         // the loop's seam: fade out and in this long (25 ms was still a little hard)
+const CLICK_PEAK = 0.15;     // the clicks' level at 100 % (at the Mustang 0.45 was three times too loud)
+const KEEP_ALIVE_S = 300;    // paused this long: let the output rest (the amp's battery)
 
 // the song's level through the master gain (no graph: nothing to fade)
-function fadeTo(v) {
+function fadeTo(v, s = FADE_S) {
   if (!graph) return;
   const g = graph.master.gain, now = graph.ctx.currentTime;
   g.cancelScheduledValues(now);
   g.setValueAtTime(g.value, now);
-  g.linearRampToValueAtTime(v, now + FADE_S);
+  g.linearRampToValueAtTime(v, now + s);
 }
 
 // fade out, then pause (a hard stop in the middle of the music cracks)
@@ -1088,7 +1102,7 @@ function pauseSoftly() {
 // is a setting (count.level, 0..1)
 function click(ctx, when, first) {
   const env = ctx.createGain();
-  const peak = Math.max(0.0002, 0.45 * (count.level ?? 0.8));
+  const peak = Math.max(0.0002, CLICK_PEAK * (count.level ?? 0.5));
   env.gain.setValueAtTime(0.0001, when);
   env.gain.exponentialRampToValueAtTime(peak, when + 0.003);
   env.gain.setValueAtTime(peak, when + 0.04);
@@ -1126,6 +1140,7 @@ async function countInAt(t) {
   if (!n) { player.play().catch(() => {}); return; }
   const ctx = clicks();
   if (ctx.state === 'suspended') await ctx.resume();
+  keepAlive(true);
   const iv = beatAt(t);
   const t0 = ctx.currentTime + 0.3;
   for (let i = 0; i < n; i++) click(ctx, t0 + i * iv, i === 0);   // no bar stress: the "1" isn't known
@@ -1149,9 +1164,9 @@ function startRun(a, b, loop, mark = true) {
     if (!run || player.paused || counting || run.seam) return;
     const t = player.currentTime;
     if (t < (run.from ?? run.a) - 0.5) { run.from = null; player.currentTime = run.a; return; }   // moved away
-    if (t >= run.b - FADE_S - 0.02) {          // the seam: fade out to the end, jump, fade in
+    if (t >= run.b - SEAM_S - 0.02) {          // the seam: fade out to the end, jump, fade in
       run.seam = true;
-      fadeTo(0);
+      fadeTo(0, SEAM_S);
       setTimeout(() => {
         run && (run.seam = false);
         if (!run) return;
@@ -1159,8 +1174,8 @@ function startRun(a, b, loop, mark = true) {
         if (count.each) { countInAt(run.a); return; }
         run.from = null;
         player.currentTime = run.a;
-        fadeTo(1);
-      }, FADE_S * 1000 + 10);
+        fadeTo(1, SEAM_S);
+      }, SEAM_S * 1000 + 10);
     }
   }, 20);
 }
@@ -1270,7 +1285,7 @@ function renderSections() {
     sectionRow(esc(x.name), x.start, x.end, `<button type="button" data-del="${x.id}" title="Delete it">✕</button>`)).join('');
   $('#pr-count').value = String(count.beats);
   $('#pr-count-mode').value = count.mode === 'lead' ? 'lead' : 'clicks';
-  $('#pr-click-level').value = String(Math.round(100 * (count.level ?? 0.8)));
+  $('#pr-click-level').value = String(Math.round(100 * (count.level ?? 0.5)));
   $('#pr-count-each').checked = !!count.each;
   $('#pr-tempo').textContent = tempoText();
 }
@@ -1304,7 +1319,9 @@ $('#pr-click-level').addEventListener('change', (e) => {
   saveCount();
   const ctx = clicks();                               // a sample at the new level
   if (ctx.state === 'suspended') ctx.resume();
-  click(ctx, ctx.currentTime + 0.05, true);
+  keepAlive(true);
+  if (player.paused) keepAlive(false);                 // (the rest timer again)
+  click(ctx, ctx.currentTime + 0.3, true);
 });
 $('#pr-count-each').addEventListener('change', (e) => { count.each = e.target.checked; saveCount(); });
 

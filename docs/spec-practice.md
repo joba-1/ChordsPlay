@@ -222,10 +222,13 @@ Why, from listening to click tracks (2026-11-20; a click on every beat mixed int
   stream that stays silent for a moment (seen in PipeWire: `corked=True`), and during a
   count-in the song is paused: each click had to wake the stream and the Bluetooth link.
   2.1.3 keeps the stream busy with a constant 0.001 (−60 dBFS DC, inaudible) while the
-  page plays through Web Audio, and starts the clicks 0.3 s after the pause.
-* **The loop's seam** (2.1.2): 25 ms before the section's end the song fades out, jumps to
-  the start and fades in (a gain on the song's way out, the *master*), instead of a hard
-  cut. Starting from the dialog leaves it open (2.1.1), so the level
+  page plays through Web Audio, and starts the clicks 0.3 s after the pause. Result at the
+  Mustang: all clicks audible, but far too loud: 2.1.4 scales the level control to a third
+  (100 % = a peak of 0.15; default 50 %). The keep-alive also keeps the amp's Bluetooth link
+  streaming, so after 5 minutes of pause it rests (the next play or count-in wakes it).
+* **The loop's seam**: shortly before the section's end the song fades out, jumps to the
+  start and fades in (a gain on the song's way out, the *master*), instead of a hard cut:
+  25 ms each in 2.1.2 ("softer, could be a bit more soft"), 60 ms since 2.1.4. Starting from the dialog leaves it open (2.1.1), so the level
   or the way in can be changed and tried again. You can't start the song and
   play at the same moment, so the count-in gives the time to get the hands on the guitar.
   The clicks come from a Web Audio oscillator in the song's own `AudioContext`; the song
