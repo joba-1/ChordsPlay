@@ -1,3 +1,11 @@
+chordsplay (2.1.8-1) unstable; urgency=medium
+
+  * Practice dialog: Space only plays/pauses (no button pressed, no box
+    switched), Enter presses and switches; play after a pause in a section
+    goes on where it paused, after the way in.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 05:00:00 +0000
+
 chordsplay (2.1.7-1) unstable; urgency=medium
 
   * Practice dialog: play/pause button, Space, b, e and o work in it; the

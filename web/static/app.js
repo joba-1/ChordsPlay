@@ -746,12 +746,24 @@ $('#d-practice').addEventListener('close', () => clearTimeout(practicePoll));
 
 // play/pause and the section keys work in this dialog too (not while typing or choosing)
 $('#pr-pause').addEventListener('click', (e) => { e.currentTarget.blur(); togglePause(); });
+// In this dialog Space plays/pauses; Enter does what Space does elsewhere: a button reacts
+// to Enter anyway, a checkbox gets switched here.
 $('#d-practice').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('input[type=checkbox]')) {
+    e.preventDefault();
+    e.target.click();
+    return;
+  }
   if (e.ctrlKey || e.altKey || e.metaKey || e.target.matches('select, input[type=text], textarea')) return;
   const act = { ' ': togglePause, b: markA, e: markB, o: toggleLoop }[e.key];
   if (!act) return;
   e.preventDefault();
+  if (e.repeat) return;
   act();
+});
+// a focused button or checkbox reacts to Space when it is released: not in this dialog
+$('#d-practice').addEventListener('keyup', (e) => {
+  if (e.key === ' ' && !e.target.matches('select, input[type=text], textarea')) e.preventDefault();
 });
 function showPauseButton() { $('#pr-pause').innerHTML = player.paused ? ICON_PLAY : ICON_PAUSE; }
 player.addEventListener('play', showPauseButton);
@@ -1259,11 +1271,13 @@ function toggleLoop() {
 }
 
 // play/pause during a section: a start always comes after a count-in at the section's beginning
+// play/pause during a section: play goes on where it paused, after the way in (clicks or
+// lead-in) at that point, so the hands are on the guitar again
 function sectionPause() {
   if (counting) { stopCount(); toast('Count-in stopped'); return true; }
   if (!run) return false;
-  if (player.paused) countInAt(run.a);
-  else player.pause();
+  if (player.paused) countInAt(Math.min(Math.max(player.currentTime, run.a), run.b));
+  else pauseSoftly();
   return true;
 }
 

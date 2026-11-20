@@ -191,7 +191,10 @@ guess from the recording: on a mono or live recording it shows nothing useful.
   the whole song. Songs split before 1.9.0 have no waveforms: *Split it again*. When
   there are none the tab says why (not split yet, loading, an error).
 * In the practice dialog Space plays and pauses (also its ▶/⏸ button), and `b`, `e`, `o`
-  mark and loop as in the main window.
+  mark and loop as in the main window. Space never presses a button or switches a
+  checkbox there: Tab moves, Enter presses or switches.
+* Play after a pause during a section goes on where it paused, after the way in (clicks or
+  lead-in) at that point.
 * Sound: the mix plays through the browser's Web Audio; choosing the output (`a`) works
   for it as well (Chrome).
 
