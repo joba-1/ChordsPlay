@@ -748,7 +748,7 @@ $('#d-practice').addEventListener('close', () => clearTimeout(practicePoll));
 $('#pr-pause').addEventListener('click', (e) => { e.currentTarget.blur(); togglePause(); });
 // In this dialog Space plays/pauses; Enter does what Space does elsewhere: a button reacts
 // to Enter anyway, a checkbox gets switched here.
-$('#d-practice').addEventListener('keydown', (e) => {
+function practiceKey(e) {
   if (e.key === 'Enter' && e.target.matches('input[type=checkbox]')) {
     e.preventDefault();
     e.target.click();
@@ -760,7 +760,8 @@ $('#d-practice').addEventListener('keydown', (e) => {
   e.preventDefault();
   if (e.repeat) return;
   act();
-});
+}
+$('#d-practice').addEventListener('keydown', practiceKey);
 // a focused button or checkbox reacts to Space when it is released: not in this dialog
 $('#d-practice').addEventListener('keyup', (e) => {
   if (e.key === ' ' && !e.target.matches('select, input[type=text], textarea')) e.preventDefault();
@@ -1089,6 +1090,8 @@ let counting = null;                    // the count-in under way: {timer}
 let runWatch = null;
 let count = { beats: 4, each: false, factor: 1, mode: 'clicks', level: 0.5 };   // mode: clicks or lead (the song itself)
 try { Object.assign(count, JSON.parse(localStorage.getItem('practiceCount') || '{}')); } catch (e) { /* defaults */ }
+count.factors ||= {};
+delete count.factor;          // 2.1.8 and before: one factor for every song, dropped
 
 function saveCount() {
   try { localStorage.setItem('practiceCount', JSON.stringify(count)); } catch (e) { /* not kept */ }
@@ -1117,12 +1120,15 @@ function beatAt(t) {
     const gaps = near.slice(1).map((b, i) => b - near[i]).sort((x, y) => x - y);
     if (gaps.length) iv = gaps[Math.floor(gaps.length / 2)];
   }
-  return iv / count.factor;
+  return iv / tempoFactor();
 }
+
+// ½× / 2× belong to the song (a tracker's half or double tempo is a song's matter)
+function tempoFactor() { return (song && count.factors?.[song.id]) || 1; }
 
 function tempoText() {
   const m = manifest();
-  const bpm = (m?.tempo || COUNT_DEFAULT_BPM) * count.factor;
+  const bpm = (m?.tempo || COUNT_DEFAULT_BPM) * tempoFactor();
   return `Tempo ${Math.round(bpm)} bpm` + (m?.tempo ? '' : ' (not known: split the song)');
 }
 
@@ -1351,7 +1357,7 @@ $('#d-practice').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.dataset.run) { startRun(Number(t.dataset.a), Number(t.dataset.b), t.dataset.run === 'loop', !t.dataset.whole); return; }
   if (t.dataset.tempo) {
-    count.factor = Math.min(4, Math.max(0.25, count.factor * Number(t.dataset.tempo)));
+    if (song) count.factors[song.id] = Math.min(4, Math.max(0.25, tempoFactor() * Number(t.dataset.tempo)));
     saveCount();
     renderSections();
     return;
@@ -2477,6 +2483,8 @@ const keys = {
 };
 
 document.addEventListener('keydown', (e) => {
+  // the practice dialog has its own keys; outside its controls (focus nowhere) they land here
+  if ($('#d-practice').open && !$('#d-practice').contains(e.target)) { practiceKey(e); return; }
   if (document.querySelector('dialog[open]') || e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.target.matches('input, select, textarea')) return;
   const action = keys[e.key];

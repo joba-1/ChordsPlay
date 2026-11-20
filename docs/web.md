@@ -171,8 +171,8 @@ guess from the recording: on a mono or live recording it shows nothing useful.
   from 2, 4 or 8 beats before the section; right in any metre, where clicks may not
   be). `o`, and Space while a section plays, pause and start again that way. Optionally
   before each repetition too. The beats are found when the song is split (drums and bass
-  first); the tempo may be half or double the felt one: *½×* and *2×* fix that (kept in
-  this browser). Without a split the way in uses 100 bpm. *Click* sets how loud the clicks
+  first); the tempo may be half or double the felt one: *½×* and *2×* fix that, for
+  that song (kept in this browser). Without a split the way in uses 100 bpm. *Click* sets how loud the clicks
   are (a sample plays when you let go). The dialog stays open while you try; Esc closes it. In *Waves* the beats show as
   faint lines when zoomed in: you can see whether they sit on the drum hits.
 * In the practice dialog the marked section can be saved with a name (*Save as…*): the

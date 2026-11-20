@@ -1,3 +1,11 @@
+chordsplay (2.1.9-1) unstable; urgency=medium
+
+  * Practice: half/double tempo of the count-in per song (was one setting for
+    every song); Space and b/e/o reach the practice dialog also when no control
+    in it has the focus; no focus frame around the dialog.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 05:30:00 +0000
+
 chordsplay (2.1.8-1) unstable; urgency=medium
 
   * Practice dialog: Space only plays/pauses (no button pressed, no box
