@@ -1,5 +1,6 @@
 README.md
 docs/install.md
 docs/web.md
+docs/spec-practice.md
 contrib/chordsplay.env.example
 contrib/apache-chordsplay-web.conf

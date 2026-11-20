@@ -1,4 +1,5 @@
 ChordsPlay usr/share/chordsplay
 web usr/share/chordsplay
+contrib/stems/chordsplay-stems usr/share/chordsplay/stems
 packaging/chordsplay usr/bin
 packaging/chordsplay.env etc/chordsplay

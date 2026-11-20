@@ -136,7 +136,9 @@ async function loadSong(i) {
   const row = playlist[i];
   pos = i;
   markCurrent();
-  player.src = 'api/audio/' + row.id;
+  const source = await songSource(row.id);
+  player.src = source.url;
+  routeAudio(source.manifest);
   song = await api('song/' + row.id);
   pdfPage = 1;
   showTitle();
@@ -482,8 +484,14 @@ async function openAudio() {
   $('#d-audio').showModal();
 }
 
+// the element's output, and the practice mix's (Web Audio) once that exists
+async function setOutput(id) {
+  await player.setSinkId(id);
+  if (graph?.ctx.setSinkId) await graph.ctx.setSinkId(id === 'default' ? '' : id);
+}
+
 $('#audio-list').addEventListener('change', async (e) => {
-  try { await player.setSinkId(e.target.value); toast('Audio output changed'); learnSinks(); } catch (err) { toast('Switching failed: ' + err.message); }
+  try { await setOutput(e.target.value); toast('Audio output changed'); learnSinks(); } catch (err) { toast('Switching failed: ' + err.message); }
 });
 
 $('#audio-names').addEventListener('click', async () => {
@@ -501,10 +509,213 @@ async function nextOutput() {
   if (list.length < 2) { toast('Only one audio output'); return; }
   const i = list.findIndex((d) => d.deviceId === (player.sinkId || 'default'));
   const out = list[(i + 1) % list.length];
-  await player.setSinkId(out.deviceId);
+  await setOutput(out.deviceId);
   learnSinks();
   toast('Audio: ' + (out.label || out.deviceId));
 }
+
+// --- practice mix: the song split into stems, each at its own level (docs/spec-practice.md) ---
+
+const STEM_NAMES = { vocals: 'Vocals', drums: 'Drums', bass: 'Bass', piano: 'Keys', other: 'Other', guitar: 'Guitar',
+                     'guitar-left': 'left', 'guitar-center': 'centre', 'guitar-right': 'right' };
+const MIX_MAX = 1.5;
+let practiceOffered = false;
+let practiceStatus = null;  // the current song's split: {state, error, manifest, ...}
+let practicePoll = null;
+let mix = { on: false, levels: {}, muted: {} };
+try { Object.assign(mix, JSON.parse(localStorage.getItem('practiceMix') || '{}')); } catch (e) { /* defaults */ }
+// the Web Audio graph, made the first time a split song plays: an element can't leave it again
+let graph = null;           // {ctx, src, nodes, gains: {stem: {gain, group}}}
+
+function saveMix() {
+  try { localStorage.setItem('practiceMix', JSON.stringify(mix)); } catch (e) { /* not kept */ }
+}
+
+// where the song's sound comes from: the split file if the mix is on and the song is split
+async function songSource(id) {
+  practiceStatus = null;
+  if (practiceOffered && mix.on) {
+    try {
+      practiceStatus = await api(`song/${id}/stems`);
+      if (practiceStatus.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
+    } catch (e) { /* the original then */ }
+  }
+  return { url: 'api/audio/' + id, manifest: null };
+}
+
+function routeAudio(manifest) {
+  $('#b-practice').classList.toggle('on', !!manifest);
+  if (!manifest && !graph) return;          // the original, straight from the element
+  if (!graph) {
+    const ctx = new AudioContext();
+    graph = { ctx, src: ctx.createMediaElementSource(player), nodes: [], gains: {} };
+    if (ctx.setSinkId && player.sinkId) ctx.setSinkId(player.sinkId === 'default' ? '' : player.sinkId).catch(() => {});
+  }
+  const { ctx, src } = graph;
+  src.disconnect();
+  graph.nodes.forEach((n) => n.disconnect());
+  graph.nodes = [];
+  graph.gains = {};
+  if (!manifest) { src.connect(ctx.destination); return; }
+  const split = ctx.createChannelSplitter(manifest.channels);
+  src.connect(split);
+  graph.nodes.push(split);
+  for (const stem of manifest.stems) {
+    const pair = ctx.createChannelMerger(2);
+    split.connect(pair, 2 * stem.pair, 0);
+    split.connect(pair, 2 * stem.pair + 1, 1);
+    const gain = ctx.createGain();
+    pair.connect(gain).connect(ctx.destination);
+    graph.nodes.push(pair, gain);
+    graph.gains[stem.name] = { gain, group: stem.group };
+  }
+  applyMix(true);
+}
+player.addEventListener('play', () => { if (graph?.ctx.state === 'suspended') graph.ctx.resume(); });
+
+function stemLevel(name) {
+  return mix.muted[name] ? 0 : (mix.levels[name] ?? 1);
+}
+
+function applyMix(now) {
+  if (!graph) return;
+  for (const [name, { gain, group }] of Object.entries(graph.gains)) {
+    const v = stemLevel(name) * (group ? stemLevel(group) : 1);
+    if (now) gain.gain.value = v;
+    else gain.gain.setTargetAtTime(v, graph.ctx.currentTime, 0.02);
+  }
+}
+
+// go over to the original or the split file where the song is, playing on if it played
+async function reloadSource() {
+  if (!song) return;
+  const source = await songSource(song.id);
+  const url = new URL(source.url, location.href).href;
+  if (player.src === url) { routeAudio(source.manifest); return; }
+  const t = player.currentTime, playing = !player.paused;
+  player.src = source.url;
+  routeAudio(source.manifest);
+  player.addEventListener('loadedmetadata', () => {
+    player.currentTime = t;
+    if (playing) player.play().catch(() => {});
+  }, { once: true });
+}
+
+// the mixer's rows: an instrument, or a part of one (stems with a group)
+function mixRows() {
+  const stems = practiceStatus?.manifest?.stems ||
+    ['vocals', 'drums', 'bass', 'piano', 'other', 'guitar-left', 'guitar-center', 'guitar-right']
+      .map((name) => ({ name, group: name.startsWith('guitar-') ? 'guitar' : undefined }));
+  const rows = [];
+  for (const s of stems) {
+    if (s.group && !rows.some((r) => r.name === s.group)) rows.push({ name: s.group });
+    rows.push({ name: s.name, part: !!s.group });
+  }
+  // the guitar first: it's what you practise
+  const g = rows.filter((r) => r.name === 'guitar' || r.name.startsWith('guitar-'));
+  return g.concat(rows.filter((r) => !g.includes(r)));
+}
+
+function renderMix() {
+  $('#pr-mix').innerHTML = mixRows().map(({ name, part }) => {
+    const pct = Math.round(100 * (mix.levels[name] ?? 1));
+    const label = STEM_NAMES[name] || name;
+    return `<span class="${part ? 'part' : 'name'}">${esc(label)}</span>` +
+      `<input type="range" min="0" max="${100 * MIX_MAX}" step="5" value="${pct}" data-stem="${esc(name)}" aria-label="${esc(label)}">` +
+      `<output>${pct} %</output>` +
+      `<button type="button" class="mute" data-mute="${esc(name)}" aria-pressed="${!!mix.muted[name]}" title="Mute ${esc(label)}">M</button>`;
+  }).join('');
+}
+
+function showPractice() {
+  const st = practiceStatus;
+  const playing = $('#b-practice').classList.contains('on');
+  let text;
+  if (!song) text = 'Choose a song first.';
+  else if (!st) text = 'Checking…';
+  else if (st.state === 'none') text = 'This song isn\'t split yet.';
+  else if (st.state === 'queued') text = 'Waiting for the splitter (it does one song at a time)…';
+  else if (st.state === 'running') text = 'Splitting the song, about a minute…';
+  else if (st.state === 'failed') text = 'Splitting failed: ' + (st.error || 'unknown error');
+  else text = playing ? 'Playing the practice mix.' : mix.on ? 'Split; plays as the practice mix.' : 'Split. Switch the practice mix on to hear it.';
+  $('#pr-title').textContent = song ? `Practice mix: ${song.title}` : 'Practice mix';
+  $('#pr-status').textContent = text;
+  $('#pr-on').checked = mix.on;
+  $('#pr-prepare').hidden = !song || !st || !['none', 'failed'].includes(st.state);
+  $('#pr-prepare').textContent = st?.state === 'failed' ? 'Try again' : 'Prepare this song';
+}
+
+async function refreshPractice() {
+  clearTimeout(practicePoll);
+  if (!song) { showPractice(); return; }
+  const id = song.id;
+  try { practiceStatus = await api(`song/${id}/stems`); } catch (e) { practiceStatus = null; }
+  if (song?.id !== id) return;
+  showPractice();
+  renderMix();
+  if (['queued', 'running'].includes(practiceStatus?.state) && $('#d-practice').open) {
+    practicePoll = setTimeout(async () => {
+      await refreshPractice();
+      if (practiceStatus?.state === 'ready' && mix.on) { await reloadSource(); showPractice(); }
+    }, 2000);
+  }
+}
+
+function openPractice() {
+  if (!practiceOffered) { toast('No practice mix on this server'); return; }
+  renderMix();
+  showPractice();
+  $('#d-practice').showModal();
+  refreshPractice();
+}
+
+$('#d-practice').addEventListener('close', () => clearTimeout(practicePoll));
+
+$('#pr-on').addEventListener('change', async (e) => {
+  mix.on = e.target.checked;
+  saveMix();
+  await reloadSource();
+  showPractice();
+});
+
+$('#pr-prepare').addEventListener('click', async () => {
+  try { practiceStatus = await api(`song/${song.id}/stems`, { method: 'POST' }); } catch (e) { toast('Cannot split: ' + e.message); }
+  if (!mix.on) { mix.on = true; saveMix(); }
+  refreshPractice();
+});
+
+$('#pr-mix').addEventListener('input', (e) => {
+  const name = e.target.dataset.stem;
+  if (!name) return;
+  mix.levels[name] = Number(e.target.value) / 100;
+  e.target.nextElementSibling.textContent = e.target.value + ' %';
+  applyMix();
+  saveMix();
+});
+
+$('#pr-mix').addEventListener('click', (e) => {
+  const name = e.target.dataset.mute;
+  if (!name) return;
+  mix.muted[name] = !mix.muted[name];
+  e.target.setAttribute('aria-pressed', mix.muted[name]);
+  applyMix();
+  saveMix();
+});
+
+// quick mixes change only what is muted: the levels stay as you set them
+$('#pr-quick').addEventListener('click', (e) => {
+  const quick = e.target.dataset.quick;
+  if (!quick) return;
+  const names = mixRows().map((r) => r.name);
+  const isGuitar = (n) => n === 'guitar' || n.startsWith('guitar-');
+  for (const n of names) {
+    mix.muted[n] = quick === 'noguitar' ? n === 'guitar' : quick === 'guitar' ? !isGuitar(n) : false;
+  }
+  if (quick === 'guitar') for (const n of names.filter((n) => n.startsWith('guitar-'))) mix.muted[n] = false;
+  saveMix();
+  renderMix();
+  applyMix();
+});
 
 // --- display link (a TV or tablet shows the song, following this page) --------
 
@@ -1591,7 +1802,7 @@ const keys = {
   Enter: next, n: next,
   Backspace: prev, p: prev,
   s: shuffle, f: openFilter, t: openTags, l: toggleList,
-  a: openAudio, A: nextOutput,
+  a: openAudio, A: nextOutput, x: openPractice,
   '0': () => { player.currentTime = 0; },
   '+': () => seek(1), '-': () => seek(-1),
   ArrowRight: () => seek(5), ArrowLeft: () => seek(-5),
@@ -1612,7 +1823,7 @@ document.addEventListener('keydown', (e) => {
 
 const buttons = {
   '#b-list': toggleList, '#b-prev': prev, '#b-pause': togglePause, '#b-next': next,
-  '#b-shuffle': shuffle, '#b-filter': openFilter, '#b-tags': openTags, '#b-audio': openAudio,
+  '#b-shuffle': shuffle, '#b-filter': openFilter, '#b-tags': openTags, '#b-audio': openAudio, '#b-practice': openPractice,
   '#b-full': toggleFull, '#b-help': () => $('#d-help').showModal(), '#b-display': openDisplay,
   '#b-tone': openAmp, '#amp': openAmp, '#b-pdf': openPdfs, '#b-takes': openTakes,
 };
@@ -1633,6 +1844,8 @@ async function start() {
     return;
   }
   $('#help-version').textContent = state.version;
+  practiceOffered = !!state.practice;
+  $('#b-practice').hidden = !practiceOffered;
   $('#version').textContent = `Logged in as ${state.user}`;
   if (/^https?:\/\//.test(state.source || '')) $('#help-source').href = state.source;
   $('#help-tv-url').textContent = new URL('d/tv/', location.href).href;

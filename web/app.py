@@ -31,6 +31,10 @@ A template with all settings: contrib/chordsplay.env.example
   CHORDSPLAY_TAKES_DIR   where takes are kept (default ~/.local/share/chordsplay-web/takes)
   CHORDSPLAY_PDF_DIRS    more folders with PDF tabs, ":"-separated (default ~/.local/share/chordsplay-web/pdf);
                          the library's folders are always scanned (tabs next to their songs); see web/pdfs.py
+  CHORDSPLAY_STEMS_COMMAND  the program that splits a song for the practice mix (unset: no practice mix);
+                         see docs/spec-practice.md and contrib/stems/chordsplay-stems
+  CHORDSPLAY_STEMS_DIR   where the split songs are kept (default ~/.local/share/chordsplay-web/stems)
+  CHORDSPLAY_STEMS_TIMEOUT  seconds one split may take (default 1800)
 '''
 
 import hashlib
@@ -51,9 +55,10 @@ import ChordsPlay.scan
 from ChordsPlay.textfit import wrap_comments
 from web import pdfs as pdfmod
 from web import presets as presetmod
+from web import stems as stemsmod
 from web import suggest as suggestmod
 
-__version__ = '1.6.10'
+__version__ = '1.7.0'
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +69,9 @@ PDF_DIRS = [os.path.expanduser(d) for d in os.environ.get(
     'CHORDSPLAY_PDF_DIRS', '~/.local/share/chordsplay-web/pdf').split(':') if d]
 DEFAULT_USER = os.environ.get('CHORDSPLAY_USER', os.environ.get('USER', 'anonymous'))
 SOURCE_URL = os.environ.get('CHORDSPLAY_SOURCE_URL') or 'https://github.com/joba-1/ChordsPlay'
+STEMS = stemsmod.Stems(DB_PATH, os.environ.get('CHORDSPLAY_STEMS_COMMAND', ''),
+                       os.environ.get('CHORDSPLAY_STEMS_DIR', '~/.local/share/chordsplay-web/stems'),
+                       int(os.environ.get('CHORDSPLAY_STEMS_TIMEOUT', '1800')))
 USER_MAP = dict(pair.split('=', 1) for pair in
                 os.environ.get('CHORDSPLAY_USER_MAP', '').split(',') if '=' in pair)
 # the reverse proxy sets this after its login and removes what a client sends itself
@@ -148,7 +156,7 @@ def get_db(user=None):
             CREATE TABLE IF NOT EXISTS bridge_tokens (
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
-                created real not null);""" + pdfmod.SCHEMA + presetmod.SCHEMA)
+                created real not null);""" + pdfmod.SCHEMA + presetmod.SCHEMA + stemsmod.SCHEMA)
         suggestmod.setup(db.conn)
         db.conn.commit()
     return db
@@ -234,7 +242,7 @@ def health():
 def state():
     '''Everything the page needs at start: user, playlist, last song, filter.'''
     db = get_db()
-    return jsonify(user=db.user, version=__version__, source=SOURCE_URL,
+    return jsonify(user=db.user, version=__version__, source=SOURCE_URL, practice=STEMS.offered,
                    playlist=rows_json(db.getFirstPlaylist()),
                    now=get_state(db, 'now'),
                    filter=load_filter(db, PREVIOUS_FILTER) or {key: '' for key in FILTER_KEYS})
@@ -326,6 +334,32 @@ def audio(song_id):
     if not os.path.isfile(path):
         abort(404)
     return send_file(path, conditional=True, max_age=3600)
+
+
+# --- practice mix (web/stems.py) ---------------------------------------------------
+
+@app.route('/api/song/<int:song_id>/stems', methods=['GET', 'POST'])
+def song_stems(song_id):
+    '''The song's split for the practice mix; POST queues it.'''
+    db = get_db()
+    if db.getPlayInfo(song_id) is None:
+        abort(404)
+    if request.method == 'GET':
+        return jsonify(STEMS.status(db.conn, song_id))
+    if not STEMS.offered:
+        return jsonify(error='no practice mix on this server (CHORDSPLAY_STEMS_COMMAND)'), 409
+    try:
+        return jsonify(STEMS.request(db.conn, song_id))
+    except KeyError:
+        abort(404)
+
+
+@app.route('/api/stems/<int:song_id>.webm')
+def stems_audio(song_id):
+    '''The split song: one Opus file, a stereo pair per stem (manifest in the status).'''
+    if STEMS.status(get_db().conn, song_id)['state'] != 'ready':
+        abort(404)
+    return send_file(STEMS.paths(song_id)[0], mimetype='audio/webm', conditional=True, max_age=3600)
 
 
 @app.route('/api/played/<int:song_id>', methods=['POST'])
@@ -1436,6 +1470,7 @@ def main():
         log.warning('no music folder: set CHORDSPLAY_MUSIC_DIRS (see docs/web.md)')
     scan_pdfs()
     start_scanner()
+    STEMS.start()
     from waitress import serve
     host = os.environ.get('CHORDSPLAY_HOST', '127.0.0.1')
     port = int(os.environ.get('CHORDSPLAY_PORT', '8616'))

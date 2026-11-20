@@ -21,6 +21,7 @@
     <button id="b-filter" title="Filter the songs (f)">Filter</button>
     <button id="b-tags" title="Tag the song (t)">Tags</button>
     <button id="b-audio" title="Audio output (a)">Audio</button>
+    <button id="b-practice" title="Practice mix: the song's instruments at your own levels, e.g. less guitar (x)" hidden>Practice</button>
     <button id="b-pdf" title="PDF tabs: show the song's PDF instead of its text (v cycles; V lists all PDFs)">PDF</button>
     <button id="b-tone" title="Guitar tone: the amp's preset for this song (g; G learns the amp's current one)">Tone</button>
     <button id="b-takes" title="Record yourself through the amp's USB (r starts/stops; R lists the takes)">Takes</button>
@@ -84,6 +85,28 @@
     <p id="audio-hint" class="hint"></p>
     <div class="dlg-buttons">
       <button type="button" id="audio-names">Show device names</button>
+      <span class="grow"></span><button value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="d-practice">
+  <form method="dialog">
+    <h2 id="pr-title">Practice mix</h2>
+    <p class="hint">The song split into its instruments, each at your own level: play along with less guitar, or
+      hear only the guitar to learn its part. The guitar's parts by stereo position often separate rhythm (sides)
+      from solo (centre).</p>
+    <p id="pr-status" class="hint"></p>
+    <label class="switch"><input type="checkbox" id="pr-on"> Practice mix on <span class="hint">(this browser,
+      every song that is split)</span></label>
+    <div id="pr-quick" class="dlg-buttons wrap">
+      <button type="button" data-quick="all">Everything</button>
+      <button type="button" data-quick="noguitar">Without guitar</button>
+      <button type="button" data-quick="guitar">Guitar only</button>
+    </div>
+    <div id="pr-mix" class="mix"></div>
+    <div class="dlg-buttons">
+      <button type="button" id="pr-prepare" hidden>Prepare this song</button>
       <span class="grow"></span><button value="close">Close</button>
     </div>
   </form>
@@ -337,6 +360,15 @@
     </details>
 
     <details class="help">
+      <summary>Practice mix: less guitar, or only the guitar</summary>
+      <p>Press <b>x</b> (or <i>Practice</i>). The server splits the song once into vocals, drums, bass, guitar, keys
+        and the rest (<i>Prepare this song</i>, about a minute); then every instrument has its own slider, and the
+        guitar three more for its parts by stereo position: on many records the rhythm guitars sit left and right and
+        the solo in the centre. <i>Practice mix on</i> plays the split version of every song that has one; the
+        levels are kept in this browser. Only offered when the server has a splitter set up.</p>
+    </details>
+
+    <details class="help">
       <summary>Keys</summary>
       <table class="keys">
         <tr><td>Space, m</td><td>play / pause</td></tr>
@@ -354,6 +386,7 @@
         <tr><td>g / G</td><td>guitar tone / keep the Mustang's current sound (Mustang)</td></tr>
         <tr><td>r / R</td><td>record a take / the song's takes (Mustang by USB)</td></tr>
         <tr><td>a / A</td><td>choose / switch where the sound goes (Chrome)</td></tr>
+        <tr><td>x</td><td>practice mix: the song's instruments at your own levels</td></tr>
         <tr><td>F11</td><td>full screen</td></tr>
         <tr><td>Double-click</td><td>play a song from the list; click a heading to sort</td></tr>
       </table>

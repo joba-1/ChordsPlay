@@ -18,6 +18,7 @@ esac
 : "${CHORDSPLAY_WEB_DB:=/var/lib/chordsplay/chordsplay.db}"
 : "${CHORDSPLAY_TAKES_DIR:=/var/lib/chordsplay/takes}"
 : "${CHORDSPLAY_PDF_DIRS:=/var/lib/chordsplay/pdf}"
-export CHORDSPLAY_WEB_DB CHORDSPLAY_TAKES_DIR CHORDSPLAY_PDF_DIRS
+: "${CHORDSPLAY_STEMS_DIR:=/var/lib/chordsplay/stems}"
+export CHORDSPLAY_WEB_DB CHORDSPLAY_TAKES_DIR CHORDSPLAY_PDF_DIRS CHORDSPLAY_STEMS_DIR
 PYTHONPATH=/usr/share/chordsplay${PYTHONPATH:+:$PYTHONPATH} PYTHONDONTWRITEBYTECODE=1 \
     exec python3 -m "$module" "$@"

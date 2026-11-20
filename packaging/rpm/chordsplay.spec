@@ -8,7 +8,7 @@
 %define appdir %{_datadir}/%{name}
 
 Name:           chordsplay
-Version:        1.6.10
+Version:        1.7.0
 Release:        0
 Summary:        Play your music in the browser with lyrics and guitar chords
 License:        AGPL-3.0-or-later AND Apache-2.0
@@ -81,6 +81,8 @@ find %{buildroot}%{appdir} -name __pycache__ -prune -exec rm -rf {} +
 find %{buildroot}%{appdir} -name '*.py' -exec chmod 0644 {} +
 rm -f %{buildroot}%{appdir}/web/requirements.txt
 install -D -m 0755 packaging/chordsplay %{buildroot}%{_bindir}/chordsplay
+# the practice mix's splitter: runs in its own Python environment (docs/install.md)
+install -D -m 0755 contrib/stems/chordsplay-stems %{buildroot}%{appdir}/stems/chordsplay-stems
 install -D -m 0644 packaging/chordsplay.service %{buildroot}%{_unitdir}/chordsplay.service
 install -D -m 0644 packaging/chordsplay.sysusers %{buildroot}%{_sysusersdir}/chordsplay.conf
 install -D -m 0644 packaging/chordsplay.env %{buildroot}%{_sysconfdir}/chordsplay/chordsplay.env
@@ -103,7 +105,7 @@ python3 -m unittest discover -s tests
 
 %files
 %license LICENSE
-%doc README.md docs/install.md docs/web.md
+%doc README.md docs/install.md docs/web.md docs/spec-practice.md
 %doc contrib/chordsplay.env.example contrib/apache-chordsplay-web.conf
 %{_bindir}/chordsplay
 %{appdir}

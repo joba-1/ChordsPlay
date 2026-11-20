@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 joba1
+# SPDX-License-Identifier: AGPL-3.0-or-later
+'''
+chordsplay-stems: split a song into its instruments for ChordsPlay's practice mix.
+
+  chordsplay-stems [--device gpu|auto|cpu] [--no-pan] SONG OUT.webm
+
+Writes OUT.webm, one Opus file with an independent stereo pair per stem (vocals, drums,
+bass, piano, other, and the guitar as three parts by stereo position: left, centre,
+right), and OUT.json, the manifest naming the pairs. See docs/spec-practice.md.
+
+Runs in its own Python environment with python-audio-separator (PyTorch); ChordsPlay
+calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
+
+  --device gpu    (default) the GPU; fails with "GPU busy" when less than --gpu-mb is free
+  --device auto   the GPU if enough of it is free, else the CPU (several minutes per song)
+  --device cpu    always the CPU
+  --no-pan        keep the guitar as one stem
+  --model NAME    separation model (default BS-Roformer-SW.ckpt; must give a guitar stem)
+  --model-dir DIR where the model is kept (default ~/.cache/chordsplay-stems)
+  --kbits N       Opus bit rate per stereo pair (default 96: ~3 MB per minute for 8 pairs)
+
+Exit codes: 0 done, 2 usage, 3 GPU busy, 1 anything else (message on stderr).
+'''
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+STEMS = ['vocals', 'drums', 'bass', 'piano', 'other', 'guitar']   # order of the pairs, guitar last
+PAN_PARTS = ['left', 'center', 'right']
+PAN_CENTER = 0.35       # |pan| below this is the centre (pan: -1 hard left .. +1 hard right)
+PAN_EDGE = 0.1          # width of the soft edge between zones
+FFT = 4096
+EXIT_GPU_BUSY = 3
+
+
+def fail(message, code=1):
+    print('chordsplay-stems: ' + message, file=sys.stderr)
+    sys.exit(code)
+
+
+def gpu_free_mb():
+    '''Free memory of the first GPU in MB, or None without an NVIDIA GPU.'''
+    try:
+        out = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+                             capture_output=True, text=True, timeout=20).stdout
+        return int(out.split()[0])
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return None
+
+
+def choose_device(device, need_mb):
+    '''True: use the GPU. Exits with EXIT_GPU_BUSY for --device gpu without enough memory.'''
+    if device == 'cpu':
+        return False
+    free = gpu_free_mb()
+    if free is not None and free >= need_mb:
+        return True
+    if device == 'auto':
+        return False
+    if free is None:
+        fail('no GPU found (use --device auto or cpu)')
+    fail(f'GPU busy: {free} MB free, {need_mb} MB needed', EXIT_GPU_BUSY)
+
+
+def separate(song, work, model, model_dir, gpu):
+    '''The model's stems as WAV files in work: {stem name: path}.'''
+    env = dict(os.environ)
+    if not gpu:
+        env['CUDA_VISIBLE_DEVICES'] = ''
+    tool = shutil.which('audio-separator') or os.path.join(os.path.dirname(sys.executable), 'audio-separator')
+    # the separator names its files after the input: give it a plain name
+    plain = os.path.join(work, 'song' + os.path.splitext(song)[1].lower())
+    shutil.copyfile(song, plain)
+    run = subprocess.run([tool, '--model_filename', model, '--model_file_dir', model_dir,
+                          '--output_dir', work, '--output_format', 'WAV', plain],
+                         capture_output=True, text=True, env=env)
+    if run.returncode != 0:
+        errors = [line for line in (run.stderr + run.stdout).splitlines() if 'ERROR' in line]
+        fail('separation failed: ' + (errors[-1] if errors else 'exit code {}'.format(run.returncode))[-400:])
+    found = {}
+    for name in os.listdir(work):
+        low = name.lower()
+        for stem in STEMS:
+            if low.startswith('song_') and f'({stem})' in low and low.endswith('.wav'):
+                found[stem] = os.path.join(work, name)
+    missing = [s for s in STEMS if s not in found]
+    if missing:
+        fail('the model gave no ' + ', '.join(missing) + ' stem (it must give six, guitar included)')
+    return found
+
+
+def pan_split(path, work):
+    '''The stem at path in three parts by stereo position: {part: wav path}.'''
+    import numpy as np
+    import soundfile as sf
+    from scipy.signal import istft, stft
+
+    x, sr = sf.read(path, always_2d=True)
+    if x.shape[1] == 1:
+        x = np.repeat(x, 2, axis=1)
+    left, right = x[:, 0], x[:, 1]
+    overlap = 3 * FFT // 4
+    _, _, sl = stft(left, sr, nperseg=FFT, noverlap=overlap)
+    _, _, sr_ = stft(right, sr, nperseg=FFT, noverlap=overlap)
+    al, ar = np.abs(sl), np.abs(sr_)
+    pan = (ar - al) / (al + ar + 1e-9)
+
+    def zone(lo, hi):
+        return np.clip((pan - lo) / PAN_EDGE + 0.5, 0, 1) * np.clip((hi - pan) / PAN_EDGE + 0.5, 0, 1)
+
+    masks = {'left': zone(-2, -PAN_CENTER), 'center': zone(-PAN_CENTER, PAN_CENTER), 'right': zone(PAN_CENTER, 2)}
+    total = masks['left'] + masks['center'] + masks['right']     # 1 except at the edges: keep the sum exact
+    parts = {}
+    for part, mask in masks.items():
+        mask = mask / np.maximum(total, 1e-9)
+        _, l = istft(sl * mask, sr, nperseg=FFT, noverlap=overlap)
+        _, r = istft(sr_ * mask, sr, nperseg=FFT, noverlap=overlap)
+        out = os.path.join(work, f'guitar-{part}.wav')
+        sf.write(out, np.stack([l, r], axis=1)[:len(left)], sr, subtype='FLOAT')
+        parts[part] = out
+    return parts
+
+
+def encode(pairs, out, kbits):
+    '''One Opus/WebM file with the stereo files of pairs (in order) as independent channels.'''
+    cmd = ['ffmpeg', '-v', 'error', '-y']
+    for _, path in pairs:
+        cmd += ['-i', path]
+    n = len(pairs)
+    # each input to exactly two channels, then all side by side
+    graph = ''.join(f'[{i}:a]aformat=channel_layouts=stereo[s{i}];' for i in range(n))
+    graph += ''.join(f'[s{i}]' for i in range(n)) + f'amerge=inputs={n}[all]'
+    cmd += ['-filter_complex', graph, '-map', '[all]', '-c:a', 'libopus', '-mapping_family', '255',
+            '-b:a', f'{kbits * n}k', '-f', 'webm', out]
+    run = subprocess.run(cmd, capture_output=True, text=True)
+    if run.returncode != 0:
+        fail('encoding failed: ' + run.stderr.strip()[-400:])
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Split a song into stems for ChordsPlay\'s practice mix.')
+    parser.add_argument('song')
+    parser.add_argument('out', help='output file, .webm; the manifest goes next to it as .json')
+    parser.add_argument('--device', choices=['gpu', 'auto', 'cpu'], default='gpu')
+    parser.add_argument('--gpu-mb', type=int, default=4000, help='free GPU memory needed (MB)')
+    parser.add_argument('--no-pan', action='store_true', help='keep the guitar as one stem')
+    parser.add_argument('--model', default='BS-Roformer-SW.ckpt')
+    parser.add_argument('--kbits', type=int, default=96, help='Opus kbit/s per stereo pair')
+    parser.add_argument('--model-dir', default=os.path.expanduser('~/.cache/chordsplay-stems'))
+    args = parser.parse_args()
+    if not os.path.isfile(args.song):
+        fail('no such file: ' + args.song, 2)
+    if not args.out.endswith('.webm'):
+        fail('the output must end in .webm', 2)
+    gpu = choose_device(args.device, args.gpu_mb)
+    os.makedirs(args.model_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='chordsplay-stems-') as work:
+        stems = separate(args.song, work, args.model, args.model_dir, gpu)
+        pairs, manifest = [], []
+        for stem in STEMS:
+            if stem == 'guitar' and not args.no_pan:
+                for part, path in pan_split(stems['guitar'], work).items():
+                    manifest.append({'name': f'guitar-{part}', 'pair': len(pairs), 'group': 'guitar'})
+                    pairs.append((f'guitar-{part}', path))
+            else:
+                manifest.append({'name': stem, 'pair': len(pairs)})
+                pairs.append((stem, stems[stem]))
+        encode(pairs, args.out, args.kbits)
+    meta = {'version': 1, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
+            'device': 'gpu' if gpu else 'cpu', 'stems': manifest}
+    with open(os.path.splitext(args.out)[0] + '.json', 'w') as f:
+        json.dump(meta, f, indent=1)
+
+
+if __name__ == '__main__':
+    main()

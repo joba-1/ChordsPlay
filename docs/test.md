@@ -41,6 +41,13 @@ On a desktop browser and a phone (1600×900, 1920×1080, 390×844):
   into the waveform move the position; *▶ Around* pauses 2 s after it; *Update cue* moves
   the cue and keeps or changes its sound.
 
+* Practice mix (`x`, with a splitter set up): *Prepare this song* shows waiting, splitting,
+  then plays the mix at the same position; *Practice mix on/off* switches without a jump;
+  *Without guitar*, *Guitar only* and a slider change the sound at once; the next song
+  without a split plays the original; the audio output (`a`) applies to the mix.
+  Automated in Chromium with Playwright (2026-11-20, not in the repo): the graph's gains
+  follow the sliders and quick mixes, the position survives the switch.
+
 ## With the amp (after changing the bridge, the agent or the packages)
 
 On the amp computer, amp on and connected by Bluetooth audio (and USB for takes):

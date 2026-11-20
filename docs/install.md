@@ -89,6 +89,46 @@ On Arch install with `-Syu`: Arch does not support installing onto a partly upda
 * **Updating** comes with the system's package updates; the service is restarted,
   settings and data are kept.
 
+## The practice mix (optional)
+
+The practice mix needs a program that splits songs into instruments. It isn't part of
+the packages: it runs a neural network (PyTorch, several GB) in its own Python
+environment. The package brings the script, `/usr/share/chordsplay/stems/chordsplay-stems`;
+it uses [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator)
+and its model `BS-Roformer-SW` (downloaded at the first split, ~700 MB). An NVIDIA GPU with
+about 4 GB free makes it take a minute per song; on the CPU it takes several.
+
+1. The environment, here in `/opt/chordsplay-stems` with [uv](https://docs.astral.sh/uv/)
+   (PyTorch for CUDA 12.8; leave out `--index-url …` for a computer without an NVIDIA GPU):
+
+   ```bash
+   sudo uv venv -p 3.12 /opt/chordsplay-stems
+   sudo uv pip install -p /opt/chordsplay-stems/bin/python torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+   sudo uv pip install -p /opt/chordsplay-stems/bin/python "audio-separator[gpu]" audioread
+   ```
+
+   It also needs `ffmpeg` with Opus.
+2. In `/etc/chordsplay/chordsplay.env`:
+
+   ```
+   CHORDSPLAY_STEMS_COMMAND=/opt/chordsplay-stems/bin/python /usr/share/chordsplay/stems/chordsplay-stems --device auto --model-dir /var/lib/chordsplay/stems-model
+   ```
+
+   `--device gpu` (the default) refuses to start when the GPU is busy (the page shows
+   *GPU busy*); `--device auto` then uses the CPU; `--device cpu` never uses the GPU.
+3. With a GPU: the service hides devices from itself (`PrivateDevices=yes`). Let it see
+   the GPU: `sudo systemctl edit chordsplay` and add
+
+   ```
+   [Service]
+   PrivateDevices=no
+   ```
+4. `sudo systemctl restart chordsplay`: the page shows *Practice*.
+
+Try the splitter alone first: `sudo -u chordsplay /opt/chordsplay-stems/bin/python
+/usr/share/chordsplay/stems/chordsplay-stems --model-dir /var/lib/chordsplay/stems-model
+song.mp3 /tmp/song.webm`.
+
 ## The Mustang parts
 
 On the computer the amp is paired with, after adding the repository:

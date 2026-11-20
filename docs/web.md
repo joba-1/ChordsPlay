@@ -18,6 +18,9 @@ first sections here, in short.
   *amp control* (the amp bridge, set up once; see "Guitar tone").
 * **With a separate guitar amp:** everything in the first point works; the guitar sound
   is set on that amp, ChordsPlay doesn't change it.
+* **Practice mix** (less guitar, or only the guitar): a splitter on the server
+  (optional, best with an NVIDIA GPU; see [install.md](install.md)). Without it the
+  *Practice* button isn't shown.
 * **On another screen (TV, tablet, laptop):** only a browser. A link or QR code from `d`,
   or for your own TV a bookmark paired once (see "A TV or tablet as display").
 
@@ -143,6 +146,29 @@ the take to Opus (192 kbit/s, about 4 MB for 3 minutes) and sends it to the serv
 the song's takes: ▶ plays one, ✕ deletes it. A take holds the **whole mix**: the amp
 mixes the song arriving over Bluetooth into its USB output (measured: −92.5 dBFS with
 nothing playing, −41 dBFS with a song and the strings quiet). A take nobody stops ends after 20 minutes.
+
+## Practice mix: less guitar, or only the guitar
+
+`x` (or *Practice*) opens the practice mix for the playing song. *Prepare this song*
+has the server split it once into vocals, drums, bass, guitar, keys and the rest (about a
+minute with a GPU, then kept); the dialog shows the progress and switches to the mix
+when it is done. Each instrument gets a slider (0–150 %) and a mute button; the guitar
+three more for its parts **by stereo position**: on many records the rhythm guitars are
+panned left and right and the solo sits in the centre, so *centre* down often means
+"without the solo". That's a guess from the recording, not a fact: on a mono or live
+recording the parts don't separate.
+
+* *Everything*, *Without guitar*, *Guitar only* change only what is muted; the levels
+  stay as you set them.
+* *Practice mix on* plays the split version of every song that has one (the original
+  otherwise), in this browser; the levels are kept in this browser too. Switching
+  keeps the position and plays on.
+* With every slider at 100 % the mix should sound like the original. The cues, the amp's
+  timing, takes and displays work as before: the mix has the song's timeline.
+* Sound: the mix plays through the browser's Web Audio; choosing the output (`a`) works
+  for it as well (Chrome).
+
+How it works and why: [spec-practice.md](spec-practice.md).
 
 ## PDF tabs
 
@@ -360,8 +386,12 @@ folders of `CHORDSPLAY_MUSIC_DIRS`, local or a network share.
   are the same everywhere. Besides the tables of `ChordsPlay/db.py` it has the web app's own:
   `web_state` (per user: the current song, *Play suggestions automatically*),
   `display_codes`, `tv_devices`/`tv_pairings`, `bridge_tokens`, `takes`, the PDF tables
-  (`web/pdfs.py`), `amp_presets` (`web/presets.py`) and the suggestion tables
-  (`web/suggest.py`).
+  (`web/pdfs.py`), `amp_presets` (`web/presets.py`), the suggestion tables
+  (`web/suggest.py`) and `stems` (`web/stems.py`, the practice mix).
+* Practice mix (`web/stems.py`): one worker thread runs `CHORDSPLAY_STEMS_COMMAND` for one
+  song at a time and keeps the result, one Opus file with a stereo pair per stem plus a
+  manifest, in `CHORDSPLAY_STEMS_DIR`; the page mixes the pairs with Web Audio
+  ([spec-practice.md](spec-practice.md)).
 * The library scan and the Ultimate Guitar fetch run in the server (`ChordsPlay/scan.py`),
   at start and every 24 hours.
 * User: the proxy passes the login name as `X-Remote-User` (and drops what a client
@@ -395,6 +425,7 @@ folders of `CHORDSPLAY_MUSIC_DIRS`, local or a network share.
 | Install, update, remove | [install.md](install.md) |
 | Settings | `/etc/chordsplay/chordsplay.env` (checkout install: `~/.config/chordsplay/web.env`); every setting with its default: `contrib/chordsplay.env.example`. Restart the service after a change |
 | Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two`: added to the library at start, scanned at start and every 24 hours. The database is created at the first start |
+| Practice mix | `CHORDSPLAY_STEMS_COMMAND` (the splitter, see [install.md](install.md)); the split songs in `/var/lib/chordsplay/stems` (about 3 MB per minute of music; a cache, delete any time) |
 | Logs | `journalctl -u chordsplay` (checkout install: `journalctl --user -u chordsplay-web`) |
 | Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User`, and `CHORDSPLAY_USER_MAP=loginname=dbuser,...` where names differ |
 | Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets, takes and level surveys); the app serves nothing else there |

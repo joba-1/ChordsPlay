@@ -259,3 +259,13 @@ details.help { border-top: 1px solid var(--line); padding: 6px 0; }
 details.help summary { font-weight: 600; cursor: pointer; padding: 2px 0; }
 details.help p, details.help ol { margin: 6px 0; line-height: 1.45; }
 details.help li { margin: 3px 0; }
+
+/* practice mix */
+.mix { display: grid; grid-template-columns: auto 1fr 3.5em auto; gap: 4px 10px; align-items: center; margin: 8px 0; }
+.mix .name { font-weight: 600; }
+.mix .part { padding-left: 1.5em; color: var(--muted); font-size: 13px; }
+.mix input[type=range] { min-width: 8em; width: 100%; margin: 0; }
+.mix output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+.mix button.mute { padding: 0 8px; }
+.mix button.mute[aria-pressed=true] { background: var(--accent); color: var(--bg, #fff); }
+#b-practice.on { outline: 2px solid var(--accent); outline-offset: -2px; }
