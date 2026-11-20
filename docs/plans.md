@@ -22,6 +22,10 @@ Not promised; roughly in order of use.
   metre changes, even with a Viterbi pass over common metres (see spec-practice.md,
   *Finding the beats*). Try models aimed at that (*Skip That Beat*, 2025; *Explore This!*,
   2026) when code and weights are out; then a count-in of "the bar before" with its stress.
+* **Tap tempo for a section:** where the detected beats are wrong (the intro of
+  *Subdivisions*: the clicks slower than the rhythm, the marks off the beat), tap the pulse
+  a few times; the count-in and the snapping use it, kept with the section. Until then:
+  the lead-in, which needs no beats.
 * Per-song mixes on the server (per user), a mix per cue; removing old splits when the
   folder grows.
 
