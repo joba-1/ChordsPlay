@@ -16,6 +16,18 @@ Not promised; roughly in order of use.
 * **Fender Tone and the agent:** can the phone app connect while the agent holds the
   link, or only while the agent sleeps?
 
+## Practice mode
+
+* **Blend at the loop's seam:** a short fade-out at the section's end and fade-in at its
+  start (20–50 ms, a gain ramp in Web Audio around the jump) instead of the hard cut. The
+  loop already restarts on the beat (checked at the Mustang, 2.1.1).
+* **Bars and time signatures** for odd metres: beat_this's bar starts are wrong in Rush's
+  metre changes, even with a Viterbi pass over common metres (see spec-practice.md,
+  *Finding the beats*). Try models aimed at that (*Skip That Beat*, 2025; *Explore This!*,
+  2026) when code and weights are out; then a count-in of "the bar before" with its stress.
+* Per-song mixes on the server (per user), a mix per cue; removing old splits when the
+  folder grows.
+
 ## Sound on the TV
 
 Designed, not built. The device with this page plays the song, because it is the one paired with the

@@ -291,4 +291,5 @@ output keeps.
 
 * Per-song mixes (stored on the server per user), and a mix per cue (quieter guitar in
   the solo only).
+* See also docs/plans.md, *Practice mode*.
 * Removing old stems when the folder grows (they are a cache: delete any time).
