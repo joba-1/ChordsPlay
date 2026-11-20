@@ -66,6 +66,7 @@ button, select {
 button:hover, select:hover { border-color: var(--accent); }
 #bar button.open { background: color-mix(in srgb, var(--accent) 22%, var(--bg)); border-color: var(--accent); }
 #b-pause { min-width: 2.6em; }
+svg.icon { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em; }
 button.default { border-color: var(--accent); }
 .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .title .meta { font-weight: 400; color: var(--muted); margin-left: 10px; }

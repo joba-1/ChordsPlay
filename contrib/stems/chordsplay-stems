@@ -152,11 +152,12 @@ def guitar_timeline(path):
     energy = al ** 2 + ar ** 2
     pan = (ar - al) / (al + ar + 1e-9)
     center = (np.abs(pan) < PAN_CENTER) * energy
-    per_frame = energy.sum(axis=0), center.sum(axis=0)
-    frames_per_step = max(1, int(round(STEP_S * sr / hop)))
-    n = int(np.ceil(per_frame[0].size / frames_per_step))
-    total = np.array([per_frame[0][i * frames_per_step:(i + 1) * frames_per_step].sum() for i in range(n)])
-    mid = np.array([per_frame[1][i * frames_per_step:(i + 1) * frames_per_step].sum() for i in range(n)])
+    # each frame into the step of its time (frame k is centred at k * hop): a whole number of
+    # frames per step would drift (22 for 21.5 put 1:24 at 1:26, 2 % per step)
+    step_of = (np.arange(energy.shape[1]) * hop / sr / STEP_S).astype(int)
+    n = int(step_of[-1]) + 1 if step_of.size else 0
+    total = np.bincount(step_of, weights=energy.sum(axis=0), minlength=n)
+    mid = np.bincount(step_of, weights=center.sum(axis=0), minlength=n)
     db = 10 * np.log10(total / max(total.max(), 1e-12) + 1e-12)
     share = np.where(total > 0, mid / np.maximum(total, 1e-12), 0)
     # lead: loud guitar whose centre share is high for this song (records differ a lot)

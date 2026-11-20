@@ -196,9 +196,11 @@ player.addEventListener('ended', async () => {
   }
 });
 
-// \uFE0E: the symbols as text, not as colour emoji (blue squares in some fonts)
-player.addEventListener('play', () => { $('#b-pause').textContent = '⏸\uFE0E'; keepAwake(); pushNow(); });
-player.addEventListener('pause', () => { $('#b-pause').textContent = '▶\uFE0E'; pushNow(); });
+// drawn, not as characters: where no font has ⏸ ▶ the colour emoji font draws blue squares
+const ICON_PLAY = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11L13.5 8z"/></svg>';
+const ICON_PAUSE = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>';
+player.addEventListener('play', () => { $('#b-pause').innerHTML = ICON_PAUSE; keepAwake(); pushNow(); });
+player.addEventListener('pause', () => { $('#b-pause').innerHTML = ICON_PLAY; pushNow(); });
 player.addEventListener('seeked', pushNow);
 
 // tell the server what plays and where: it remembers the song for every device,
@@ -556,9 +558,9 @@ async function songSource(id) {
   return { url: 'api/audio/' + id, manifest: null };
 }
 
-function routeAudio(manifest) {
+function routeAudio(manifest, force) {
   $('#b-practice').classList.toggle('on', !!manifest);
-  if (!manifest && !graph) return;          // the original, straight from the element
+  if (!manifest && !graph && !force) return;          // the original, straight from the element
   if (!graph) {
     const ctx = new AudioContext();
     graph = { ctx, src: ctx.createMediaElementSource(player), nodes: [], gains: {} };
@@ -584,7 +586,14 @@ function routeAudio(manifest) {
   }
   applyMix(true);
 }
-player.addEventListener('play', () => { if (graph?.ctx.state === 'suspended') graph.ctx.resume(); });
+// With a splitter, the page's sound goes through Web Audio from the first play on: one output
+// stream for the song, the instruments and the count-in clicks. A second stream for the clicks
+// would start on the system's default output, and an amp bridge moves new streams only every
+// few seconds: the clicks would be over by then.
+player.addEventListener('play', () => {
+  if (practiceOffered && !graph) routeAudio(null, true);
+  if (graph?.ctx.state === 'suspended') graph.ctx.resume();
+});
 
 function stemLevel(name) {
   return mix.muted[name] ? 0 : (mix.levels[name] ?? 1);
@@ -995,7 +1004,6 @@ let ab = { a: null, b: null };          // the unnamed section (keys b, e)
 let run = null;                         // the playing section: {a, b, loop}; null: plain playing
 let counting = null;                    // the count-in under way: {timer}
 let runWatch = null;
-let clickCtx = null;
 let count = { beats: 4, each: false, factor: 1 };
 try { Object.assign(count, JSON.parse(localStorage.getItem('practiceCount') || '{}')); } catch (e) { /* defaults */ }
 
@@ -1036,12 +1044,8 @@ function tempoText() {
 }
 
 function clicks() {
-  if (graph) return graph.ctx;
-  if (!clickCtx) {
-    clickCtx = new AudioContext();
-    if (clickCtx.setSinkId && player.sinkId) clickCtx.setSinkId(player.sinkId === 'default' ? '' : player.sinkId).catch(() => {});
-  }
-  return clickCtx;
+  if (!graph) routeAudio(null, true);       // (normally made by the first play)
+  return graph.ctx;
 }
 
 function click(ctx, when, first) {

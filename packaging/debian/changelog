@@ -1,3 +1,13 @@
+chordsplay (2.0.2-1) unstable; urgency=medium
+
+  * Count-in clicks on the song's own output stream (a new stream started on
+    the default output, the amp bridge moved it to the Mustang too late).
+  * The lead marks no longer drift early (2 % per step: 2 s at 1:26).
+  * Play, pause, next and previous drawn as icons (still emoji on some
+    systems as characters).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 01:00:00 +0000
+
 chordsplay (2.0.1-1) unstable; urgency=medium
 
   * Play, pause, next and previous as text symbols (some colour emoji fonts

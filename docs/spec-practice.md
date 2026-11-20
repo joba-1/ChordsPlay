@@ -125,7 +125,10 @@ the count-in uses a default tempo.
   image (0–1); `lead`: 1 for a lead step, which the page colours. A step is lead when the
   guitar is within 15 dB of its loudest and its centre share (averaged over 2 s) is above
   0.5 and at least 0.10 above the song's own median, for at least 4 s (gaps up to 1 s
-  bridged). 1.8.0 took the top quarter of each song instead: a song with one guitar always
+  bridged). The steps are cut by time; 1.8.0–2.0.1 put a whole number of STFT frames into
+  a step (22 for 21.5), so the marks drifted 2 % early: the solo of *Closer To The Heart*
+  at 1:24 instead of 1:26, seen in the guitar's waveform. 1.8.0 took the top quarter of
+  each song instead: a song with one guitar always
   in the centre (*Hardest Button To Button*) then showed short marks everywhere. With
   the 1.9.0 rule: *Closer To The Heart* 1:24–1:50 (the solo), *Lakeside Park* the fills
   and the outro solo, *Hardest Button* nothing.
@@ -174,8 +177,13 @@ Splits from before 1.9.0 have none: *Split it again*.
 * **Count-in:** before a section plays, the page pauses at its start and clicks N beats
   (2, 4 or 8; default 4) in the song's tempo, then plays. You can't start the song and
   play at the same moment, so the count-in gives the time to get the hands on the guitar.
-  The clicks come from a Web Audio oscillator on the same output as the song; the song
-  starts by a timer (~10–30 ms accuracy), enough to come in on the beat.
+  The clicks come from a Web Audio oscillator in the song's own `AudioContext`; the song
+  starts by a timer (~10–30 ms accuracy), enough to come in on the beat. With a splitter
+  set up, the page's sound goes through Web Audio from the first play on (2.0.2): one
+  output stream for song, instruments and clicks. Before, the clicks had a context of
+  their own while the original played: a new output stream, which starts on the system's
+  default output, and the amp bridge moves new browser streams to the Mustang only every
+  2 s, after the count-in (found at the Mustang, 2026-11-20).
 * Loop: at the section's end the song jumps back to its start, with a count-in each time
   or straight on (a setting). The end is checked every 20 ms, not by `timeupdate` (only
   ~4 times a second).
