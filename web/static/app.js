@@ -527,8 +527,8 @@ const MIX_MAX = 1.5;
 let practiceOffered = false;
 let practiceStatus = null;  // the current song's split: {state, error, manifest, ...}
 let practicePoll = null;
-let mix = { on: false, levels: {}, muted: {} };
-try { Object.assign(mix, JSON.parse(localStorage.getItem('practiceMix') || '{}')); } catch (e) { /* defaults */ }
+let mix = { levels: {}, muted: {}, solo: {} };
+try { Object.assign(mix, JSON.parse(localStorage.getItem('practiceMix') || '{}')); delete mix.on; mix.solo ||= {}; } catch (e) { /* defaults */ }
 // the Web Audio graph, made the first time a split song plays: an element can't leave it again
 let graph = null;           // {ctx, src, nodes, gains: {stem: {gain, group}}}
 
@@ -542,7 +542,7 @@ async function songSource(id) {
   practiceStatus = null;
   if (practiceOffered) {
     try { practiceStatus = await api(`song/${id}/stems`); } catch (e) { /* the original then */ }
-    if (mix.on && practiceStatus?.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
+    if (practiceStatus?.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
   }
   return { url: 'api/audio/' + id, manifest: null };
 }
@@ -581,10 +581,17 @@ function stemLevel(name) {
   return mix.muted[name] ? 0 : (mix.levels[name] ?? 1);
 }
 
+// with any instrument soloed, only the soloed ones play (a part counts with its instrument)
+function soloed(name, group) {
+  const names = graph ? Object.entries(graph.gains).flatMap(([n, g]) => [n, g.group]) : mixRows().map((r) => r.name);
+  if (!names.some((n) => n && mix.solo[n])) return true;
+  return !!(mix.solo[name] || (group && mix.solo[group]));
+}
+
 function applyMix(now) {
   if (!graph) return;
   for (const [name, { gain, group }] of Object.entries(graph.gains)) {
-    const v = stemLevel(name) * (group ? stemLevel(group) : 1);
+    const v = soloed(name, group) ? stemLevel(name) * (group ? stemLevel(group) : 1) : 0;
     if (now) gain.gain.value = v;
     else gain.gain.setTargetAtTime(v, graph.ctx.currentTime, 0.02);
   }
@@ -626,7 +633,8 @@ function renderMix() {
     return `<span class="${part ? 'part' : 'name'}">${esc(label)}</span>` +
       `<input type="range" min="0" max="${100 * MIX_MAX}" step="5" value="${pct}" data-stem="${esc(name)}" aria-label="${esc(label)}">` +
       `<output>${pct} %</output>` +
-      `<button type="button" class="mute" data-mute="${esc(name)}" aria-pressed="${!!mix.muted[name]}" title="Mute ${esc(label)}">M</button>`;
+      `<button type="button" class="mute" data-mute="${esc(name)}" aria-pressed="${!!mix.muted[name]}" title="Mute ${esc(label)}">M</button>` +
+      `<button type="button" class="solo" data-solo="${esc(name)}" aria-pressed="${!!mix.solo[name]}" title="Solo: only the soloed instruments play">S</button>`;
   }).join('');
 }
 
@@ -640,10 +648,9 @@ function showPractice() {
   else if (st.state === 'queued') text = 'Waiting for the splitter (it does one song at a time)…';
   else if (st.state === 'running') text = 'Splitting the song, about a minute…';
   else if (st.state === 'failed') text = 'Splitting failed: ' + (st.error || 'unknown error');
-  else text = playing ? 'Playing the practice mix.' : mix.on ? 'Split; plays as the practice mix.' : 'Split. Switch the practice mix on to hear it.';
+  else text = playing ? 'Split: playing through the mixer.' : 'Split: plays through the mixer from the next start.';
   $('#pr-title').textContent = song ? `Practice mix: ${song.title}` : 'Practice mix';
   $('#pr-status').textContent = text;
-  $('#pr-on').checked = mix.on;
   $('#pr-prepare').hidden = !song || !st || !['none', 'failed'].includes(st.state);
   $('#pr-prepare').textContent = st?.state === 'failed' ? 'Try again' : 'Prepare this song';
 }
@@ -661,7 +668,7 @@ async function refreshPractice() {
   if (['queued', 'running'].includes(practiceStatus?.state) && $('#d-practice').open) {
     practicePoll = setTimeout(async () => {
       await refreshPractice();
-      if (practiceStatus?.state === 'ready' && mix.on) { await reloadSource(); showPractice(); }
+      if (practiceStatus?.state === 'ready') { await reloadSource(); showPractice(); }
     }, 2000);
   }
 }
@@ -675,13 +682,6 @@ function openPractice() {
 }
 
 $('#d-practice').addEventListener('close', () => clearTimeout(practicePoll));
-
-$('#pr-on').addEventListener('change', async (e) => {
-  mix.on = e.target.checked;
-  saveMix();
-  await reloadSource();
-  showPractice();
-});
 
 $('#pr-prepare-all').addEventListener('click', async () => {
   let n = 0;
@@ -697,7 +697,6 @@ $('#pr-prepare-all').addEventListener('click', async () => {
 
 $('#pr-prepare').addEventListener('click', async () => {
   try { practiceStatus = await api(`song/${song.id}/stems`, { method: 'POST' }); } catch (e) { toast('Cannot split: ' + e.message); }
-  if (!mix.on) { mix.on = true; saveMix(); }
   refreshPractice();
 });
 
@@ -711,24 +710,18 @@ $('#pr-mix').addEventListener('input', (e) => {
 });
 
 $('#pr-mix').addEventListener('click', (e) => {
-  const name = e.target.dataset.mute;
-  if (!name) return;
-  mix.muted[name] = !mix.muted[name];
-  e.target.setAttribute('aria-pressed', mix.muted[name]);
+  const { mute, solo } = e.target.dataset;
+  const set = mute ? mix.muted : solo ? mix.solo : null;
+  const name = mute || solo;
+  if (!set) return;
+  set[name] = !set[name];
+  e.target.setAttribute('aria-pressed', set[name]);
   applyMix();
   saveMix();
 });
 
-// quick mixes change only what is muted: the levels stay as you set them
-$('#pr-quick').addEventListener('click', (e) => {
-  const quick = e.target.dataset.quick;
-  if (!quick) return;
-  const names = mixRows().map((r) => r.name);
-  const isGuitar = (n) => n === 'guitar' || n.startsWith('guitar-');
-  for (const n of names) {
-    mix.muted[n] = quick === 'noguitar' ? n === 'guitar' : quick === 'guitar' ? !isGuitar(n) : false;
-  }
-  if (quick === 'guitar') for (const n of names.filter((n) => n.startsWith('guitar-'))) mix.muted[n] = false;
+$('#pr-reset').addEventListener('click', () => {
+  mix = { levels: {}, muted: {}, solo: {} };
   saveMix();
   renderMix();
   applyMix();

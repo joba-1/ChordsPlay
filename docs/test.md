@@ -42,8 +42,8 @@ On a desktop browser and a phone (1600×900, 1920×1080, 390×844):
   the cue and keeps or changes its sound.
 
 * Practice mix (`x`, with a splitter set up): *Prepare this song* shows waiting, splitting,
-  then plays the mix at the same position; *Practice mix on/off* switches without a jump;
-  *Without guitar*, *Guitar only* and a slider change the sound at once; the next song
+  then plays the mix at the same position without a jump; M, S (solo) and a slider change
+  the sound at once, *Reset* undoes them; the next song
   without a split plays the original; the audio output (`a`) applies to the mix; the seek
   bar shows the lead parts of a split song.
 * Sections: `b`/`e` land on beats, `o` counts in (clicks on the song's output) and loops

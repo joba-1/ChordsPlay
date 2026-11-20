@@ -173,11 +173,11 @@ guess from the recording: on a mono or live recording it shows nothing useful.
 * In the practice dialog the marked section can be saved with a name (*Save as…*): the
   song's sections are listed there with ▶ (once), ⟳ (loop) and ✕, on every device.
 
-* *Everything*, *Without guitar*, *Guitar only* change only what is muted; the levels
-  stay as you set them.
-* *Practice mix on* plays the split version of every song that has one (the original
-  otherwise), in this browser; the levels are kept in this browser too. Switching
-  keeps the position and plays on.
+* **M** mutes an instrument, **S** solos it: with any instrument soloed, only the soloed
+  ones play (e.g. S on guitar: the guitar alone). *Reset*: all at 100 %, nothing muted
+  or soloed. The levels are kept in this browser.
+* A split song always plays through the mixer; a song that isn't split plays the
+  original. Once the split is done the song goes over to the mixer where it is.
 * With every slider at 100 % the mix should sound like the original. The cues, the amp's
   timing, takes and displays work as before: the mix has the song's timeline.
 * Sound: the mix plays through the browser's Web Audio; choosing the output (`a`) works

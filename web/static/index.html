@@ -97,14 +97,9 @@
       hear only the guitar to learn its part. <span class="lead-sample"></span> in the seek bar: the guitar is loud
       and in the centre, often the lead or solo.</p>
     <p id="pr-status" class="hint"></p>
-    <label class="switch"><input type="checkbox" id="pr-on"> Practice mix on <span class="hint">(this browser,
-      every song that is split)</span></label>
-    <div id="pr-quick" class="dlg-buttons wrap">
-      <button type="button" data-quick="all">Everything</button>
-      <button type="button" data-quick="noguitar">Without guitar</button>
-      <button type="button" data-quick="guitar">Guitar only</button>
-    </div>
     <div id="pr-mix" class="mix"></div>
+    <div class="dlg-buttons"><span class="hint">M mutes an instrument, S plays only the soloed ones. Kept in this
+      browser.</span><span class="grow"></span><button type="button" id="pr-reset" title="Every instrument at 100 %, nothing muted or soloed">Reset</button></div>
     <h3>Sections <span class="hint">(b begin, e end at the playing position, o loop on/off)</span></h3>
     <div id="pr-ab" class="sections"></div>
     <div id="pr-sections" class="sections"></div>
@@ -376,8 +371,9 @@
       <p>Press <b>x</b> (or <i>Practice</i>). The server splits the song once into vocals, drums, bass, guitar, keys
         and the rest (<i>Prepare this song</i>, about a minute); then every instrument has its own slider. The seek
         bar shows in colour where the guitar is loud and in the centre of the stereo image, often the solo.
-        <i>Practice mix on</i> plays the split version of every song that has one; the levels are kept in this
-        browser. Only offered when the server has a splitter set up.</p>
+        A split song always plays through the mixer (at 100 % it sounds like the original); <b>M</b> mutes an
+        instrument, <b>S</b> solos it (only the soloed ones play). The levels are kept in this browser. Only offered
+        when the server has a splitter set up.</p>
       <p><b>Sections:</b> <b>b</b> marks the beginning and <b>e</b> the end at the playing position (on the beat when the
         song is split); <b>o</b> loops it. Every start of a section comes after a count-in in the song's tempo, so you
         have time to get your hands on the guitar. Name a section in the practice dialog to keep it for the song.</p>

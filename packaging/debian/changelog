@@ -1,3 +1,10 @@
+chordsplay (1.8.1-1) unstable; urgency=medium
+
+  * Practice mix: solo (S) next to mute (M) and Reset, in place of the quick
+    mixes; a split song always plays through the mixer (no switch).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 20 Nov 2026 21:00:00 +0000
+
 chordsplay (1.8.0-1) unstable; urgency=medium
 
   * Practice mix: the guitar as one clean track again (the parts by stereo

@@ -22,10 +22,13 @@ the rest 70 %).
   (keys **b** and **e**, snapped to the song's beats when they are known), play it once or
   loop it (**o**), each start after a count-in in the song's tempo; name a section to keep
   it for the song.
-* Quick mixes: *Everything*, *Without guitar*, *Guitar only*. They change only what is
-  muted, so the levels you set stay.
-* *Practice mix on* switches between the original file and the mix. With all sliders at
-  100 % the mix should sound like the original: the model's stems add up to it (residual
+* **M** mutes, **S** solos (with any instrument soloed, only the soloed ones play);
+  *Reset* sets all to 100 %, nothing muted or soloed. 1.7.0–1.8.0 had quick mixes
+  (*Everything*, *Without guitar*, *Guitar only*) and a switch *Practice mix on*: replaced
+  in 1.8.1 by solo and by always playing a split song through the mixer, because the
+  switch confused (with all at 100 % the mix is the original anyway).
+* A split song always plays through the mixer. With all sliders at 100 % the mix should
+  sound like the original: the model's stems add up to it (residual
   26–36 dB below the music, measured with MP3 stems); in the Opus file each pair
   adds its own coding noise, together ~13 dB below the music on *Fly By Night*, about
   what Opus at 96 kbit/s does to the original alone (−32 dB) summed over 8 pairs. Opus

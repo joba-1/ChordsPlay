@@ -263,13 +263,13 @@ details.help p, details.help ol { margin: 6px 0; line-height: 1.45; }
 details.help li { margin: 3px 0; }
 
 /* practice mix */
-.mix { display: grid; grid-template-columns: auto 1fr 3.5em auto; gap: 4px 10px; align-items: center; margin: 8px 0; }
+.mix { display: grid; grid-template-columns: auto 1fr 3.5em auto auto; gap: 4px 10px; align-items: center; margin: 8px 0; }
 .mix .name { font-weight: 600; }
 .mix .part { padding-left: 1.5em; color: var(--muted); font-size: 13px; }
 .mix input[type=range] { min-width: 8em; width: 100%; margin: 0; }
 .mix output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
-.mix button.mute { padding: 0 8px; }
-.mix button.mute[aria-pressed=true] { background: var(--accent); color: var(--bg, #fff); }
+.mix button.mute, .mix button.solo { padding: 0 8px; }
+.mix button[aria-pressed=true] { background: var(--accent); color: var(--bg, #fff); }
 #seek-lead, #seek-ab { position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none; }
 #seek-ab { box-shadow: inset 0 0 0 1px var(--fg, #000); background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .seek.rich .track, .seek.rich { height: 6px; }
