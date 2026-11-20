@@ -737,11 +737,25 @@ function openPractice() {
   let tab = 'mix';
   try { tab = localStorage.getItem('practiceTab') || 'mix'; } catch (e) { /* the first */ }
   $('#d-practice').showModal();
+  showPauseButton();
   $(`#d-practice [data-prtab="${tab === 'waves' ? 'waves' : 'mix'}"]`).click();
   refreshPractice();
 }
 
 $('#d-practice').addEventListener('close', () => clearTimeout(practicePoll));
+
+// play/pause and the section keys work in this dialog too (not while typing or choosing)
+$('#pr-pause').addEventListener('click', (e) => { e.currentTarget.blur(); togglePause(); });
+$('#d-practice').addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.target.matches('select, input[type=text], textarea')) return;
+  const act = { ' ': togglePause, b: markA, e: markB, o: toggleLoop }[e.key];
+  if (!act) return;
+  e.preventDefault();
+  act();
+});
+function showPauseButton() { $('#pr-pause').innerHTML = player.paused ? ICON_PLAY : ICON_PAUSE; }
+player.addEventListener('play', showPauseButton);
+player.addEventListener('pause', showPauseButton);
 
 $('#pr-on').addEventListener('change', async (e) => {
   mix.on = e.target.checked;
@@ -805,6 +819,7 @@ const LANE_H = 34, RULER_H = 18, MIN_SPAN_S = 2;
 const WHEEL_PAN = 0.5, WHEEL_ZOOM = 1.12;     // per wheel step (half of 2.1.5's: too sensitive)
 const LANE_NAMES = { song: 'Song', ...STEM_NAMES };
 let peaks = null;           // {id, rate, tracks: {name: Uint8Array}, max: {name}}
+let peaksState = '';        // what the Waves tab says when there are none: loading, an error
 let lanes = ['song', 'guitar', 'drums'];
 try { lanes = JSON.parse(localStorage.getItem('practiceLanes') || 'null') || lanes; } catch (e) { /* defaults */ }
 let prView = { start: 0, span: 0 };   // seconds shown
@@ -825,12 +840,14 @@ $('#d-practice .tabs').addEventListener('click', (e) => {
 });
 
 async function loadPeaks() {
-  if (!song || !practiceStatus?.peaks) { if (peaks?.id !== song?.id) peaks = null; showWaveState(); return; }
+  if (!song || !practiceStatus?.peaks) { if (peaks?.id !== song?.id) peaks = null; peaksState = ''; showWaveState(); return; }
   if (peaks?.id === song.id) return;
   const id = song.id;
+  peaksState = 'Loading the waveforms…';
+  showWaveState();
   try {
     const r = await fetch(`api/stems/${id}.peaks.json?v=${Math.round(practiceStatus.finished || 0)}`);
-    if (!r.ok) throw new Error(r.statusText);
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
     const d = await r.json();
     const tracks = {}, max = {};
     for (const [name, b64] of Object.entries(d.tracks)) {
@@ -838,10 +855,16 @@ async function loadPeaks() {
       const a = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
       tracks[name] = a;
-      max[name] = Math.max(1, ...a);
+      let top = 1;                    // (not Math.max(...a): too many arguments for a long song)
+      for (let i = 0; i < a.length; i++) if (a[i] > top) top = a[i];
+      max[name] = top;
     }
-    if (song?.id === id) { peaks = { id, rate: d.rate, tracks, max }; prView = { start: 0, span: 0 }; }
-  } catch (e) { peaks = null; }
+    if (song?.id === id) { peaks = { id, rate: d.rate, tracks, max }; prView = { start: 0, span: 0 }; peaksState = ''; }
+  } catch (e) {
+    peaks = null;
+    peaksState = 'Loading the waveforms failed: ' + e.message;
+    console.error('waves:', e);
+  }
   showWaveState();
 }
 
@@ -850,7 +873,14 @@ function showWaveState() {
   const have = !!peaks && peaks.id === song?.id;
   $('#pr-wave').hidden = !have;
   $('#pr-wave-hint').hidden = !have;
-  $('#pr-wave-none').hidden = have || practiceStatus?.state !== 'ready';
+  $('#pr-wave-none').hidden = have || practiceStatus?.state !== 'ready' || practiceStatus?.peaks;
+  const st = practiceStatus?.state;
+  const why = have ? '' : peaksState ||
+    (!song ? 'Choose a song first.'
+      : st === 'none' || st === 'failed' ? 'This song isn\'t split yet: Prepare this song (below), about a minute.'
+      : st === 'queued' || st === 'running' ? 'Splitting the song: the waveforms come with it.' : '');
+  $('#pr-wave-state').textContent = why;
+  $('#pr-wave-state').hidden = !why;
   $('#pr-lanes').innerHTML = ['song', ...mixRows().map((r) => r.name)]
     .filter((n) => !have || peaks.tracks[n])
     .map((n) => `<label><input type="checkbox" data-lane="${esc(n)}" ${lanes.includes(n) ? 'checked' : ''}>${esc(LANE_NAMES[n] || n)}</label>`).join('');
@@ -889,6 +919,8 @@ function waveLoop() {
   } catch (e) {
     console.error('waves:', e);                         // draw on: the next frame may do
     prView = { start: 0, span: 0 };
+    $('#pr-wave-state').textContent = 'Drawing the waveforms failed: ' + e.message;
+    $('#pr-wave-state').hidden = false;
   }
   waveFrame = requestAnimationFrame(waveLoop);
 }

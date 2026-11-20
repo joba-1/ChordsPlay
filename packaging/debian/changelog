@@ -1,3 +1,10 @@
+chordsplay (2.1.7-1) unstable; urgency=medium
+
+  * Practice dialog: play/pause button, Space, b, e and o work in it; the
+    Waves tab says why there are no waveforms (not split, loading, error).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 04:30:00 +0000
+
 chordsplay (2.1.6-1) unstable; urgency=medium
 
   * Waveforms: the wheel scrolls and zooms half as much per step.

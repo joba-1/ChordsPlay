@@ -115,6 +115,7 @@
         <button type="button" data-zoom="fit" title="The whole song">Fit</button></div>
       <canvas id="pr-wave" class="waves"></canvas>
       <p id="pr-wave-hint" class="hint">Click: go there · drag: mark a section (on the beat) · wheel: zoom · Shift+wheel: scroll</p>
+      <p id="pr-wave-state" class="hint" hidden></p>
       <p id="pr-wave-none" class="hint" hidden>No waveforms for this song: it was split before 1.9.0.
         <button type="button" id="pr-again">Split it again</button></p>
     </div>
@@ -135,6 +136,7 @@
     </div>
     <div class="dlg-buttons">
       <button type="button" id="pr-prepare" hidden>Prepare this song</button>
+      <button type="button" id="pr-pause" title="Play/pause (Space, also in this dialog)" aria-label="Play/pause"></button>
       <button type="button" id="pr-prepare-all" title="Split every song of the playlist that isn't split yet (one after the other)">Prepare the playlist</button>
       <span class="grow"></span><button value="close">Close</button>
     </div>
