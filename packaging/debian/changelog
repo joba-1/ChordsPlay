@@ -1,3 +1,11 @@
+chordsplay (2.0.1-1) unstable; urgency=medium
+
+  * Play, pause, next and previous as text symbols (some colour emoji fonts
+    drew them as blue squares); play/pause keeps its width; the button of an
+    open dialog stays highlighted.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 00:30:00 +0000
+
 chordsplay (2.0.0-1) unstable; urgency=medium
 
   * Practice mode (1.7.0 to 2.0.0): songs split into their instruments once on

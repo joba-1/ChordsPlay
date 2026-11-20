@@ -196,8 +196,9 @@ player.addEventListener('ended', async () => {
   }
 });
 
-player.addEventListener('play', () => { $('#b-pause').textContent = '⏸'; keepAwake(); pushNow(); });
-player.addEventListener('pause', () => { $('#b-pause').textContent = '▶'; pushNow(); });
+// \uFE0E: the symbols as text, not as colour emoji (blue squares in some fonts)
+player.addEventListener('play', () => { $('#b-pause').textContent = '⏸\uFE0E'; keepAwake(); pushNow(); });
+player.addEventListener('pause', () => { $('#b-pause').textContent = '▶\uFE0E'; pushNow(); });
 player.addEventListener('seeked', pushNow);
 
 // tell the server what plays and where: it remembers the song for every device,
@@ -2329,6 +2330,15 @@ const buttons = {
 for (const [sel, fn] of Object.entries(buttons)) {
   $(sel).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
 }
+
+// a dialog's button stays highlighted while the dialog is open
+const DIALOG_BUTTONS = { 'd-filter': 'b-filter', 'd-tags': 'b-tags', 'd-audio': 'b-audio', 'd-practice': 'b-practice',
+                         'd-pdf': 'b-pdf', 'd-takes': 'b-takes', 'd-display': 'b-display', 'd-amp': 'b-tone',
+                         'd-help': 'b-help' };
+const dialogWatch = new MutationObserver((changes) => {
+  for (const c of changes) document.getElementById(DIALOG_BUTTONS[c.target.id])?.classList.toggle('open', c.target.open);
+});
+for (const id of Object.keys(DIALOG_BUTTONS)) dialogWatch.observe(document.getElementById(id), { attributes: true, attributeFilter: ['open'] });
 
 // --- start ----------------------------------------------------------------------
 
