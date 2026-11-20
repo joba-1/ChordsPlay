@@ -2,9 +2,9 @@ Format: 1.0
 Source: chordsplay
 Binary: chordsplay, chordsplay-mmp
 Architecture: all
-Version: 2.1.0-1
+Version: 2.1.1-1
 Maintainer: joba1 <joba-1@users.noreply.github.com>
 Homepage: https://github.com/joba-1/ChordsPlay
 Standards-Version: 4.7.0
 Build-Depends: debhelper-compat (= 13), dh-sequence-installsysusers, python3 (>= 3.11), python3-flask, python3-waitress, python3-mutagen, python3-qrcode
-DEBTRANSFORM-TAR: chordsplay-2.1.0.tar.xz
+DEBTRANSFORM-TAR: chordsplay-2.1.1.tar.xz

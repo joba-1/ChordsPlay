@@ -126,6 +126,8 @@
         <option value="clicks">Clicks</option><option value="lead">Lead-in</option></select></label>
       <select id="pr-count" aria-label="How many beats"><option value="0">off</option><option value="2">2 beats</option>
         <option value="4">4 beats</option><option value="8">8 beats</option></select>
+      <label class="hint" title="How loud the clicks are (a click plays when you let go)">Click
+        <input type="range" id="pr-click-level" min="5" max="100" step="5" style="width: 7em; vertical-align: middle"></label>
       <label class="hint"><input type="checkbox" id="pr-count-each"> before each repetition</label>
       <span class="hint" id="pr-tempo"></span>
       <button type="button" data-tempo="0.5" title="The count-in at half the tempo">½×</button>

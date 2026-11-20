@@ -1010,7 +1010,7 @@ let ab = { a: null, b: null };          // the unnamed section (keys b, e)
 let run = null;                         // the playing section: {a, b, loop}; null: plain playing
 let counting = null;                    // the count-in under way: {timer}
 let runWatch = null;
-let count = { beats: 4, each: false, factor: 1, mode: 'clicks' };   // mode: clicks or lead (the song itself)
+let count = { beats: 4, each: false, factor: 1, mode: 'clicks', level: 0.8 };   // mode: clicks or lead (the song itself)
 try { Object.assign(count, JSON.parse(localStorage.getItem('practiceCount') || '{}')); } catch (e) { /* defaults */ }
 
 function saveCount() {
@@ -1054,15 +1054,20 @@ function clicks() {
   return graph.ctx;
 }
 
+// a bright click (square wave: far louder to the ear than a sine at the same level) that
+// stands out in headphones through an amp; its level is a setting (count.level, 0..1)
 function click(ctx, when, first) {
   const osc = ctx.createOscillator(), env = ctx.createGain();
-  osc.frequency.value = first ? 1760 : 1320;
+  osc.type = 'square';
+  osc.frequency.value = first ? 1500 : 1000;
+  const peak = Math.max(0.0002, 0.6 * (count.level ?? 0.8));
   env.gain.setValueAtTime(0.0001, when);
-  env.gain.exponentialRampToValueAtTime(0.5, when + 0.002);
-  env.gain.exponentialRampToValueAtTime(0.0001, when + 0.06);
+  env.gain.exponentialRampToValueAtTime(peak, when + 0.002);
+  env.gain.setValueAtTime(peak, when + 0.03);
+  env.gain.exponentialRampToValueAtTime(0.0001, when + 0.12);
   osc.connect(env).connect(ctx.destination);
   osc.start(when);
-  osc.stop(when + 0.08);
+  osc.stop(when + 0.14);
 }
 
 function stopCount() {
@@ -1114,7 +1119,6 @@ function startRun(a, b, loop, mark = true) {
       else { run.from = null; player.currentTime = run.a; }
     }
   }, 20);
-  $('#d-practice').open && $('#d-practice').close();
 }
 
 function endRun() {
@@ -1222,6 +1226,7 @@ function renderSections() {
     sectionRow(esc(x.name), x.start, x.end, `<button type="button" data-del="${x.id}" title="Delete it">✕</button>`)).join('');
   $('#pr-count').value = String(count.beats);
   $('#pr-count-mode').value = count.mode === 'lead' ? 'lead' : 'clicks';
+  $('#pr-click-level').value = String(Math.round(100 * (count.level ?? 0.8)));
   $('#pr-count-each').checked = !!count.each;
   $('#pr-tempo').textContent = tempoText();
 }
@@ -1250,6 +1255,13 @@ $('#d-practice').addEventListener('click', async (e) => {
 
 $('#pr-count').addEventListener('change', (e) => { count.beats = Number(e.target.value); saveCount(); });
 $('#pr-count-mode').addEventListener('change', (e) => { count.mode = e.target.value; saveCount(); });
+$('#pr-click-level').addEventListener('change', (e) => {
+  count.level = Number(e.target.value) / 100;
+  saveCount();
+  const ctx = clicks();                               // a sample at the new level
+  if (ctx.state === 'suspended') ctx.resume();
+  click(ctx, ctx.currentTime + 0.05, true);
+});
 $('#pr-count-each').addEventListener('change', (e) => { count.each = e.target.checked; saveCount(); });
 
 // --- display link (a TV or tablet shows the song, following this page) --------

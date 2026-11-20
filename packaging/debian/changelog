@@ -1,3 +1,10 @@
+chordsplay (2.1.1-1) unstable; urgency=medium
+
+  * Louder count-in clicks (square wave, longer) with a level setting; the
+    practice dialog stays open when a section is started from it.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 02:30:00 +0000
+
 chordsplay (2.1.0-1) unstable; urgency=medium
 
   * Beats found with beat_this on drums and bass with the rest 6 dB quieter

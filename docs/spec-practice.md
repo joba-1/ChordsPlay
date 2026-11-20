@@ -207,7 +207,11 @@ Why, from listening to click tracks (2026-11-20; a click on every beat mixed int
   *Lead-in* plays the song itself from N beats (at the local beat interval) before the
   section's start: it needs no right beat, so it suits any metre. *Clicks*: before a
   section plays, the page pauses at its start and clicks N beats in the song's tempo
-  (the median beat interval around the start), the first higher, no bar stress, then plays. You can't start the song and
+  (the median beat interval around the start), the first higher, no bar stress, then plays.
+  The clicks are square-wave tones of 0.12 s (2.1.1; the sine clicks before were too quiet
+  in headphones through the Mustang), their level a setting in the dialog (a sample click
+  plays when it is changed). Starting from the dialog leaves it open (2.1.1), so the level
+  or the way in can be changed and tried again. You can't start the song and
   play at the same moment, so the count-in gives the time to get the hands on the guitar.
   The clicks come from a Web Audio oscillator in the song's own `AudioContext`; the song
   starts by a timer (~10–30 ms accuracy), enough to come in on the beat. With a splitter
