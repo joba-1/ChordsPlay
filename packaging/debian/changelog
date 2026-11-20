@@ -1,3 +1,11 @@
+chordsplay (2.1.2-1) unstable; urgency=medium
+
+  * Count-in clicks like a woodblock (two tones, 0.2 s): audible through an
+    amp's headphones; the song fades out before a count-in instead of
+    stopping with a crack, and the loop's seam fades out and in (25 ms).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 03:00:00 +0000
+
 chordsplay (2.1.1-1) unstable; urgency=medium
 
   * Louder count-in clicks (square wave, longer) with a level setting; the

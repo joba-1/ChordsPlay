@@ -18,9 +18,6 @@ Not promised; roughly in order of use.
 
 ## Practice mode
 
-* **Blend at the loop's seam:** a short fade-out at the section's end and fade-in at its
-  start (20–50 ms, a gain ramp in Web Audio around the jump) instead of the hard cut. The
-  loop already restarts on the beat (checked at the Mustang, 2.1.1).
 * **Bars and time signatures** for odd metres: beat_this's bar starts are wrong in Rush's
   metre changes, even with a Viterbi pass over common metres (see spec-practice.md,
   *Finding the beats*). Try models aimed at that (*Skip That Beat*, 2025; *Explore This!*,

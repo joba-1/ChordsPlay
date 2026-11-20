@@ -563,7 +563,10 @@ function routeAudio(manifest, force) {
   if (!manifest && !graph && !force) return;          // the original, straight from the element
   if (!graph) {
     const ctx = new AudioContext();
-    graph = { ctx, src: ctx.createMediaElementSource(player), nodes: [], gains: {} };
+    // master: the song's way out, for short fades (no crack at a stop, a loop's seam)
+    const master = ctx.createGain();
+    master.connect(ctx.destination);
+    graph = { ctx, src: ctx.createMediaElementSource(player), master, nodes: [], gains: {} };
     if (ctx.setSinkId && player.sinkId) ctx.setSinkId(player.sinkId === 'default' ? '' : player.sinkId).catch(() => {});
   }
   const { ctx, src } = graph;
@@ -571,7 +574,7 @@ function routeAudio(manifest, force) {
   graph.nodes.forEach((n) => n.disconnect());
   graph.nodes = [];
   graph.gains = {};
-  if (!manifest) { src.connect(ctx.destination); return; }
+  if (!manifest) { src.connect(graph.master); return; }
   const split = ctx.createChannelSplitter(manifest.channels);
   src.connect(split);
   graph.nodes.push(split);
@@ -580,7 +583,7 @@ function routeAudio(manifest, force) {
     split.connect(pair, 2 * stem.pair, 0);
     split.connect(pair, 2 * stem.pair + 1, 1);
     const gain = ctx.createGain();
-    pair.connect(gain).connect(ctx.destination);
+    pair.connect(gain).connect(graph.master);
     graph.nodes.push(pair, gain);
     graph.gains[stem.name] = { gain, group: stem.group };
   }
@@ -592,6 +595,7 @@ function routeAudio(manifest, force) {
 // few seconds: the clicks would be over by then.
 player.addEventListener('play', () => {
   if (practiceOffered && !graph) routeAudio(null, true);
+  fadeTo(1);
   if (graph?.ctx.state === 'suspended') graph.ctx.resume();
 });
 
@@ -1054,20 +1058,43 @@ function clicks() {
   return graph.ctx;
 }
 
-// a bright click (square wave: far louder to the ear than a sine at the same level) that
-// stands out in headphones through an amp; its level is a setting (count.level, 0..1)
+const FADE_S = 0.025;        // a fade this long: no crack, no audible gap
+
+// the song's level through the master gain (no graph: nothing to fade)
+function fadeTo(v) {
+  if (!graph) return;
+  const g = graph.master.gain, now = graph.ctx.currentTime;
+  g.cancelScheduledValues(now);
+  g.setValueAtTime(g.value, now);
+  g.linearRampToValueAtTime(v, now + FADE_S);
+}
+
+// fade out, then pause (a hard stop in the middle of the music cracks)
+function pauseSoftly() {
+  if (!graph || player.paused) { player.pause(); return Promise.resolve(); }
+  fadeTo(0);
+  return new Promise((done) => setTimeout(() => { player.pause(); done(); }, FADE_S * 1000 + 10));
+}
+
+// a count-in click like a woodblock: two square tones together, 0.2 s, so the ear hears it
+// as loud as the music (a click of a few ms sounds far quieter than its level); the level
+// is a setting (count.level, 0..1)
 function click(ctx, when, first) {
-  const osc = ctx.createOscillator(), env = ctx.createGain();
-  osc.type = 'square';
-  osc.frequency.value = first ? 1500 : 1000;
-  const peak = Math.max(0.0002, 0.6 * (count.level ?? 0.8));
+  const env = ctx.createGain();
+  const peak = Math.max(0.0002, 0.45 * (count.level ?? 0.8));
   env.gain.setValueAtTime(0.0001, when);
-  env.gain.exponentialRampToValueAtTime(peak, when + 0.002);
-  env.gain.setValueAtTime(peak, when + 0.03);
-  env.gain.exponentialRampToValueAtTime(0.0001, when + 0.12);
-  osc.connect(env).connect(ctx.destination);
-  osc.start(when);
-  osc.stop(when + 0.14);
+  env.gain.exponentialRampToValueAtTime(peak, when + 0.003);
+  env.gain.setValueAtTime(peak, when + 0.04);
+  env.gain.exponentialRampToValueAtTime(0.0001, when + 0.2);
+  env.connect(ctx.destination);
+  for (const f of first ? [1200, 1800] : [800, 1200]) {
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = f;
+    osc.connect(env);
+    osc.start(when);
+    osc.stop(when + 0.22);
+  }
 }
 
 function stopCount() {
@@ -1079,7 +1106,7 @@ function stopCount() {
 // itself from n beats before t (no beat detection to trust: right in any metre)
 async function countInAt(t) {
   stopCount();
-  player.pause();
+  await pauseSoftly();
   const n = Number(count.beats) || 0;
   if (n && count.mode === 'lead') {
     const from = Math.max(0, t - n * beatAt(t));
@@ -1112,11 +1139,21 @@ function startRun(a, b, loop, mark = true) {
   countInAt(a);
   clearInterval(runWatch);
   runWatch = setInterval(() => {
-    if (!run || player.paused || counting) return;
-    if (player.currentTime >= run.b - 0.01 || player.currentTime < (run.from ?? run.a) - 0.5) {
-      if (!run.loop) { player.pause(); player.currentTime = run.b; endRun(); return; }
-      if (count.each) countInAt(run.a);
-      else { run.from = null; player.currentTime = run.a; }
+    if (!run || player.paused || counting || run.seam) return;
+    const t = player.currentTime;
+    if (t < (run.from ?? run.a) - 0.5) { run.from = null; player.currentTime = run.a; return; }   // moved away
+    if (t >= run.b - FADE_S - 0.02) {          // the seam: fade out to the end, jump, fade in
+      run.seam = true;
+      fadeTo(0);
+      setTimeout(() => {
+        run && (run.seam = false);
+        if (!run) return;
+        if (!run.loop) { player.pause(); player.currentTime = run.b; endRun(); return; }
+        if (count.each) { countInAt(run.a); return; }
+        run.from = null;
+        player.currentTime = run.a;
+        fadeTo(1);
+      }, FADE_S * 1000 + 10);
     }
   }, 20);
 }
