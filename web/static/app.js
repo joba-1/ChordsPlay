@@ -560,19 +560,23 @@ function routeAudio(manifest) {
   graph.nodes.forEach((n) => n.disconnect());
   graph.nodes = [];
   graph.gains = {};
+  graph.original = null;
   if (!manifest) { src.connect(ctx.destination); return; }
   const split = ctx.createChannelSplitter(manifest.channels);
   src.connect(split);
   graph.nodes.push(split);
-  for (const stem of manifest.stems) {
+  const pairGain = (p) => {
     const pair = ctx.createChannelMerger(2);
-    split.connect(pair, 2 * stem.pair, 0);
-    split.connect(pair, 2 * stem.pair + 1, 1);
+    split.connect(pair, 2 * p, 0);
+    split.connect(pair, 2 * p + 1, 1);
     const gain = ctx.createGain();
     pair.connect(gain).connect(ctx.destination);
     graph.nodes.push(pair, gain);
-    graph.gains[stem.name] = { gain, group: stem.group };
-  }
+    return gain;
+  };
+  for (const stem of manifest.stems) graph.gains[stem.name] = { gain: pairGain(stem.pair), group: stem.group };
+  // the song itself: plays while the mix is untouched (the stems add up to it only nearly)
+  if (manifest.original) graph.original = pairGain(manifest.original.pair);
   applyMix(true);
 }
 player.addEventListener('play', () => { if (graph?.ctx.state === 'suspended') graph.ctx.resume(); });
@@ -588,13 +592,24 @@ function soloed(name, group) {
   return !!(mix.solo[name] || (group && mix.solo[group]));
 }
 
+// nothing changed: every instrument at 100 %, none muted or soloed
+function mixUntouched() {
+  return Object.entries(graph?.gains || {}).every(([n, g]) =>
+    stemLevel(n) === 1 && (!g.group || stemLevel(g.group) === 1) && !mix.solo[n] && !(g.group && mix.solo[g.group]));
+}
+
 function applyMix(now) {
   if (!graph) return;
-  for (const [name, { gain, group }] of Object.entries(graph.gains)) {
-    const v = soloed(name, group) ? stemLevel(name) * (group ? stemLevel(group) : 1) : 0;
+  const original = !!graph.original && mixUntouched();
+  const set = (gain, v) => {
     if (now) gain.gain.value = v;
-    else gain.gain.setTargetAtTime(v, graph.ctx.currentTime, 0.02);
+    else gain.gain.setTargetAtTime(v, graph.ctx.currentTime, 0.02);    // a crossfade of ~0.1 s
+  };
+  for (const [name, { gain, group }] of Object.entries(graph.gains)) {
+    set(gain, original || !soloed(name, group) ? 0 : stemLevel(name) * (group ? stemLevel(group) : 1));
   }
+  if (graph.original) set(graph.original, original ? 1 : 0);
+  if ($('#d-practice').open) showPractice();
 }
 
 // go over to the original or the split file where the song is, playing on if it played
@@ -648,7 +663,9 @@ function showPractice() {
   else if (st.state === 'queued') text = 'Waiting for the splitter (it does one song at a time)…';
   else if (st.state === 'running') text = 'Splitting the song, about a minute…';
   else if (st.state === 'failed') text = 'Splitting failed: ' + (st.error || 'unknown error');
-  else text = playing ? 'Split: playing through the mixer.' : 'Split: plays through the mixer from the next start.';
+  else if (!playing) text = 'Split: plays through the mixer from the next start.';
+  else if (graph?.original && mixUntouched()) text = 'Playing the original song: change a level, M or S to hear the instruments.';
+  else text = 'Playing the instruments' + (graph?.original ? ' (all at 100 % plays the original song).' : '.');
   $('#pr-title').textContent = song ? `Practice mix: ${song.title}` : 'Practice mix';
   $('#pr-status').textContent = text;
   $('#pr-prepare').hidden = !song || !st || !['none', 'failed'].includes(st.state);

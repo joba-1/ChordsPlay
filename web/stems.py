@@ -73,10 +73,13 @@ def read_manifest(path):
     stems = doc.get('stems') if isinstance(doc, dict) else None
     if not isinstance(stems, list) or not stems or not isinstance(doc.get('channels'), int):
         return None
+    def pair_ok(p):
+        return isinstance(p, int) and not isinstance(p, bool) and 0 <= p * 2 + 1 < doc['channels']
     for s in stems:
-        if not (isinstance(s, dict) and isinstance(s.get('name'), str) and isinstance(s.get('pair'), int)
-                and 0 <= s['pair'] * 2 + 1 < doc['channels']):
+        if not (isinstance(s, dict) and isinstance(s.get('name'), str) and pair_ok(s.get('pair'))):
             return None
+    if 'original' in doc and not (isinstance(doc['original'], dict) and pair_ok(doc['original'].get('pair'))):
+        return None
     return doc
 
 

@@ -27,13 +27,16 @@ the rest 70 %).
   (*Everything*, *Without guitar*, *Guitar only*) and a switch *Practice mix on*: replaced
   in 1.8.1 by solo and by always playing a split song through the mixer, because the
   switch confused (with all at 100 % the mix is the original anyway).
-* A split song always plays through the mixer. With all sliders at 100 % the mix should
-  sound like the original: the model's stems add up to it (residual
-  26–36 dB below the music, measured with MP3 stems); in the Opus file each pair
-  adds its own coding noise, together ~13 dB below the music on *Fly By Night*, about
-  what Opus at 96 kbit/s does to the original alone (−32 dB) summed over 8 pairs. Opus
-  is perceptual: this is a waveform difference, not necessarily an audible one. If it
-  is audible, the helper's `--kbits` raises the rate.
+* A split song always plays through the mixer. While the mix is untouched (every
+  instrument at 100 %, nothing muted or soloed) it plays **the original song**, which the
+  file carries as one more stereo pair; any change crossfades (~0.1 s) to the stems, and
+  back. Why (1.8.2): the stems add up to the song only nearly. The model's stems leave a
+  residual 26–36 dB below the music (measured with MP3 stems), and in the file every pair
+  adds its own Opus coding noise: summed, the six pairs of *Lakeside Park* differ from
+  the MP3 by −26.7 dB (music −13.9 dB). Probably inaudible, but not the same. The
+  original pair is an Opus copy too (96 kbit/s, −30.7 dB from the MP3): it removes the
+  model's error, not the coding; `--kbits` raises the rate if that is audible. Both pairs
+  line up to the sample (measured lag 0), so the crossfade doesn't smear.
 * The levels belong to the browser (kept in `localStorage`): the amp computer keeps its
   mix, a phone its own. They apply to every song; per-song mixes are a later step.
 
@@ -55,8 +58,8 @@ the rest 70 %).
 ### One multichannel file per song
 
 All stems go into **one Opus file in WebM** with independent channels (Opus channel
-mapping family 255): six instruments, 6 stereo pairs = 12 channels, ~96 kbit/s per pair
-(~2.3 MB per minute). 1.7.0 split the guitar into three parts by stereo position (16
+mapping family 255): six instruments, 6 stereo pairs, ~96 kbit/s per pair,
+plus the original song as a seventh pair (14 channels, ~2.7 MB per minute). 1.7.0 split the guitar into three parts by stereo position (16
 channels); the page still plays such files (the parts get sliders under the guitar's).
 
 * One `<audio>` element plays it, so the stems **cannot drift apart**, seeking and
@@ -69,7 +72,7 @@ channels); the page still plays such files (the parts get sliders under the guit
   Firefox and Safari: not checked. A browser that gives fewer channels would play a
   wrong mix; the page can't tell (Web Audio doesn't report the element's channel count).
 * The page routes the element through Web Audio: `MediaElementSource` →
-  `ChannelSplitter(16)` → per pair a `ChannelMerger(2)` and a `GainNode` → the output.
+  `ChannelSplitter(channels)` → per pair a `ChannelMerger(2)` and a `GainNode` → the output.
   The Web Audio graph is created the first time the practice mix is used (an element
   can't be detached from it again); from then on the page's sound goes through the
   `AudioContext`, and choosing the audio output sets the context's output
@@ -100,10 +103,11 @@ ChordsPlay calls a command (`CHORDSPLAY_STEMS_COMMAND`) and doesn't import the m
 Manifest (`<song>.json`):
 
 ```json
-{"version": 2, "model": "BS-Roformer-SW", "channels": 12,
+{"version": 3, "model": "BS-Roformer-SW", "channels": 14,
  "stems": [{"name": "vocals", "pair": 0}, {"name": "drums", "pair": 1},
            {"name": "bass", "pair": 2}, {"name": "piano", "pair": 3},
            {"name": "other", "pair": 4}, {"name": "guitar", "pair": 5}],
+ "original": {"pair": 6},
  "timeline": {"step": 0.5, "guitar_db": [-41, -38, ...], "guitar_center": [0.2, 0.7, ...]},
  "tempo": 139.7, "beats": [0.42, 0.85, ...]}
 ```
@@ -192,7 +196,7 @@ The GPU is shared: an LLM (Ollama) may hold most of it, and splitting then fails
   into a temporary name that is renamed when done.
 * Files: `CHORDSPLAY_STEMS_DIR/<song id>.webm` and `.json` (default
   `~/.local/share/chordsplay-web/stems`; the package: `/var/lib/chordsplay/stems`).
-  About 2.3 MB per minute of music. Kept in the server's data folder, not next to the
+  About 2.7 MB per minute of music. Kept in the server's data folder, not next to the
   songs (decided 2026-11-20): no write access to the music share needed, and other
   players don't see files they can't use.
 * API (with login, like the rest of `api/`):

@@ -112,8 +112,11 @@ about 4 GB free makes it take a minute per song; on the CPU it takes several.
 2. In `/etc/chordsplay/chordsplay.env`:
 
    ```
-   CHORDSPLAY_STEMS_COMMAND=/opt/chordsplay-stems/bin/python /usr/share/chordsplay/stems/chordsplay-stems --free-ollama http://127.0.0.1:11434 --model-dir /var/lib/chordsplay/stems-model
+   CHORDSPLAY_STEMS_COMMAND="/opt/chordsplay-stems/bin/python /usr/share/chordsplay/stems/chordsplay-stems --free-ollama http://127.0.0.1:11434 --model-dir /var/lib/chordsplay/stems-model"
    ```
+
+   The quotes matter: without them a shell that reads the file (`. chordsplay.env`)
+   runs the splitter instead of setting the variable; systemd takes either.
 
    `--device gpu` (the default) refuses to start when the GPU is busy (the page shows
    *GPU busy*); `--device auto` then uses the CPU; `--device cpu` never uses the GPU.

@@ -7,7 +7,8 @@ chordsplay-stems: split a song into its instruments for ChordsPlay's practice mi
   chordsplay-stems [--device gpu|auto|cpu] SONG OUT.webm
 
 Writes OUT.webm, one Opus file with an independent stereo pair per stem (vocals, drums,
-bass, piano, other, guitar), and OUT.json, the manifest: the pairs, where the guitar sits
+bass, piano, other, guitar) and one more with the original song (played while nothing is
+changed in the mix: the stems add up to the song only nearly), and OUT.json, the manifest: the pairs, where the guitar sits
 in the centre of the stereo image (often the lead) and the song's tempo and beats. See
 docs/spec-practice.md.
 
@@ -22,7 +23,7 @@ calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
                   by itself on its next request
   --model NAME    separation model (default BS-Roformer-SW.ckpt; must give a guitar stem)
   --model-dir DIR where the model is kept (default ~/.cache/chordsplay-stems)
-  --kbits N       Opus bit rate per stereo pair (default 96: ~2.3 MB per minute for 6 pairs)
+  --kbits N       Opus bit rate per stereo pair (default 96: ~2.7 MB per minute for 7 pairs)
 
 Exit codes: 0 done, 2 usage, 3 GPU busy, 1 anything else (message on stderr).
 '''
@@ -187,8 +188,8 @@ def encode(pairs, out, kbits):
     for _, path in pairs:
         cmd += ['-i', path]
     n = len(pairs)
-    # each input to exactly two channels, then all side by side
-    graph = ''.join(f'[{i}:a]aformat=channel_layouts=stereo[s{i}];' for i in range(n))
+    # each input to exactly two channels at the stems' rate, then all side by side
+    graph = ''.join(f'[{i}:a]aresample=44100,aformat=channel_layouts=stereo[s{i}];' for i in range(n))
     graph += ''.join(f'[s{i}]' for i in range(n)) + f'amerge=inputs={n}[all]'
     cmd += ['-filter_complex', graph, '-map', '[all]', '-c:a', 'libopus', '-mapping_family', '255',
             '-b:a', f'{kbits * n}k', '-f', 'webm', out]
@@ -218,10 +219,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix='chordsplay-stems-') as work:
         stems = separate(args.song, work, args.model, args.model_dir, gpu)
         pairs = [(stem, stems[stem]) for stem in STEMS]
-        encode(pairs, args.out, args.kbits)
-        meta = {'version': 2, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
+        encode(pairs + [('original', args.song)], args.out, args.kbits)
+        meta = {'version': 3, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs) + 2,
                 'device': 'gpu' if gpu else 'cpu',
-                'stems': [{'name': stem, 'pair': i} for i, (stem, _) in enumerate(pairs)]}
+                'stems': [{'name': stem, 'pair': i} for i, (stem, _) in enumerate(pairs)],
+                'original': {'pair': len(pairs)}}
         # analysis only adds to the mix: if it fails, the stems are still usable
         try:
             meta['timeline'] = guitar_timeline(stems['guitar'])

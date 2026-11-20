@@ -1,3 +1,11 @@
+chordsplay (1.8.2-1) unstable; urgency=medium
+
+  * Practice mix: an untouched mix plays the original song, carried in the
+    split file as one more stereo pair; any change crossfades to the
+    instruments. Mute shown red, solo yellow.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 20 Nov 2026 22:00:00 +0000
+
 chordsplay (1.8.1-1) unstable; urgency=medium
 
   * Practice mix: solo (S) next to mute (M) and Reset, in place of the quick

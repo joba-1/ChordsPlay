@@ -178,8 +178,12 @@ guess from the recording: on a mono or live recording it shows nothing useful.
   or soloed. The levels are kept in this browser.
 * A split song always plays through the mixer; a song that isn't split plays the
   original. Once the split is done the song goes over to the mixer where it is.
-* With every slider at 100 % the mix should sound like the original. The cues, the amp's
-  timing, takes and displays work as before: the mix has the song's timeline.
+* While nothing is changed (all at 100 %, nothing muted or soloed) you hear the original
+  song, which the split file carries too: the instruments add up to it only nearly. Any
+  change crossfades to the instruments, *Reset* back. Songs split before 1.8.2 have no
+  original in the file and play the instruments; split them again (delete the song's
+  files in the stems folder, then *Prepare this song*). The cues, the amp's timing, takes
+  and displays work as before: the mix has the song's timeline.
 * Sound: the mix plays through the browser's Web Audio; choosing the output (`a`) works
   for it as well (Chrome).
 
@@ -440,7 +444,7 @@ folders of `CHORDSPLAY_MUSIC_DIRS`, local or a network share.
 | Install, update, remove | [install.md](install.md) |
 | Settings | `/etc/chordsplay/chordsplay.env` (checkout install: `~/.config/chordsplay/web.env`); every setting with its default: `contrib/chordsplay.env.example`. Restart the service after a change |
 | Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two`: added to the library at start, scanned at start and every 24 hours. The database is created at the first start |
-| Practice mix | `CHORDSPLAY_STEMS_COMMAND` (the splitter, see [install.md](install.md)); the split songs in `/var/lib/chordsplay/stems` (about 2.3 MB per minute of music; a cache, delete any time). Splitting many songs: `chordsplay stems queue --user NAME --tag KEY`, `chordsplay stems wait`, `chordsplay stems list` (run as the service's user with its settings), e.g. from a nightly timer ([install.md](install.md)) |
+| Practice mix | `CHORDSPLAY_STEMS_COMMAND` (the splitter, see [install.md](install.md)); the split songs in `/var/lib/chordsplay/stems` (about 2.7 MB per minute of music; a cache, delete any time). Splitting many songs: `chordsplay stems queue --user NAME --tag KEY`, `chordsplay stems wait`, `chordsplay stems list` (run as the service's user with its settings), e.g. from a nightly timer ([install.md](install.md)) |
 | Logs | `journalctl -u chordsplay` (checkout install: `journalctl --user -u chordsplay-web`) |
 | Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User`, and `CHORDSPLAY_USER_MAP=loginname=dbuser,...` where names differ |
 | Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets, takes and level surveys); the app serves nothing else there |

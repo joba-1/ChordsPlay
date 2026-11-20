@@ -167,6 +167,9 @@ class Worker(Base):
         for doc, ok in [({'channels': 2, 'stems': [{'name': 'x', 'pair': 0}]}, True),
                         ({'channels': 2, 'stems': [{'name': 'x', 'pair': 1}]}, False),
                         ({'channels': 2, 'stems': []}, False),
+                        ({'channels': 4, 'stems': [{'name': 'x', 'pair': 0}], 'original': {'pair': 1}}, True),
+                        ({'channels': 4, 'stems': [{'name': 'x', 'pair': 0}], 'original': {'pair': 2}}, False),
+                        ({'channels': 4, 'stems': [{'name': 'x', 'pair': 0}], 'original': 1}, False),
                         ({'stems': [{'name': 'x', 'pair': 0}]}, False),
                         ([1, 2], False)]:
             with open(good, 'w') as f:
