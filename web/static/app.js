@@ -553,7 +553,9 @@ async function songSource(id) {
   practiceStatus = null;
   if (practiceOffered) {
     try { practiceStatus = await api(`song/${id}/stems`); } catch (e) { /* the original then */ }
-    if (mix.on && practiceStatus?.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
+    if (mix.on && practiceStatus?.state === 'ready') {
+      return { url: `api/stems/${id}.webm?v=${Math.round(practiceStatus.finished || 0)}`, manifest: practiceStatus.manifest };
+    }
   }
   return { url: 'api/audio/' + id, manifest: null };
 }
@@ -826,7 +828,7 @@ async function loadPeaks() {
   if (peaks?.id === song.id) return;
   const id = song.id;
   try {
-    const r = await fetch(`api/stems/${id}.peaks.json`);
+    const r = await fetch(`api/stems/${id}.peaks.json?v=${Math.round(practiceStatus.finished || 0)}`);
     if (!r.ok) throw new Error(r.statusText);
     const d = await r.json();
     const tracks = {}, max = {};
@@ -869,7 +871,8 @@ function songLength() {
 
 function clampView() {
   const d = songLength();
-  if (!prView.span || prView.span > d) prView.span = d;
+  if (!isFinite(prView.start)) prView.start = 0;      // never stuck on an impossible view
+  if (!isFinite(prView.span) || !prView.span || prView.span > d) prView.span = d;
   prView.span = Math.max(Math.min(MIN_SPAN_S, d), prView.span);
   prView.start = Math.min(Math.max(0, prView.start), Math.max(0, d - prView.span));
 }
@@ -880,7 +883,12 @@ function waveLoop() {
   if (!player.paused && Date.now() > prViewHeld && prView.span && (t < prView.start || t > prView.start + prView.span)) {
     prView.start = t - prView.span * 0.1;   // page along with the song
   }
-  drawWaves();
+  try {
+    drawWaves();
+  } catch (e) {
+    console.error('waves:', e);                         // draw on: the next frame may do
+    prView = { start: 0, span: 0 };
+  }
   waveFrame = requestAnimationFrame(waveLoop);
 }
 
@@ -997,7 +1005,9 @@ $('#pr-wave').addEventListener('wheel', (e) => {
   prViewHeld = Date.now() + 4000;
   clampView();
   if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-    prView.start += (e.shiftKey ? e.deltaY : e.deltaX) / $('#pr-wave').clientWidth * prView.span;
+    // Shift+wheel arrives as deltaX in Chromium (deltaY 0), in others as deltaY
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    prView.start += d / $('#pr-wave').clientWidth * prView.span;
   } else {
     const t = waveTime(e), f = e.deltaY > 0 ? 1.25 : 0.8;
     const span = prView.span * f;

@@ -1,3 +1,11 @@
+chordsplay (2.1.5-1) unstable; urgency=medium
+
+  * Waveforms: Shift+wheel scrolls in Chromium, an impossible view resets
+    itself, drawing goes on after an error; a split's files are fetched anew
+    after it is split again.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 04:00:00 +0000
+
 chordsplay (2.1.4-1) unstable; urgency=medium
 
   * Clicks at a third of the level (the control's whole range usable), the

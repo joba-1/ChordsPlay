@@ -160,6 +160,14 @@ a section (on the beat); wheel: zoom around the pointer; Shift+wheel: scroll; *â
 *Fit*. While the song plays the view pages along, except for a few seconds after you
 scrolled or zoomed.
 
+2.1.5, after "no waveforms any more" at the Mustang (not reproduced with the same data):
+Shift+wheel arrives as `deltaX` in Chromium, which the scrolling ignored; an impossible
+view (NaN) drew nothing, ruler included, for good; an error while drawing stopped the
+loop. Now the scroll takes whichever delta is larger, the view resets itself, and the
+loop draws on. The split's files have the split's time in their address (`?v=`): the
+browser kept a split file for an hour, so after *Split it again* it could play the old
+file against the new manifest.
+
 The browser doesn't compute the waveforms: decoding six stereo stems of a 4-minute song
 would take ~550 MB. The splitter writes them: per track (the song and each stem) the peak
 level per 10 ms as one byte, base64 in `<song>.peaks.json` (~60 kB per minute for 7

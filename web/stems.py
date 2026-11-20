@@ -108,12 +108,13 @@ class Stems:
         '''{offered, state, error, seconds, manifest, peaks}; state 'none' when not split (or
         the song's file changed since); peaks: the waveforms exist.'''
         out = {'offered': self.offered, 'state': 'none', 'error': None, 'seconds': None, 'manifest': None,
-               'peaks': False}
-        row = conn.execute("SELECT source, state, error, seconds FROM stems WHERE song_id = ?",
+               'peaks': False, 'finished': None}
+        row = conn.execute("SELECT source, state, error, seconds, finished FROM stems WHERE song_id = ?",
                            (song_id,)).fetchone()
         if row is None:
             return out
-        source, state, error, seconds = row
+        source, state, error, seconds, finished = row
+        out['finished'] = finished      # the page puts it into the files' addresses: a new split, a new file
         if state == 'ready':
             webm, manifest = self.paths(song_id)
             doc = read_manifest(manifest) if os.path.isfile(webm) else None
