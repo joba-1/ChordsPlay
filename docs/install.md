@@ -102,7 +102,8 @@ about 4 GB free makes it take a minute per song; on the CPU it takes several.
    (PyTorch for CUDA 12.8; leave out `--index-url …` for a computer without an NVIDIA GPU):
 
    ```bash
-   sudo uv venv -p 3.12 /opt/chordsplay-stems
+   # the Python itself under /opt too: uv's default is root's home, which the service can't reach
+   sudo env UV_PYTHON_INSTALL_DIR=/opt/chordsplay-stems-python uv venv -p 3.12 --managed-python /opt/chordsplay-stems
    sudo uv pip install -p /opt/chordsplay-stems/bin/python torch torchaudio --index-url https://download.pytorch.org/whl/cu128
    sudo uv pip install -p /opt/chordsplay-stems/bin/python "audio-separator[gpu]" audioread
    ```
@@ -116,16 +117,18 @@ about 4 GB free makes it take a minute per song; on the CPU it takes several.
 
    `--device gpu` (the default) refuses to start when the GPU is busy (the page shows
    *GPU busy*); `--device auto` then uses the CPU; `--device cpu` never uses the GPU.
-3. With a GPU: the service hides devices from itself (`PrivateDevices=yes`). Let it see
-   the GPU: `sudo systemctl edit chordsplay` and add
+3. With a GPU: the service hides devices from itself (`PrivateDevices=yes`), and its user
+   may not open the GPU's devices (on openSUSE they belong to the group `video`). Let it:
+   `sudo systemctl edit chordsplay` and add
 
    ```
    [Service]
    PrivateDevices=no
+   SupplementaryGroups=video
    ```
 4. `sudo systemctl restart chordsplay`: the page shows *Practice*.
 
-Try the splitter alone first: `sudo -u chordsplay /opt/chordsplay-stems/bin/python
+Try the splitter alone first: `sudo -u chordsplay -g video /opt/chordsplay-stems/bin/python
 /usr/share/chordsplay/stems/chordsplay-stems --model-dir /var/lib/chordsplay/stems-model
 song.mp3 /tmp/song.webm`.
 
