@@ -615,7 +615,7 @@ player.addEventListener('pause', () => keepAlive(false));
 player.addEventListener('play', () => {
   if (practiceOffered && !graph) routeAudio(null, true);
   keepAlive(true);
-  fadeTo(1);
+  if (!counting?.muted) fadeTo(1);         // (a silent run-up to a count-in stays silent)
   if (graph?.ctx.state === 'suspended') graph.ctx.resume();
 });
 
@@ -1169,6 +1169,7 @@ function click(ctx, when, first) {
   env.gain.setValueAtTime(peak, when + 0.04);
   env.gain.exponentialRampToValueAtTime(0.0001, when + 0.2);
   env.connect(ctx.destination);
+  counting?.nodes?.push(env);
   for (const f of first ? [1200, 1800] : [800, 1200]) {
     const osc = ctx.createOscillator();
     osc.type = 'square';
@@ -1180,7 +1181,14 @@ function click(ctx, when, first) {
 }
 
 function stopCount() {
-  if (counting) { clearTimeout(counting.timer); counting = null; }
+  if (!counting) return;
+  clearTimeout(counting.timer);
+  for (const node of counting.nodes || []) node.disconnect();     // clicks not yet played
+  if (counting.muted) {                       // the song ran silently: stop it, its level back
+    player.pause();
+    if (graph) { graph.master.gain.cancelScheduledValues(graph.ctx.currentTime); graph.master.gain.value = 1; }
+  }
+  counting = null;
 }
 
 // pause at t, count in, then play
@@ -1188,25 +1196,61 @@ function stopCount() {
 // itself from n beats before t (no beat detection to trust: right in any metre)
 async function countInAt(t) {
   stopCount();
+  // under way from now on: the loop's watchdog keeps still (else it could jump and fade in
+  // while the song is still fading out for this count-in)
+  const mine = counting = { nodes: [], timer: null, muted: false };
   await pauseSoftly();
+  if (counting !== mine) return;                        // stopped meanwhile
   const n = Number(count.beats) || 0;
   if (n && count.mode === 'lead') {
     const from = Math.max(0, t - n * beatAt(t));
     if (run) run.from = from;
+    counting = null;
     player.currentTime = from;
     player.play().catch(() => {});
     return;
   }
-  player.currentTime = t;
-  if (!n) { player.play().catch(() => {}); return; }
+  if (!n) { counting = null; player.currentTime = t; player.play().catch(() => {}); return; }
   const ctx = clicks();
   if (ctx.state === 'suspended') await ctx.resume();
   keepAlive(true);
   const iv = beatAt(t);
+  // The song runs silently from before the count-in, the clicks go on its own beat times and
+  // it fades in at t: song and clicks share one clock and one way out. (Started by a timer
+  // after the clicks, the song came in late: play() takes ~0.2 s to sound, a whole beat at
+  // 286 bpm.) At the very start of the song there is nothing before t: the timer then.
+  const from = t - n * iv - 0.3;
+  if (from >= 0 && graph) {
+    if (run) run.from = from;
+    const g = graph.master.gain;
+    g.cancelScheduledValues(ctx.currentTime);
+    g.value = 0;
+    mine.muted = true;
+    player.currentTime = from;
+    player.play().catch(() => {});
+    await new Promise((ready) => {
+      if (!player.paused && player.readyState >= 3) { ready(); return; }
+      player.addEventListener('playing', ready, { once: true });
+      setTimeout(ready, 3000);
+    });
+    if (counting !== mine) return;                      // stopped meanwhile
+    const now = ctx.currentTime, pos = player.currentTime;
+    for (let i = 0; i < n; i++) {
+      const at = now + (t - (n - i) * iv - pos);
+      if (at > now + 0.01) click(ctx, at, i === 0);
+    }
+    const inAt = Math.max(now, now + (t - pos) - 0.01);
+    g.setValueAtTime(0, inAt);
+    g.linearRampToValueAtTime(1, inAt + 0.02);
+    mine.timer = setTimeout(() => { if (counting === mine) counting = null; }, (inAt - now) * 1000 + 30);
+    toast(`Count-in: ${n} beats`, Math.min(4000, (inAt - now) * 1000));
+    return;
+  }
+  player.currentTime = t;
   const t0 = ctx.currentTime + 0.3;
   for (let i = 0; i < n; i++) click(ctx, t0 + i * iv, i === 0);   // no bar stress: the "1" isn't known
-  const startIn = t0 + n * iv - ctx.currentTime - 0.02;     // play() takes a moment to sound
-  counting = { timer: setTimeout(() => { counting = null; player.play().catch(() => {}); }, startIn * 1000) };
+  const startIn = t0 + n * iv - ctx.currentTime - 0.2;     // play() takes ~0.2 s to sound
+  mine.timer = setTimeout(() => { if (counting === mine) counting = null; player.play().catch(() => {}); }, Math.max(0, startIn) * 1000);
   toast(`Count-in: ${n} beats`, Math.min(4000, startIn * 1000));
 }
 

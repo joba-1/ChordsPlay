@@ -239,8 +239,14 @@ Why, from listening to click tracks (2026-11-20; a click on every beat mixed int
   25 ms each in 2.1.2 ("softer, could be a bit more soft"), 60 ms since 2.1.4. Starting from the dialog leaves it open (2.1.1), so the level
   or the way in can be changed and tried again. You can't start the song and
   play at the same moment, so the count-in gives the time to get the hands on the guitar.
-  The clicks come from a Web Audio oscillator in the song's own `AudioContext`; the song
-  starts by a timer (~10–30 ms accuracy), enough to come in on the beat. With a splitter
+  The clicks come from a Web Audio oscillator in the song's own `AudioContext`. Since
+  2.1.10 the song runs **silently** from N beats (+0.3 s) before the start, the clicks are
+  placed on its own beat times (from its playing position) and it fades in at the start:
+  one clock, one way out, so the song comes in exactly a beat after the last click
+  (measured: 214 ms after it at 210 ms per beat, at the section start ±2 ms). Before, the
+  song was started by a timer after the clicks: `play()` takes ~0.2 s to sound, a whole
+  beat at 286 bpm ("8 clicks, a pause, then the guitar", at the Mustang). At the very start
+  of a song (nothing before it) the timer stays, started 0.2 s early. With a splitter
   set up, the page's sound goes through Web Audio from the first play on (2.0.2): one
   output stream for song, instruments and clicks. Before, the clicks had a context of
   their own while the original played: a new output stream, which starts on the system's

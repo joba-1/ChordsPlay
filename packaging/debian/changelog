@@ -1,3 +1,11 @@
+chordsplay (2.1.10-1) unstable; urgency=medium
+
+  * Count-in: the song runs silently under the clicks and comes in exactly a
+    beat after the last one (it came in late at fast tempos); no fade-in from
+    the loop's watchdog while a count-in is being prepared.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 06:00:00 +0000
+
 chordsplay (2.1.9-1) unstable; urgency=medium
 
   * Practice: half/double tempo of the count-in per song (was one setting for
