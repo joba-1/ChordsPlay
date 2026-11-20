@@ -1,3 +1,15 @@
+chordsplay (1.9.0-1) unstable; urgency=medium
+
+  * Practice mix: "Play the instruments" switches between the original file
+    (untouched) and the split one; a slider, mute or solo switches it on. The
+    original song is no longer copied into the split file.
+  * Waveforms of the song and its instruments in the practice dialog (tab
+    Waves): choose the lanes, zoom, click to go there, drag to mark a section.
+  * The lead marks only where the guitar's centre share clearly stands out,
+    for at least 4 s; "Split it again" for older splits.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 20 Nov 2026 23:00:00 +0000
+
 chordsplay (1.8.2-1) unstable; urgency=medium
 
   * Practice mix: an untouched mix plays the original song, carried in the

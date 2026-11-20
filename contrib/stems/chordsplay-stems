@@ -7,10 +7,10 @@ chordsplay-stems: split a song into its instruments for ChordsPlay's practice mi
   chordsplay-stems [--device gpu|auto|cpu] SONG OUT.webm
 
 Writes OUT.webm, one Opus file with an independent stereo pair per stem (vocals, drums,
-bass, piano, other, guitar) and one more with the original song (played while nothing is
-changed in the mix: the stems add up to the song only nearly), and OUT.json, the manifest: the pairs, where the guitar sits
-in the centre of the stereo image (often the lead) and the song's tempo and beats. See
-docs/spec-practice.md.
+bass, piano, other, guitar); OUT.json, the manifest: the pairs, where the guitar is loud
+and in the centre of the stereo image (often the lead or solo) and the song's tempo and
+beats; and OUT.peaks.json, the peak level of each stem and of the song per 10 ms for
+the waveforms. See docs/spec-practice.md.
 
 Runs in its own Python environment with python-audio-separator (PyTorch); ChordsPlay
 calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
@@ -23,7 +23,7 @@ calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
                   by itself on its next request
   --model NAME    separation model (default BS-Roformer-SW.ckpt; must give a guitar stem)
   --model-dir DIR where the model is kept (default ~/.cache/chordsplay-stems)
-  --kbits N       Opus bit rate per stereo pair (default 96: ~2.7 MB per minute for 7 pairs)
+  --kbits N       Opus bit rate per stereo pair (default 96: ~2.3 MB per minute for 6 pairs)
 
 Exit codes: 0 done, 2 usage, 3 GPU busy, 1 anything else (message on stderr).
 '''
@@ -42,7 +42,11 @@ FFT = 4096
 STEP_S = 0.5            # the timeline's resolution
 LEAD_DB = -15           # lead: the guitar within this of its loudest step ...
 LEAD_SMOOTH = 4         # ... its centre share averaged over this many steps (2 s) ...
-LEAD_PERCENTILE = 75    # ... above this percentile of the song's own centre shares
+LEAD_MARGIN = 0.10      # ... this much above the song's own median share (a guitar that is
+                        #     always in the centre has no lead to show) ...
+LEAD_MIN_S = 4          # ... for at least this long (gaps up to LEAD_GAP_S bridged)
+LEAD_GAP_S = 1
+PEAKS_PER_S = 100       # the waveforms' resolution
 OLLAMA_WAIT_S = 30      # how long to wait for the GPU memory after unloading Ollama's models
 EXIT_GPU_BUSY = 3
 
@@ -158,12 +162,55 @@ def guitar_timeline(path):
     # lead: loud guitar whose centre share is high for this song (records differ a lot)
     smooth = np.convolve(share, np.ones(LEAD_SMOOTH) / LEAD_SMOOTH, mode='same')
     audible = db > LEAD_DB
-    limit = np.percentile(smooth[audible], LEAD_PERCENTILE) if audible.any() else 1
-    lead = audible & (smooth > max(limit, 0.5))
+    limit = np.median(share[audible]) + LEAD_MARGIN if audible.any() else 2
+    lead = runs(audible & (smooth > max(limit, 0.5)), int(LEAD_MIN_S / STEP_S), int(LEAD_GAP_S / STEP_S))
     return {'step': STEP_S,
             'guitar_db': [max(-99, int(round(v))) for v in db],
             'guitar_center': [round(float(v), 2) for v in share],
             'lead': [int(v) for v in lead]}
+
+
+def runs(flags, min_len, max_gap):
+    """flags with gaps up to max_gap filled, then only runs of at least min_len kept."""
+    out = list(flags)
+    n = len(out)
+    i = 0
+    while i < n:                     # bridge short gaps between two marked steps
+        if not out[i]:
+            j = i
+            while j < n and not out[j]:
+                j += 1
+            if 0 < i and j < n and j - i <= max_gap:
+                out[i:j] = [True] * (j - i)
+            i = j
+        else:
+            i += 1
+    i = 0
+    while i < n:                     # drop runs that are too short
+        if out[i]:
+            j = i
+            while j < n and out[j]:
+                j += 1
+            if j - i < min_len:
+                out[i:j] = [False] * (j - i)
+            i = j
+        else:
+            i += 1
+    return [bool(v) for v in out]
+
+
+def peaks(path, rate=44100):
+    """The peak level (both channels) per 1/PEAKS_PER_S s, as bytes 0..255 (linear)."""
+    import librosa
+    import numpy as np
+
+    y, sr = librosa.load(path, sr=rate, mono=False)
+    y = np.atleast_2d(y)
+    a = np.abs(y).max(axis=0)
+    per = sr // PEAKS_PER_S
+    n = len(a) // per
+    p = a[:n * per].reshape(n, per).max(axis=1) if n else np.zeros(0)
+    return np.clip(np.round(p * 255), 0, 255).astype(np.uint8).tobytes()
 
 
 def beats_of(song):
@@ -219,11 +266,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix='chordsplay-stems-') as work:
         stems = separate(args.song, work, args.model, args.model_dir, gpu)
         pairs = [(stem, stems[stem]) for stem in STEMS]
-        encode(pairs + [('original', args.song)], args.out, args.kbits)
-        meta = {'version': 3, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs) + 2,
+        encode(pairs, args.out, args.kbits)
+        meta = {'version': 4, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
                 'device': 'gpu' if gpu else 'cpu',
-                'stems': [{'name': stem, 'pair': i} for i, (stem, _) in enumerate(pairs)],
-                'original': {'pair': len(pairs)}}
+                'stems': [{'name': stem, 'pair': i} for i, (stem, _) in enumerate(pairs)]}
         # analysis only adds to the mix: if it fails, the stems are still usable
         try:
             meta['timeline'] = guitar_timeline(stems['guitar'])
@@ -235,6 +281,15 @@ def main():
                 meta['tempo'], meta['beats'] = tempo, beats
         except Exception as e:      # noqa: BLE001
             print('chordsplay-stems: no beats: {}'.format(e), file=sys.stderr)
+        try:
+            import base64
+            tracks = {'song': args.song, **{stem: stems[stem] for stem in STEMS}}
+            data = {'rate': PEAKS_PER_S,
+                    'tracks': {name: base64.b64encode(peaks(path)).decode() for name, path in tracks.items()}}
+            with open(os.path.splitext(args.out)[0] + '.peaks.json', 'w') as f:
+                json.dump(data, f)
+        except Exception as e:      # noqa: BLE001
+            print('chordsplay-stems: no waveforms: {}'.format(e), file=sys.stderr)
     with open(os.path.splitext(args.out)[0] + '.json', 'w') as f:
         json.dump(meta, f, indent=1)
 

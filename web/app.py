@@ -60,7 +60,7 @@ from web import sections as sectionsmod
 from web import stems as stemsmod
 from web import suggest as suggestmod
 
-__version__ = '1.8.2'
+__version__ = '1.9.0'
 
 log = logging.getLogger(__name__)
 
@@ -342,7 +342,7 @@ def audio(song_id):
 
 @app.route('/api/song/<int:song_id>/stems', methods=['GET', 'POST'])
 def song_stems(song_id):
-    '''The song's split for the practice mix; POST queues it.'''
+    '''The song's split for the practice mix; POST queues it ({again: true}: even if split).'''
     db = get_db()
     if db.getPlayInfo(song_id) is None:
         abort(404)
@@ -351,7 +351,8 @@ def song_stems(song_id):
     if not STEMS.offered:
         return jsonify(error='no practice mix on this server (CHORDSPLAY_STEMS_COMMAND)'), 409
     try:
-        return jsonify(STEMS.request(db.conn, song_id))
+        again = bool((request.get_json(silent=True) or {}).get('again'))
+        return jsonify(STEMS.request(db.conn, song_id, again))
     except KeyError:
         abort(404)
 
@@ -362,6 +363,15 @@ def stems_audio(song_id):
     if STEMS.status(get_db().conn, song_id)['state'] != 'ready':
         abort(404)
     return send_file(STEMS.paths(song_id)[0], mimetype='audio/webm', conditional=True, max_age=3600)
+
+
+@app.route('/api/stems/<int:song_id>.peaks.json')
+def stems_peaks(song_id):
+    '''The waveforms of the split song: {rate, tracks: {name: base64 of one byte per 1/rate s}}.'''
+    st = STEMS.status(get_db().conn, song_id)
+    if st['state'] != 'ready' or not st['peaks']:
+        abort(404)
+    return send_file(STEMS.peaks_path(song_id), mimetype='application/json', conditional=True, max_age=0)
 
 
 @app.route('/api/song/<int:song_id>/sections', methods=['GET', 'POST'])

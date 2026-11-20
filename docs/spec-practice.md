@@ -1,7 +1,9 @@
 # Practice mix: the song's instruments at your own levels
 
 Status: 1.7.0 first version; 1.8.0 (2026-11-20): the guitar as one track again with a lead
-timeline, practice sections with a count-in, splitting by tag at night.
+timeline, practice sections with a count-in, splitting by tag at night; 1.9.0: the original
+file while not mixing, waveforms of the song and its instruments to find and mark a
+section, a stricter lead rule.
 
 Play along with a song while hearing less (or none) of its guitar, or only the guitar to
 learn the part: the server splits a song once into its instruments ("stems"), and the
@@ -24,19 +26,19 @@ the rest 70 %).
   it for the song.
 * **M** mutes, **S** solos (with any instrument soloed, only the soloed ones play);
   *Reset* sets all to 100 %, nothing muted or soloed. 1.7.0–1.8.0 had quick mixes
-  (*Everything*, *Without guitar*, *Guitar only*) and a switch *Practice mix on*: replaced
-  in 1.8.1 by solo and by always playing a split song through the mixer, because the
-  switch confused (with all at 100 % the mix is the original anyway).
-* A split song always plays through the mixer. While the mix is untouched (every
-  instrument at 100 %, nothing muted or soloed) it plays **the original song**, which the
-  file carries as one more stereo pair; any change crossfades (~0.1 s) to the stems, and
-  back. Why (1.8.2): the stems add up to the song only nearly. The model's stems leave a
-  residual 26–36 dB below the music (measured with MP3 stems), and in the file every pair
-  adds its own Opus coding noise: summed, the six pairs of *Lakeside Park* differ from
-  the MP3 by −26.7 dB (music −13.9 dB). Probably inaudible, but not the same. The
-  original pair is an Opus copy too (96 kbit/s, −30.7 dB from the MP3): it removes the
-  model's error, not the coding; `--kbits` raises the rate if that is audible. Both pairs
-  line up to the sample (measured lag 0), so the crossfade doesn't smear.
+  (*Everything*, *Without guitar*, *Guitar only*), replaced in 1.8.1 by solo.
+* **Play the instruments** (a switch): off, the page plays the **original file**,
+  untouched; on, the split file through the mixer. A slider, M or S switches it on by
+  itself, *Prepare this song* too. History: 1.7.0 had the switch (*Practice mix on*);
+  1.8.1 dropped it (a split song always through the mixer); 1.8.2 put the original song
+  into the split file as a seventh pair, played while the mix was untouched, because the
+  stems add up to the song only nearly (the model's stems leave a residual 26–36 dB
+  below the music, and every pair adds its own Opus noise: summed, *Lakeside Park*
+  differs from the MP3 by −26.7 dB with the music at −13.9 dB). Listening (2026-11-20)
+  heard no difference between that pair and the instruments at 105 %; what is wanted
+  while not practising is the file itself, not an Opus copy of it (−30.7 dB from the
+  MP3). So 1.9.0 dropped the pair and brought the switch back, now named for what it
+  does. Switching keeps the position (a new source: a short gap, no crossfade).
 * The levels belong to the browser (kept in `localStorage`): the amp computer keeps its
   mix, a phone its own. They apply to every song; per-song mixes are a later step.
 
@@ -58,9 +60,10 @@ the rest 70 %).
 ### One multichannel file per song
 
 All stems go into **one Opus file in WebM** with independent channels (Opus channel
-mapping family 255): six instruments, 6 stereo pairs, ~96 kbit/s per pair,
-plus the original song as a seventh pair (14 channels, ~2.7 MB per minute). 1.7.0 split the guitar into three parts by stereo position (16
-channels); the page still plays such files (the parts get sliders under the guitar's).
+mapping family 255): six instruments, 6 stereo pairs = 12 channels, ~96 kbit/s per pair
+(~2.3 MB per minute). Older files still play: 1.7.0's guitar as three parts by stereo
+position (16 channels; the parts get sliders under the guitar's), 1.8.2's extra original
+pair (14 channels; not played).
 
 * One `<audio>` element plays it, so the stems **cannot drift apart**, seeking and
   streaming work as for the original (range requests), and the browser holds only what
@@ -103,11 +106,10 @@ ChordsPlay calls a command (`CHORDSPLAY_STEMS_COMMAND`) and doesn't import the m
 Manifest (`<song>.json`):
 
 ```json
-{"version": 3, "model": "BS-Roformer-SW", "channels": 14,
+{"version": 4, "model": "BS-Roformer-SW", "channels": 12,
  "stems": [{"name": "vocals", "pair": 0}, {"name": "drums", "pair": 1},
            {"name": "bass", "pair": 2}, {"name": "piano", "pair": 3},
            {"name": "other", "pair": 4}, {"name": "guitar", "pair": 5}],
- "original": {"pair": 6},
  "timeline": {"step": 0.5, "guitar_db": [-41, -38, ...], "guitar_center": [0.2, 0.7, ...]},
  "tempo": 139.7, "beats": [0.42, 0.85, ...]}
 ```
@@ -119,8 +121,13 @@ the count-in uses a default tempo.
 
 * `timeline.guitar_db`: the guitar's level per step (0.5 s), dB relative to its loudest
   step; `guitar_center`: the share of the guitar's energy in the centre of the stereo
-  image (0–1). The page colours a step as lead when the guitar is within 15 dB of its
-  loudest and more than half of it is in the centre.
+  image (0–1); `lead`: 1 for a lead step, which the page colours. A step is lead when the
+  guitar is within 15 dB of its loudest and its centre share (averaged over 2 s) is above
+  0.5 and at least 0.10 above the song's own median, for at least 4 s (gaps up to 1 s
+  bridged). 1.8.0 took the top quarter of each song instead: a song with one guitar always
+  in the centre (*Hardest Button To Button*) then showed short marks everywhere. With
+  the 1.9.0 rule: *Closer To The Heart* 1:24–1:50 (the solo), *Lakeside Park* the fills
+  and the outro solo, *Hardest Button* nothing.
 * `tempo` (beats per minute) and `beats` (seconds) from librosa's beat tracker on the
   drum stem (on the whole mix when the drums are nearly silent).
 
@@ -138,6 +145,22 @@ the guitar is one clean stem again, and the zones only give the lead timeline in
 manifest. (Mid/side sliders would be clean but separate far less; not built.) It stays a
 heuristic: on a mono or live recording, or with the solo panned like the rhythm guitar,
 the timeline shows nothing useful.
+
+### Waveforms
+
+The practice dialog has two tabs: *Mix* (the sliders) and *Waves*: the song and the
+instruments you choose as waveforms over one time axis, one lane each (34 px: the
+shape matters, not the amplitude), with the beats on the ruler, the lead marks on the
+guitar's lane, the marked section and the playing position. Click: go there; drag: mark
+a section (on the beat); wheel: zoom around the pointer; Shift+wheel: scroll; *−*, *+*,
+*Fit*. While the song plays the view pages along, except for a few seconds after you
+scrolled or zoomed.
+
+The browser doesn't compute the waveforms: decoding six stereo stems of a 4-minute song
+would take ~550 MB. The splitter writes them: per track (the song and each stem) the peak
+level per 10 ms as one byte, base64 in `<song>.peaks.json` (~60 kB per minute for 7
+tracks). Each lane is scaled to its own loudest peak, so a quiet stem shows its shape.
+Splits from before 1.9.0 have none: *Split it again*.
 
 ### Sections and count-in
 
@@ -196,7 +219,8 @@ The GPU is shared: an LLM (Ollama) may hold most of it, and splitting then fails
   into a temporary name that is renamed when done.
 * Files: `CHORDSPLAY_STEMS_DIR/<song id>.webm` and `.json` (default
   `~/.local/share/chordsplay-web/stems`; the package: `/var/lib/chordsplay/stems`).
-  About 2.7 MB per minute of music. Kept in the server's data folder, not next to the
+  About 2.3 MB per minute of music, plus `<song id>.peaks.json` (waveforms, ~60 kB per
+  minute). Kept in the server's data folder, not next to the
   songs (decided 2026-11-20): no write access to the music share needed, and other
   players don't see files they can't use.
 * API (with login, like the rest of `api/`):

@@ -100,10 +100,15 @@ class Stems:
         base = os.path.join(self.folder, str(int(song_id)))
         return base + '.webm', base + '.json'
 
+    def peaks_path(self, song_id):
+        '''The waveforms (optional: splitters before 1.9.0 wrote none).'''
+        return os.path.join(self.folder, str(int(song_id)) + '.peaks.json')
+
     def status(self, conn, song_id):
-        '''{offered, state, error, seconds, manifest}; state 'none' when not split (or the
-        song's file changed since).'''
-        out = {'offered': self.offered, 'state': 'none', 'error': None, 'seconds': None, 'manifest': None}
+        '''{offered, state, error, seconds, manifest, peaks}; state 'none' when not split (or
+        the song's file changed since); peaks: the waveforms exist.'''
+        out = {'offered': self.offered, 'state': 'none', 'error': None, 'seconds': None, 'manifest': None,
+               'peaks': False}
         row = conn.execute("SELECT source, state, error, seconds FROM stems WHERE song_id = ?",
                            (song_id,)).fetchone()
         if row is None:
@@ -115,13 +120,15 @@ class Stems:
             if doc is None or source != source_sig(song_file(conn, song_id)):
                 return out
             out['manifest'] = doc
+            out['peaks'] = os.path.isfile(self.peaks_path(song_id))
         out.update(state=state, error=error, seconds=seconds)
         return out
 
-    def request(self, conn, song_id):
-        '''Queue the split unless it is ready, queued or running. Returns the status.'''
+    def request(self, conn, song_id, again=False):
+        '''Queue the split unless it is ready (again: even then), queued or running.
+        Returns the status.'''
         current = self.status(conn, song_id)
-        if current['state'] in ('ready', 'queued', 'running'):
+        if current['state'] in ('queued', 'running') or (current['state'] == 'ready' and not again):
             return current
         if song_file(conn, song_id) is None:
             raise KeyError(song_id)
@@ -190,6 +197,7 @@ class Stems:
         webm, manifest = self.paths(song_id)
         tmp_webm = webm[:-len('.webm')] + '.part.webm'
         tmp_manifest = tmp_webm[:-len('.webm')] + '.json'
+        tmp_peaks = tmp_webm[:-len('.webm')] + '.peaks.json'
         try:
             done = subprocess.run(self.command + [path, tmp_webm], capture_output=True, text=True,
                                   timeout=self.timeout, stdin=subprocess.DEVNULL)
@@ -205,9 +213,13 @@ class Stems:
                 return 'the command wrote no usable file and manifest'
             os.replace(tmp_webm, webm)
             os.replace(tmp_manifest, manifest)
+            if os.path.isfile(tmp_peaks):
+                os.replace(tmp_peaks, self.peaks_path(song_id))
+            elif os.path.exists(self.peaks_path(song_id)):
+                os.remove(self.peaks_path(song_id))      # an older split's: not this one's
             return None
         finally:
-            for f in (tmp_webm, tmp_manifest):
+            for f in (tmp_webm, tmp_manifest, tmp_peaks):
                 if os.path.exists(f):
                     os.remove(f)
 

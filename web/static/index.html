@@ -97,9 +97,27 @@
       hear only the guitar to learn its part. <span class="lead-sample"></span> in the seek bar: the guitar is loud
       and in the centre, often the lead or solo.</p>
     <p id="pr-status" class="hint"></p>
-    <div id="pr-mix" class="mix"></div>
-    <div class="dlg-buttons"><span class="hint">M mutes an instrument, S plays only the soloed ones. Kept in this
-      browser.</span><span class="grow"></span><button type="button" id="pr-reset" title="Every instrument at 100 %, nothing muted or soloed">Reset</button></div>
+    <label class="switch"><input type="checkbox" id="pr-on"> Play the instruments <span class="hint">(off: the
+      original file, untouched; a slider, M or S switches it on)</span></label>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-prtab="mix" aria-selected="true">Mix</button>
+      <button type="button" role="tab" data-prtab="waves" aria-selected="false">Waves</button>
+    </div>
+    <div id="pr-tab-mix">
+      <div id="pr-mix" class="mix"></div>
+      <div class="dlg-buttons"><span class="hint">M mutes an instrument, S plays only the soloed ones. Kept in this
+        browser.</span><span class="grow"></span><button type="button" id="pr-reset" title="Every instrument at 100 %, nothing muted or soloed">Reset</button></div>
+    </div>
+    <div id="pr-tab-waves" hidden>
+      <div class="dlg-buttons wrap"><span id="pr-lanes" class="lanes"></span><span class="grow"></span>
+        <button type="button" data-zoom="out" title="Zoom out (wheel)">−</button>
+        <button type="button" data-zoom="in" title="Zoom in (wheel)">+</button>
+        <button type="button" data-zoom="fit" title="The whole song">Fit</button></div>
+      <canvas id="pr-wave" class="waves"></canvas>
+      <p id="pr-wave-hint" class="hint">Click: go there · drag: mark a section (on the beat) · wheel: zoom · Shift+wheel: scroll</p>
+      <p id="pr-wave-none" class="hint" hidden>No waveforms for this song: it was split before 1.9.0.
+        <button type="button" id="pr-again">Split it again</button></p>
+    </div>
     <h3>Sections <span class="hint">(b begin, e end at the playing position, o loop on/off)</span></h3>
     <div id="pr-ab" class="sections"></div>
     <div id="pr-sections" class="sections"></div>
@@ -371,9 +389,10 @@
       <p>Press <b>x</b> (or <i>Practice</i>). The server splits the song once into vocals, drums, bass, guitar, keys
         and the rest (<i>Prepare this song</i>, about a minute); then every instrument has its own slider. The seek
         bar shows in colour where the guitar is loud and in the centre of the stereo image, often the solo.
-        A split song always plays through the mixer (at 100 % it sounds like the original); <b>M</b> mutes an
-        instrument, <b>S</b> solos it (only the soloed ones play). The levels are kept in this browser. Only offered
-        when the server has a splitter set up.</p>
+        <i>Play the instruments</i> switches from the original file to the split one (a slider, <b>M</b> or <b>S</b>
+        does it too); <b>M</b> mutes an instrument, <b>S</b> solos it (only the soloed ones play). The tab <i>Waves</i>
+        shows the song and its instruments as waveforms: click to go there, drag to mark a section, wheel to zoom.
+        The levels are kept in this browser. Only offered when the server has a splitter set up.</p>
       <p><b>Sections:</b> <b>b</b> marks the beginning and <b>e</b> the end at the playing position (on the beat when the
         song is split); <b>o</b> loops it. Every start of a section comes after a count-in in the song's tempo, so you
         have time to get your hands on the guitar. Name a section in the practice dialog to keep it for the song.</p>

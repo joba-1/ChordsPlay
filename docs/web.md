@@ -176,14 +176,14 @@ guess from the recording: on a mono or live recording it shows nothing useful.
 * **M** mutes an instrument, **S** solos it: with any instrument soloed, only the soloed
   ones play (e.g. S on guitar: the guitar alone). *Reset*: all at 100 %, nothing muted
   or soloed. The levels are kept in this browser.
-* A split song always plays through the mixer; a song that isn't split plays the
-  original. Once the split is done the song goes over to the mixer where it is.
-* While nothing is changed (all at 100 %, nothing muted or soloed) you hear the original
-  song, which the split file carries too: the instruments add up to it only nearly. Any
-  change crossfades to the instruments, *Reset* back. Songs split before 1.8.2 have no
-  original in the file and play the instruments; split them again (delete the song's
-  files in the stems folder, then *Prepare this song*). The cues, the amp's timing, takes
-  and displays work as before: the mix has the song's timeline.
+* **Play the instruments**: off, you hear the original file, untouched; on, the split
+  version through the mixer (the instruments add up to the song only nearly). A slider, M
+  or S switches it on by itself. Switching keeps the position. The cues, the amp's
+  timing, takes and displays work as before: the mix has the song's timeline.
+* **Waves** (the dialog's second tab): the song and the instruments you tick as
+  waveforms, with the beats, the lead marks and the marked section. Click to go there,
+  drag to mark a section (on the beat), wheel to zoom, Shift+wheel to scroll, *Fit* for
+  the whole song. Songs split before 1.9.0 have no waveforms: *Split it again*.
 * Sound: the mix plays through the browser's Web Audio; choosing the output (`a`) works
   for it as well (Chrome).
 

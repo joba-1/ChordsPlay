@@ -527,8 +527,9 @@ const MIX_MAX = 1.5;
 let practiceOffered = false;
 let practiceStatus = null;  // the current song's split: {state, error, manifest, ...}
 let practicePoll = null;
-let mix = { levels: {}, muted: {}, solo: {} };
-try { Object.assign(mix, JSON.parse(localStorage.getItem('practiceMix') || '{}')); delete mix.on; mix.solo ||= {}; } catch (e) { /* defaults */ }
+// on: play the instruments (the split file) instead of the original file
+let mix = { on: false, levels: {}, muted: {}, solo: {} };
+try { Object.assign(mix, JSON.parse(localStorage.getItem('practiceMix') || '{}')); mix.solo ||= {}; } catch (e) { /* defaults */ }
 // the Web Audio graph, made the first time a split song plays: an element can't leave it again
 let graph = null;           // {ctx, src, nodes, gains: {stem: {gain, group}}}
 
@@ -536,13 +537,14 @@ function saveMix() {
   try { localStorage.setItem('practiceMix', JSON.stringify(mix)); } catch (e) { /* not kept */ }
 }
 
-// where the song's sound comes from: the split file if the mix is on and the song is split
-// (the split's manifest also serves without the mix: the lead timeline and the beats)
+// where the song's sound comes from: the split file if the instruments are on and the song
+// is split, else the original file untouched (the instruments add up to it only nearly);
+// the split's manifest serves either way: the lead timeline and the beats
 async function songSource(id) {
   practiceStatus = null;
   if (practiceOffered) {
     try { practiceStatus = await api(`song/${id}/stems`); } catch (e) { /* the original then */ }
-    if (practiceStatus?.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
+    if (mix.on && practiceStatus?.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
   }
   return { url: 'api/audio/' + id, manifest: null };
 }
@@ -560,23 +562,19 @@ function routeAudio(manifest) {
   graph.nodes.forEach((n) => n.disconnect());
   graph.nodes = [];
   graph.gains = {};
-  graph.original = null;
   if (!manifest) { src.connect(ctx.destination); return; }
   const split = ctx.createChannelSplitter(manifest.channels);
   src.connect(split);
   graph.nodes.push(split);
-  const pairGain = (p) => {
+  for (const stem of manifest.stems) {     // (1.8.2's files also carry the original: not played)
     const pair = ctx.createChannelMerger(2);
-    split.connect(pair, 2 * p, 0);
-    split.connect(pair, 2 * p + 1, 1);
+    split.connect(pair, 2 * stem.pair, 0);
+    split.connect(pair, 2 * stem.pair + 1, 1);
     const gain = ctx.createGain();
     pair.connect(gain).connect(ctx.destination);
     graph.nodes.push(pair, gain);
-    return gain;
-  };
-  for (const stem of manifest.stems) graph.gains[stem.name] = { gain: pairGain(stem.pair), group: stem.group };
-  // the song itself: plays while the mix is untouched (the stems add up to it only nearly)
-  if (manifest.original) graph.original = pairGain(manifest.original.pair);
+    graph.gains[stem.name] = { gain, group: stem.group };
+  }
   applyMix(true);
 }
 player.addEventListener('play', () => { if (graph?.ctx.state === 'suspended') graph.ctx.resume(); });
@@ -592,24 +590,25 @@ function soloed(name, group) {
   return !!(mix.solo[name] || (group && mix.solo[group]));
 }
 
-// nothing changed: every instrument at 100 %, none muted or soloed
-function mixUntouched() {
-  return Object.entries(graph?.gains || {}).every(([n, g]) =>
-    stemLevel(n) === 1 && (!g.group || stemLevel(g.group) === 1) && !mix.solo[n] && !(g.group && mix.solo[g.group]));
-}
-
 function applyMix(now) {
   if (!graph) return;
-  const original = !!graph.original && mixUntouched();
-  const set = (gain, v) => {
-    if (now) gain.gain.value = v;
-    else gain.gain.setTargetAtTime(v, graph.ctx.currentTime, 0.02);    // a crossfade of ~0.1 s
-  };
   for (const [name, { gain, group }] of Object.entries(graph.gains)) {
-    set(gain, original || !soloed(name, group) ? 0 : stemLevel(name) * (group ? stemLevel(group) : 1));
+    const v = soloed(name, group) ? stemLevel(name) * (group ? stemLevel(group) : 1) : 0;
+    if (now) gain.gain.value = v;
+    else gain.gain.setTargetAtTime(v, graph.ctx.currentTime, 0.02);
   }
-  if (graph.original) set(graph.original, original ? 1 : 0);
-  if ($('#d-practice').open) showPractice();
+}
+
+// a change in the mixer while the original plays: over to the instruments
+async function mixTouched() {
+  saveMix();
+  if (!mix.on) {
+    mix.on = true;
+    saveMix();
+    if (practiceStatus?.state === 'ready') { await reloadSource(); toast('Playing the instruments'); }
+    showPractice();
+  }
+  applyMix();
 }
 
 // go over to the original or the split file where the song is, playing on if it played
@@ -663,9 +662,9 @@ function showPractice() {
   else if (st.state === 'queued') text = 'Waiting for the splitter (it does one song at a time)…';
   else if (st.state === 'running') text = 'Splitting the song, about a minute…';
   else if (st.state === 'failed') text = 'Splitting failed: ' + (st.error || 'unknown error');
-  else if (!playing) text = 'Split: plays through the mixer from the next start.';
-  else if (graph?.original && mixUntouched()) text = 'Playing the original song: change a level, M or S to hear the instruments.';
-  else text = 'Playing the instruments' + (graph?.original ? ' (all at 100 % plays the original song).' : '.');
+  else if (playing) text = 'Split: playing the instruments, at the levels below.';
+  else text = 'Split: playing the original file. Switch the instruments on (or move a slider) to mix.';
+  $('#pr-on').checked = mix.on;
   $('#pr-title').textContent = song ? `Practice mix: ${song.title}` : 'Practice mix';
   $('#pr-status').textContent = text;
   $('#pr-prepare').hidden = !song || !st || !['none', 'failed'].includes(st.state);
@@ -681,11 +680,12 @@ async function refreshPractice() {
   showPractice();
   renderMix();
   renderSections();
-  if (practiceStatus?.state === 'ready') drawSeekMarks();
+  if (practiceStatus?.state === 'ready') { drawSeekMarks(); loadPeaks(); }
+  showWaveState();
   if (['queued', 'running'].includes(practiceStatus?.state) && $('#d-practice').open) {
     practicePoll = setTimeout(async () => {
       await refreshPractice();
-      if (practiceStatus?.state === 'ready') { await reloadSource(); showPractice(); }
+      if (practiceStatus?.state === 'ready' && mix.on) { await reloadSource(); showPractice(); }
     }, 2000);
   }
 }
@@ -694,11 +694,21 @@ function openPractice() {
   if (!practiceOffered) { toast('No practice mix on this server'); return; }
   renderMix();
   showPractice();
+  let tab = 'mix';
+  try { tab = localStorage.getItem('practiceTab') || 'mix'; } catch (e) { /* the first */ }
   $('#d-practice').showModal();
+  $(`#d-practice [data-prtab="${tab === 'waves' ? 'waves' : 'mix'}"]`).click();
   refreshPractice();
 }
 
 $('#d-practice').addEventListener('close', () => clearTimeout(practicePoll));
+
+$('#pr-on').addEventListener('change', async (e) => {
+  mix.on = e.target.checked;
+  saveMix();
+  await reloadSource();
+  showPractice();
+});
 
 $('#pr-prepare-all').addEventListener('click', async () => {
   let n = 0;
@@ -714,6 +724,13 @@ $('#pr-prepare-all').addEventListener('click', async () => {
 
 $('#pr-prepare').addEventListener('click', async () => {
   try { practiceStatus = await api(`song/${song.id}/stems`, { method: 'POST' }); } catch (e) { toast('Cannot split: ' + e.message); }
+  if (!mix.on) { mix.on = true; saveMix(); }    // split to practise: the instruments when it's done
+  refreshPractice();
+});
+
+$('#pr-again').addEventListener('click', async () => {
+  try { practiceStatus = await api(`song/${song.id}/stems`, { method: 'POST', body: { again: true } }); } catch (e) { toast('Cannot split: ' + e.message); }
+  peaks = null;
   refreshPractice();
 });
 
@@ -722,8 +739,7 @@ $('#pr-mix').addEventListener('input', (e) => {
   if (!name) return;
   mix.levels[name] = Number(e.target.value) / 100;
   e.target.nextElementSibling.textContent = e.target.value + ' %';
-  applyMix();
-  saveMix();
+  mixTouched();
 });
 
 $('#pr-mix').addEventListener('click', (e) => {
@@ -733,15 +749,234 @@ $('#pr-mix').addEventListener('click', (e) => {
   if (!set) return;
   set[name] = !set[name];
   e.target.setAttribute('aria-pressed', set[name]);
-  applyMix();
-  saveMix();
+  mixTouched();
 });
 
 $('#pr-reset').addEventListener('click', () => {
-  mix = { levels: {}, muted: {}, solo: {} };
+  mix = { on: mix.on, levels: {}, muted: {}, solo: {} };
   saveMix();
   renderMix();
   applyMix();
+});
+
+// --- waveforms of the song and its instruments, to find and mark a section ---------------
+
+const LANE_H = 34, RULER_H = 18, MIN_SPAN_S = 2;
+const LANE_NAMES = { song: 'Song', ...STEM_NAMES };
+let peaks = null;           // {id, rate, tracks: {name: Uint8Array}, max: {name}}
+let lanes = ['song', 'guitar', 'drums'];
+try { lanes = JSON.parse(localStorage.getItem('practiceLanes') || 'null') || lanes; } catch (e) { /* defaults */ }
+let prView = { start: 0, span: 0 };   // seconds shown
+let prViewHeld = 0;                   // the user scrolled or zoomed: don't follow the playhead until then
+let prDrag = null;
+let waveFrame = null;
+
+function prTab() { return $('#d-practice [data-prtab][aria-selected=true]').dataset.prtab; }
+
+$('#d-practice .tabs').addEventListener('click', (e) => {
+  const tab = e.target.dataset.prtab;
+  if (!tab) return;
+  for (const b of $('#d-practice .tabs').children) b.setAttribute('aria-selected', b.dataset.prtab === tab);
+  $('#pr-tab-mix').hidden = tab !== 'mix';
+  $('#pr-tab-waves').hidden = tab !== 'waves';
+  try { localStorage.setItem('practiceTab', tab); } catch (err) { /* not kept */ }
+  showWaveState();
+});
+
+async function loadPeaks() {
+  if (!song || !practiceStatus?.peaks) { if (peaks?.id !== song?.id) peaks = null; showWaveState(); return; }
+  if (peaks?.id === song.id) return;
+  const id = song.id;
+  try {
+    const r = await fetch(`api/stems/${id}.peaks.json`);
+    if (!r.ok) throw new Error(r.statusText);
+    const d = await r.json();
+    const tracks = {}, max = {};
+    for (const [name, b64] of Object.entries(d.tracks)) {
+      const bin = atob(b64);
+      const a = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      tracks[name] = a;
+      max[name] = Math.max(1, ...a);
+    }
+    if (song?.id === id) { peaks = { id, rate: d.rate, tracks, max }; prView = { start: 0, span: 0 }; }
+  } catch (e) { peaks = null; }
+  showWaveState();
+}
+
+function showWaveState() {
+  const waves = $('#d-practice').open && prTab() === 'waves';
+  const have = !!peaks && peaks.id === song?.id;
+  $('#pr-wave').hidden = !have;
+  $('#pr-wave-hint').hidden = !have;
+  $('#pr-wave-none').hidden = have || practiceStatus?.state !== 'ready';
+  $('#pr-lanes').innerHTML = ['song', ...mixRows().map((r) => r.name)]
+    .filter((n) => !have || peaks.tracks[n])
+    .map((n) => `<label><input type="checkbox" data-lane="${esc(n)}" ${lanes.includes(n) ? 'checked' : ''}>${esc(LANE_NAMES[n] || n)}</label>`).join('');
+  cancelAnimationFrame(waveFrame);
+  if (waves && have) waveFrame = requestAnimationFrame(waveLoop);
+}
+
+$('#pr-lanes').addEventListener('change', (e) => {
+  const n = e.target.dataset.lane;
+  if (!n) return;
+  lanes = e.target.checked ? [...new Set([...lanes, n])] : lanes.filter((x) => x !== n);
+  try { localStorage.setItem('practiceLanes', JSON.stringify(lanes)); } catch (err) { /* not kept */ }
+});
+
+function songLength() {
+  if (isFinite(player.duration) && player.duration > 0) return player.duration;
+  return peaks ? Math.max(...Object.values(peaks.tracks).map((a) => a.length)) / peaks.rate : 0;
+}
+
+function clampView() {
+  const d = songLength();
+  if (!prView.span || prView.span > d) prView.span = d;
+  prView.span = Math.max(Math.min(MIN_SPAN_S, d), prView.span);
+  prView.start = Math.min(Math.max(0, prView.start), Math.max(0, d - prView.span));
+}
+
+function waveLoop() {
+  if (!$('#d-practice').open || prTab() !== 'waves' || !peaks) return;
+  const t = player.currentTime;
+  if (!player.paused && Date.now() > prViewHeld && prView.span && (t < prView.start || t > prView.start + prView.span)) {
+    prView.start = t - prView.span * 0.1;   // page along with the song
+  }
+  drawWaves();
+  waveFrame = requestAnimationFrame(waveLoop);
+}
+
+function niceStep(span, width) {
+  for (const s of [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120]) if (width * s / span >= 70) return s;
+  return 300;
+}
+
+function drawWaves() {
+  const c = $('#pr-wave');
+  const shown = ['song', ...mixRows().map((r) => r.name)].filter((n) => lanes.includes(n) && peaks.tracks[n]);
+  const w = c.clientWidth, h = RULER_H + Math.max(1, shown.length) * LANE_H;
+  const dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+    c.style.height = h + 'px';
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+  }
+  const g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  clampView();
+  const { start, span } = prView;
+  if (!span) return;
+  const X = (t) => (t - start) / span * w;
+  const css = getComputedStyle(document.documentElement);
+  const col = (v, f) => css.getPropertyValue(v).trim() || f;
+  const fg = col('--fg', '#222'), muted = col('--muted', '#888'), line = col('--line', '#ccc');
+  const accent = col('--accent', '#2f6fdf'), lead = col('--lead', 'orange');
+  // the marked section
+  if (ab.a !== null && ab.b !== null) {
+    g.fillStyle = accent; g.globalAlpha = 0.18;
+    g.fillRect(X(ab.a), 0, X(ab.b) - X(ab.a), h);
+    g.globalAlpha = 1;
+  } else if (ab.a !== null) {
+    g.fillStyle = accent; g.fillRect(X(ab.a) - 1, 0, 2, h);
+  }
+  // ruler: time and the beats
+  g.font = '11px sans-serif'; g.textBaseline = 'top';
+  const beats = manifest()?.beats || [];
+  if (beats.length > 1 && w * (beats[1] - beats[0]) / span >= 5) {
+    g.fillStyle = line;
+    for (const b of beats) if (b >= start && b <= start + span) g.fillRect(X(b), RULER_H - 5, 1, 5);
+  }
+  const step = niceStep(span, w);
+  g.fillStyle = muted;
+  for (let t = Math.ceil(start / step) * step; t <= start + span; t += step) {
+    g.fillRect(X(t), 0, 1, 4);
+    g.fillText(step < 1 ? fmtPrecise(t) : fmt(t), X(t) + 3, 2);
+  }
+  // the lanes
+  const tl = manifest()?.timeline;
+  shown.forEach((name, k) => {
+    const y0 = RULER_H + k * LANE_H, mid = y0 + LANE_H / 2;
+    g.fillStyle = line; g.fillRect(0, y0, w, 1);
+    if (name === 'guitar' && tl?.lead) {
+      g.fillStyle = lead; g.globalAlpha = 0.35;
+      tl.lead.forEach((on, i) => { if (on) g.fillRect(X(i * tl.step), y0 + 1, w * tl.step / span + 0.5, LANE_H - 1); });
+      g.globalAlpha = 1;
+    }
+    const a = peaks.tracks[name], top = peaks.max[name], rate = peaks.rate;
+    g.fillStyle = name === 'song' ? fg : accent;
+    for (let x = 0; x < w; x++) {
+      const i0 = Math.floor((start + x / w * span) * rate);
+      const i1 = Math.max(i0 + 1, Math.floor((start + (x + 1) / w * span) * rate));
+      let v = 0;
+      for (let i = i0; i < i1 && i < a.length; i++) if (a[i] > v) v = a[i];
+      const half = (v / top) * (LANE_H / 2 - 3);
+      if (half > 0.3) g.fillRect(x, mid - half, 1, 2 * half);
+    }
+    const label = LANE_NAMES[name] || name;
+    g.fillStyle = col('--bg', '#fff'); g.globalAlpha = 0.8;
+    g.fillRect(2, y0 + 2, g.measureText(label).width + 6, 14);
+    g.globalAlpha = 1; g.fillStyle = fg;
+    g.fillText(label, 5, y0 + 3);
+  });
+  // where the song is
+  g.fillStyle = '#d63a3a';
+  g.fillRect(X(player.currentTime) - 0.5, 0, 1.5, h);
+}
+
+function waveTime(e) {
+  const r = $('#pr-wave').getBoundingClientRect();
+  return Math.min(songLength(), Math.max(0, prView.start + (e.clientX - r.left) / r.width * prView.span));
+}
+
+$('#pr-wave').addEventListener('pointerdown', (e) => {
+  prDrag = { x: e.clientX, t: waveTime(e), moved: false };
+  $('#pr-wave').setPointerCapture(e.pointerId);
+});
+$('#pr-wave').addEventListener('pointermove', (e) => {
+  if (!prDrag) return;
+  if (Math.abs(e.clientX - prDrag.x) > 4) prDrag.moved = true;
+  if (!prDrag.moved) return;
+  const t = waveTime(e);
+  ab = { a: snap(Math.min(t, prDrag.t)), b: snap(Math.max(t, prDrag.t)) };
+  prViewHeld = Date.now() + 4000;
+});
+$('#pr-wave').addEventListener('pointerup', (e) => {
+  if (!prDrag) return;
+  if (!prDrag.moved) player.currentTime = prDrag.t;
+  else if (!(ab.b > ab.a)) ab = { a: null, b: null };
+  prDrag = null;
+  showAb();
+});
+$('#pr-wave').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  prViewHeld = Date.now() + 4000;
+  clampView();
+  if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    prView.start += (e.shiftKey ? e.deltaY : e.deltaX) / $('#pr-wave').clientWidth * prView.span;
+  } else {
+    const t = waveTime(e), f = e.deltaY > 0 ? 1.25 : 0.8;
+    const span = prView.span * f;
+    prView.start = t - (t - prView.start) * f;
+    prView.span = span;
+  }
+  clampView();
+}, { passive: false });
+
+$('#pr-tab-waves').addEventListener('click', (e) => {
+  const z = e.target.dataset.zoom;
+  if (!z) return;
+  clampView();
+  const mid = !player.paused || (player.currentTime >= prView.start && player.currentTime <= prView.start + prView.span)
+    ? player.currentTime : prView.start + prView.span / 2;
+  if (z === 'fit') prView = { start: 0, span: songLength() };
+  else {
+    const f = z === 'in' ? 0.5 : 2;
+    prView.span *= f;
+    prView.start = mid - prView.span / 2;
+  }
+  prViewHeld = Date.now() + 2000;
+  clampView();
 });
 
 // --- sections: a part of the song once or looped, after a count-in (docs/spec-practice.md) ---

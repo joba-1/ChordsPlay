@@ -10,8 +10,9 @@ allows. One server holds the songs, chords and history; any browser is the playe
   the song files instead of the text.
 * Choosing what to play: filters by title, artist, capo, chords and tags; tags per user.
 * Practice mix: the song's instruments at your own levels (less guitar, only the guitar),
-  split once on the server (optional); the solos marked in the seek bar; sections to play
-  once or loop, after a count-in in the song's tempo.
+  split once on the server (optional); the solos marked in the seek bar; waveforms of the
+  song and its instruments; sections to play once or loop, after a count-in in the song's
+  tempo.
 * The playing song on a TV, tablet or phone: a link or QR code, or a TV paired once.
 * With a **Fender Mustang Micro Plus**: the amp switches to the preset or tone stored for
   the song, its artist or a part of the song; all presets equally loud; knobs per song;
@@ -47,7 +48,7 @@ settings; other devices reach it through a reverse proxy with a login.
 
 ## Status
 
-Version 1.8.2. In daily use on one server with one amp computer (CachyOS). Built and
+Version 1.9.0. In daily use on one server with one amp computer (CachyOS). Built and
 installed in containers for every listed system; the Mustang parts are tested with the amp
 on Arch/CachyOS, not yet on a Raspberry Pi. maneline's Micro Plus programs
 (`maneline-mmp`) come from a fork until upstream maneline has them.

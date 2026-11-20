@@ -32,6 +32,9 @@ if mode == 'bad':
     manifest['stems'][1]['pair'] = 2      # beyond the channels
 with open(out[:-5] + '.json', 'w') as f:
     json.dump(manifest, f)
+if mode == 'peaks':
+    with open(out[:-5] + '.peaks.json', 'w') as f:
+        json.dump({'rate': 100, 'tracks': {'song': 'AAE='}}, f)
 '''
 
 
@@ -125,6 +128,22 @@ class Worker(Base):
         self.assertEqual(self.stems.status(self.conn, sid)['state'], 'none')
         self.assertEqual(self.stems.request(self.conn, sid)['state'], 'queued')
 
+    def test_again_and_peaks(self):
+        sid = self.song()
+        os.environ['FAKE_STEMS'] = 'peaks'
+        self.stems.request(self.conn, sid)
+        self.stems.work_one()
+        st = self.stems.status(self.conn, sid)
+        self.assertTrue(st['peaks'])
+        self.assertEqual(self.stems.request(self.conn, sid)['state'], 'ready')        # not again by itself
+        self.assertEqual(self.stems.request(self.conn, sid, again=True)['state'], 'queued')
+        os.environ['FAKE_STEMS'] = 'ok'                     # this splitter writes no waveforms
+        self.stems.work_one()
+        st = self.stems.status(self.conn, sid)
+        self.assertEqual(st['state'], 'ready')
+        self.assertFalse(st['peaks'])                       # the old ones are gone, not kept wrong
+        self.assertFalse(os.path.exists(self.stems.peaks_path(sid)))
+
     def test_deleted_files_count_as_not_split(self):
         sid = self.song()
         self.stems.request(self.conn, sid)
@@ -216,6 +235,19 @@ class StemsApi(Api):
         part = self.client.get('/api/stems/{}.webm'.format(self.sid), headers={'Range': 'bytes=0-3'})
         self.assertEqual((part.status_code, part.data), (206, b'webm'))
         part.close()
+
+    def test_peaks_and_again(self):
+        url = '/api/stems/{}.peaks.json'.format(self.sid)
+        os.environ['FAKE_STEMS'] = 'peaks'
+        self.client.post('/api/song/{}/stems'.format(self.sid))
+        self.app.STEMS.work_one()
+        r = self.client.get(url)
+        self.assertEqual((r.status_code, r.get_json()['rate']), (200, 100))
+        r.close()
+        r = self.client.post('/api/song/{}/stems'.format(self.sid), json={'again': True}).get_json()
+        self.assertEqual(r['state'], 'queued')
+        self.assertEqual(self.client.get(url).status_code, 404)    # not ready while queued
+        os.environ.pop('FAKE_STEMS')
 
     def test_unknown_song(self):
         self.assertEqual(self.client.get('/api/song/9999/stems').status_code, 404)
