@@ -21,6 +21,8 @@ calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
   --free-ollama URL  when the GPU is busy, ask the Ollama server at URL (e.g.
                   http://127.0.0.1:11434) to unload its models first; Ollama loads them again
                   by itself on its next request
+  --rest-db DB    for finding the beats: the stems other than drums and bass this much
+                  quieter (default -6; needs beat_this, else librosa on the whole song)
   --model NAME    separation model (default BS-Roformer-SW.ckpt; must give a guitar stem)
   --model-dir DIR where the model is kept (default ~/.cache/chordsplay-stems)
   --kbits N       Opus bit rate per stereo pair (default 96: ~2.3 MB per minute for 6 pairs)
@@ -214,20 +216,49 @@ def peaks(path, rate=44100):
     return np.clip(np.round(p * 255), 0, 255).astype(np.uint8).tobytes()
 
 
-def beats_of(song):
-    """Tempo (bpm) and beat times (s) of the whole song (the drums alone miss intros
-    without drums). The tempo may be half or double the felt one: the page lets you halve
-    or double the count-in."""
-    import librosa
+def rhythm_mix(stems, rest_db):
+    """Drums and bass at full level, the other stems rest_db quieter: the beat as a listener
+    finds it (keyboards and synths mislead a beat tracker less), and where drums and bass
+    pause the rest still carries a beat, while an intro without rhythm stays quiet."""
     import numpy as np
+    import soundfile as sf
 
+    g = 10 ** (rest_db / 20)
+    mix, sr = None, None
+    for stem in STEMS:
+        x, sr = sf.read(stems[stem], always_2d=True)
+        x = x.mean(axis=1) * (1.0 if stem in ('drums', 'bass') else g)
+        mix = x if mix is None else mix[:len(x)] + x[:len(mix)]
+    return mix.astype('float32'), sr
+
+
+def beats_of(stems, song, rest_db, gpu, model_dir):
+    """Tempo (bpm) and beat times (s): beat_this (JKU, 2024) on the rhythm mix; without
+    beat_this installed, librosa's tracker on the whole song (less exact, constant tempo).
+    The tempo may be half or double the felt one: the page lets you halve or double it."""
+    import numpy as np
+    try:
+        os.environ.setdefault('TORCH_HOME', model_dir)      # its checkpoint goes next to the model
+        from beat_this.inference import Audio2Beats
+    except ImportError:
+        Audio2Beats = None
+    if Audio2Beats is not None:
+        signal, sr = rhythm_mix(stems, rest_db)
+        tracker = Audio2Beats(checkpoint_path='final0', device='cuda' if gpu else 'cpu', dbn=False)
+        times, _ = tracker(signal, sr)
+        times = np.asarray(times, dtype=float)
+        if len(times) < 4:
+            return None, [], 'beat_this'
+        tempo = 60 / float(np.median(np.diff(times)))
+        return round(tempo, 1), [round(float(t), 3) for t in times], 'beat_this'
+    import librosa
     y, sr = librosa.load(song, sr=22050, mono=True)
     tempo, frames = librosa.beat.beat_track(y=y, sr=sr)
     times = librosa.frames_to_time(frames, sr=sr)
     tempo = float(np.atleast_1d(tempo)[0])
     if tempo <= 0 or len(times) < 4:
-        return None, []
-    return round(tempo, 1), [round(float(t), 3) for t in times]
+        return None, [], 'librosa'
+    return round(tempo, 1), [round(float(t), 3) for t in times], 'librosa'
 
 
 def encode(pairs, out, kbits):
@@ -256,6 +287,8 @@ def main():
     parser.add_argument('--free-ollama', metavar='URL',
                         help='when the GPU is busy, unload the models of the Ollama server at URL first')
     parser.add_argument('--kbits', type=int, default=96, help='Opus kbit/s per stereo pair')
+    parser.add_argument('--rest-db', type=float, default=-6,
+                        help='level of the stems other than drums and bass for the beat tracker (dB)')
     parser.add_argument('--model-dir', default=os.path.expanduser('~/.cache/chordsplay-stems'))
     args = parser.parse_args()
     if not os.path.isfile(args.song):
@@ -268,7 +301,7 @@ def main():
         stems = separate(args.song, work, args.model, args.model_dir, gpu)
         pairs = [(stem, stems[stem]) for stem in STEMS]
         encode(pairs, args.out, args.kbits)
-        meta = {'version': 4, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
+        meta = {'version': 5, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
                 'device': 'gpu' if gpu else 'cpu',
                 'stems': [{'name': stem, 'pair': i} for i, (stem, _) in enumerate(pairs)]}
         # analysis only adds to the mix: if it fails, the stems are still usable
@@ -277,9 +310,9 @@ def main():
         except Exception as e:      # noqa: BLE001
             print('chordsplay-stems: no guitar timeline: {}'.format(e), file=sys.stderr)
         try:
-            tempo, beats = beats_of(args.song)
+            tempo, beats, tracker = beats_of(stems, args.song, args.rest_db, gpu, args.model_dir)
             if tempo:
-                meta['tempo'], meta['beats'] = tempo, beats
+                meta['tempo'], meta['beats'], meta['beat_tracker'] = tempo, beats, tracker
         except Exception as e:      # noqa: BLE001
             print('chordsplay-stems: no beats: {}'.format(e), file=sys.stderr)
         try:

@@ -1,6 +1,6 @@
 # Practice mix: the song's instruments at your own levels
 
-Status: 1.7.0 first version; 1.8.0 (2026-11-20): the guitar as one track again with a lead
+Status: 2.1.0 (beats with beat_this, lead-in); 1.7.0 first version; 1.8.0 (2026-11-20): the guitar as one track again with a lead
 timeline, practice sections with a count-in, splitting by tag at night; 1.9.0: the original
 file while not mixing, waveforms of the song and its instruments to find and mark a
 section, a stricter lead rule; 2.0.0: practice mode complete enough for a major
@@ -132,8 +132,8 @@ the count-in uses a default tempo.
   in the centre (*Hardest Button To Button*) then showed short marks everywhere. With
   the 1.9.0 rule: *Closer To The Heart* 1:24–1:50 (the solo), *Lakeside Park* the fills
   and the outro solo, *Hardest Button* nothing.
-* `tempo` (beats per minute) and `beats` (seconds) from librosa's beat tracker on the
-  drum stem (on the whole mix when the drums are nearly silent).
+* `tempo` (beats per minute, from the median beat interval), `beats` (seconds) and
+  `beat_tracker`: see *Finding the beats*.
 
 ### Guitar by position
 
@@ -166,6 +166,35 @@ level per 10 ms as one byte, base64 in `<song>.peaks.json` (~60 kB per minute fo
 tracks). Each lane is scaled to its own loudest peak, so a quiet stem shows its shape.
 Splits from before 1.9.0 have none: *Split it again*.
 
+### Finding the beats
+
+2.1.0 finds the beats with **beat_this** (JKU Linz, ISMIR 2024; MIT licence; a transformer
+on the spectrogram, no tempo or metre model behind it, so tempo changes are followed) on
+a **rhythm mix**: drums and bass at full level, the other stems 6 dB quieter
+(`--rest-db`). Without beat_this installed the splitter falls back to librosa on the whole
+song (one tempo for all of it; 1.8.0–2.0.x did that).
+
+Why, from listening to click tracks (2026-11-20; a click on every beat mixed into the song):
+
+* The whole mix misleads in places: in the intro of *Subdivisions* a synthesizer pattern
+  made the tracker insert half beats; drums and bass alone gave a steady pulse there.
+* Drums and bass alone miss passages without them: voice and guitar in *Freedom At 21*,
+  all of *Love Interruption* (no drums).
+* Filling such gaps with the whole mix's beats (tried as v4) found a slow false beat in
+  the rhythmless intro of *Sixteen Saltines*. The quieter rest (the user's idea) leaves
+  that intro quiet and catches the beat where it starts: at −12 dB "perfect", at −6 dB
+  better still (its one early beat is where quiet music starts). On *Freedom At 21*,
+  *Sixteen Saltines* and *Love Interruption* the beats were judged right, including a
+  tempo change in *Love Interruption*.
+* **Bars and time signatures are not used.** beat_this also estimates bar starts; in
+  steady 4/4 they were right, in Rush's metre changes (*Subdivisions*) "all over the
+  place", even after a Viterbi pass that allowed only common metres (3/4 … 13/8, on an
+  eighth-note grid) and made changes rare. The tracker's own confidence was ~1.0 also where
+  it was wrong, so the page can't tell good from bad passages either. So there is no stress
+  on a supposed "1", and the lead-in (below) is the way in that needs no beats at all.
+  Worth another look later: models aimed at odd metres (e.g. *Skip That Beat*, 2025;
+  *Explore This!*, a learned tatum grid, 2026).
+
 ### Sections and count-in
 
 * A **section** is a start and an end in the song. The page has one unnamed A–B section
@@ -174,8 +203,11 @@ Splits from before 1.9.0 have none: *Split it again*.
   every device has them.
 * Marks snap to the nearest beat when the manifest has beats (within 0.25 s), so a loop
   repeats in time.
-* **Count-in:** before a section plays, the page pauses at its start and clicks N beats
-  (2, 4 or 8; default 4) in the song's tempo, then plays. You can't start the song and
+* **The way in** (a setting): *Clicks* or *Lead-in*, each 2, 4 or 8 beats (or off).
+  *Lead-in* plays the song itself from N beats (at the local beat interval) before the
+  section's start: it needs no right beat, so it suits any metre. *Clicks*: before a
+  section plays, the page pauses at its start and clicks N beats in the song's tempo
+  (the median beat interval around the start), the first higher, no bar stress, then plays. You can't start the song and
   play at the same moment, so the count-in gives the time to get the hands on the guitar.
   The clicks come from a Web Audio oscillator in the song's own `AudioContext`; the song
   starts by a timer (~10–30 ms accuracy), enough to come in on the beat. With a splitter

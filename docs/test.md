@@ -48,6 +48,9 @@ On a desktop browser and a phone (1600×900, 1920×1080, 390×844):
   a section on beats, wheel zooms, the view pages along while playing; the next song
   without a split plays the original; the audio output (`a`) applies to the mix; the seek
   bar shows the lead parts of a split song.
+* Sections: *Lead-in* starts N beats before the section and loops back to the section (with
+  *before each repetition*: to the lead-in); after closing the dialog the keys work at once
+  (no focus left in it).
 * Sections: `b`/`e` land on beats, `o` counts in (clicks on the song's output) and loops
   at the end; Space during a section pauses and counts in again; a saved section is
   listed, plays once (stops at its end) and loops; ½×/2× change the count-in.

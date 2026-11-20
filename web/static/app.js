@@ -903,6 +903,12 @@ function drawWaves() {
     g.fillStyle = line;
     for (const b of beats) if (b >= start && b <= start + span) g.fillRect(X(b), RULER_H - 5, 1, 5);
   }
+  // the beats as faint lines through the lanes, when they are far enough apart to tell
+  if (beats.length > 1 && w * (beats[1] - beats[0]) / span >= 12) {
+    g.fillStyle = line; g.globalAlpha = 0.9;
+    for (const b of beats) if (b >= start && b <= start + span) g.fillRect(Math.round(X(b)), RULER_H, 1, h - RULER_H);
+    g.globalAlpha = 1;
+  }
   const step = niceStep(span, w);
   g.fillStyle = muted;
   for (let t = Math.ceil(start / step) * step; t <= start + span; t += step) {
@@ -1004,7 +1010,7 @@ let ab = { a: null, b: null };          // the unnamed section (keys b, e)
 let run = null;                         // the playing section: {a, b, loop}; null: plain playing
 let counting = null;                    // the count-in under way: {timer}
 let runWatch = null;
-let count = { beats: 4, each: false, factor: 1 };
+let count = { beats: 4, each: false, factor: 1, mode: 'clicks' };   // mode: clicks or lead (the song itself)
 try { Object.assign(count, JSON.parse(localStorage.getItem('practiceCount') || '{}')); } catch (e) { /* defaults */ }
 
 function saveCount() {
@@ -1064,17 +1070,26 @@ function stopCount() {
 }
 
 // pause at t, count in, then play
+// the way in to a section at t: clicks in the song's tempo while it waits, or the song
+// itself from n beats before t (no beat detection to trust: right in any metre)
 async function countInAt(t) {
   stopCount();
   player.pause();
-  player.currentTime = t;
   const n = Number(count.beats) || 0;
+  if (n && count.mode === 'lead') {
+    const from = Math.max(0, t - n * beatAt(t));
+    if (run) run.from = from;
+    player.currentTime = from;
+    player.play().catch(() => {});
+    return;
+  }
+  player.currentTime = t;
   if (!n) { player.play().catch(() => {}); return; }
   const ctx = clicks();
   if (ctx.state === 'suspended') await ctx.resume();
   const iv = beatAt(t);
   const t0 = ctx.currentTime + 0.15;
-  for (let i = 0; i < n; i++) click(ctx, t0 + i * iv, i % 4 === 0);
+  for (let i = 0; i < n; i++) click(ctx, t0 + i * iv, i === 0);   // no bar stress: the "1" isn't known
   const startIn = t0 + n * iv - ctx.currentTime - 0.02;     // play() takes a moment to sound
   counting = { timer: setTimeout(() => { counting = null; player.play().catch(() => {}); }, startIn * 1000) };
   toast(`Count-in: ${n} beats`, Math.min(4000, startIn * 1000));
@@ -1093,10 +1108,10 @@ function startRun(a, b, loop, mark = true) {
   clearInterval(runWatch);
   runWatch = setInterval(() => {
     if (!run || player.paused || counting) return;
-    if (player.currentTime >= run.b - 0.01 || player.currentTime < run.a - 0.5) {
+    if (player.currentTime >= run.b - 0.01 || player.currentTime < (run.from ?? run.a) - 0.5) {
       if (!run.loop) { player.pause(); player.currentTime = run.b; endRun(); return; }
       if (count.each) countInAt(run.a);
-      else player.currentTime = run.a;
+      else { run.from = null; player.currentTime = run.a; }
     }
   }, 20);
   $('#d-practice').open && $('#d-practice').close();
@@ -1206,6 +1221,7 @@ function renderSections() {
   $('#pr-sections').innerHTML = sections.map((x) =>
     sectionRow(esc(x.name), x.start, x.end, `<button type="button" data-del="${x.id}" title="Delete it">✕</button>`)).join('');
   $('#pr-count').value = String(count.beats);
+  $('#pr-count-mode').value = count.mode === 'lead' ? 'lead' : 'clicks';
   $('#pr-count-each').checked = !!count.each;
   $('#pr-tempo').textContent = tempoText();
 }
@@ -1233,6 +1249,7 @@ $('#d-practice').addEventListener('click', async (e) => {
 });
 
 $('#pr-count').addEventListener('change', (e) => { count.beats = Number(e.target.value); saveCount(); });
+$('#pr-count-mode').addEventListener('change', (e) => { count.mode = e.target.value; saveCount(); });
 $('#pr-count-each').addEventListener('change', (e) => { count.each = e.target.checked; saveCount(); });
 
 // --- display link (a TV or tablet shows the song, following this page) --------
@@ -2354,7 +2371,11 @@ const DIALOG_BUTTONS = { 'd-filter': 'b-filter', 'd-tags': 'b-tags', 'd-audio': 
                          'd-pdf': 'b-pdf', 'd-takes': 'b-takes', 'd-display': 'b-display', 'd-amp': 'b-tone',
                          'd-help': 'b-help' };
 const dialogWatch = new MutationObserver((changes) => {
-  for (const c of changes) document.getElementById(DIALOG_BUTTONS[c.target.id])?.classList.toggle('open', c.target.open);
+  for (const c of changes) {
+    document.getElementById(DIALOG_BUTTONS[c.target.id])?.classList.toggle('open', c.target.open);
+    // closed: the focus mustn't stay on a field in it, or the keys (Space, o, ...) go nowhere
+    if (!c.target.open && c.target.contains(document.activeElement)) document.activeElement.blur();
+  }
 });
 for (const id of Object.keys(DIALOG_BUTTONS)) dialogWatch.observe(document.getElementById(id), { attributes: true, attributeFilter: ['open'] });
 

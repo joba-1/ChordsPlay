@@ -105,10 +105,12 @@ about 4 GB free makes it take a minute per song; on the CPU it takes several.
    # the Python itself under /opt too: uv's default is root's home, which the service can't reach
    sudo env UV_PYTHON_INSTALL_DIR=/opt/chordsplay-stems-python uv venv -p 3.12 --managed-python /opt/chordsplay-stems
    sudo uv pip install -p /opt/chordsplay-stems/bin/python torch torchaudio --index-url https://download.pytorch.org/whl/cu128
-   sudo uv pip install -p /opt/chordsplay-stems/bin/python "audio-separator[gpu]" audioread
+   sudo uv pip install -p /opt/chordsplay-stems/bin/python "audio-separator[gpu]" audioread beat-this
    ```
 
-   It also needs `ffmpeg` with Opus.
+   It also needs `ffmpeg` with Opus. `beat-this` finds the beats (its checkpoint, 77 MB,
+   is downloaded at the first split into the model folder); without it the splitter uses
+   librosa, which assumes one tempo for the whole song.
 2. In `/etc/chordsplay/chordsplay.env`:
 
    ```

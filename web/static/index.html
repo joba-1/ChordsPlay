@@ -122,8 +122,10 @@
     <div id="pr-ab" class="sections"></div>
     <div id="pr-sections" class="sections"></div>
     <div class="dlg-buttons wrap">
-      <label class="hint">Count-in <select id="pr-count"><option value="0">off</option><option value="2">2 beats</option>
-        <option value="4">4 beats</option><option value="8">8 beats</option></select></label>
+      <label class="hint">Way in <select id="pr-count-mode" title="Clicks in the song's tempo while it waits, or the song itself from a few beats before (right in any metre)">
+        <option value="clicks">Clicks</option><option value="lead">Lead-in</option></select></label>
+      <select id="pr-count" aria-label="How many beats"><option value="0">off</option><option value="2">2 beats</option>
+        <option value="4">4 beats</option><option value="8">8 beats</option></select>
       <label class="hint"><input type="checkbox" id="pr-count-each"> before each repetition</label>
       <span class="hint" id="pr-tempo"></span>
       <button type="button" data-tempo="0.5" title="The count-in at half the tempo">½×</button>
@@ -394,8 +396,8 @@
         shows the song and its instruments as waveforms: click to go there, drag to mark a section, wheel to zoom.
         The levels are kept in this browser. Only offered when the server has a splitter set up.</p>
       <p><b>Sections:</b> <b>b</b> marks the beginning and <b>e</b> the end at the playing position (on the beat when the
-        song is split); <b>o</b> loops it. Every start of a section comes after a count-in in the song's tempo, so you
-        have time to get your hands on the guitar. Name a section in the practice dialog to keep it for the song.</p>
+        song is split); <b>o</b> loops it. Every start of a section comes after a way in, so you have time to get your hands
+        on the guitar: clicks in the song's tempo, or a lead-in (the song itself from a few beats before). Name a section in the practice dialog to keep it for the song.</p>
     </details>
 
     <details class="help">

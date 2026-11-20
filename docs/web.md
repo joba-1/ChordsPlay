@@ -166,12 +166,14 @@ guess from the recording: on a mono or live recording it shows nothing useful.
   when the song is split); the seek bar shows it framed. `o` loops it, `o` again stops.
   With nothing marked, `o` loops the whole song, and the dialog offers ▶ and ⟳ for the
   whole song, each with the count-in.
-* Every start of a section comes after a **count-in** (2, 4 or 8 beats, or off) in the
-  song's tempo, so you have time to get the hands on the guitar: `o`, and Space while a
-  section plays, pause and count in again from its beginning. Optionally before each
-  repetition too. The tempo is measured when the song is split and may be half or double
-  the felt one: *½×* and *2×* fix that (kept in this browser). Without a split the
-  count-in uses 100 bpm.
+* Every start of a section comes after a **way in**, so you have time to get the hands on
+  the guitar: *Clicks* (2, 4 or 8 in the song's tempo) or *Lead-in* (the song itself
+  from 2, 4 or 8 beats before the section; right in any metre, where clicks may not
+  be). `o`, and Space while a section plays, pause and start again that way. Optionally
+  before each repetition too. The beats are found when the song is split (drums and bass
+  first); the tempo may be half or double the felt one: *½×* and *2×* fix that (kept in
+  this browser). Without a split the way in uses 100 bpm. In *Waves* the beats show as
+  faint lines when zoomed in: you can see whether they sit on the drum hits.
 * In the practice dialog the marked section can be saved with a name (*Save as…*): the
   song's sections are listed there with ▶ (once), ⟳ (loop) and ✕, on every device.
 

@@ -1,3 +1,15 @@
+chordsplay (2.1.0-1) unstable; urgency=medium
+
+  * Beats found with beat_this on drums and bass with the rest 6 dB quieter
+    (librosa on the whole song without it): tempo changes followed, no false
+    beats in intros without rhythm.
+  * The way in to a section: clicks or a lead-in (the song itself from a few
+    beats before), the clicks without a supposed bar stress.
+  * The beats as faint lines in the waveforms; keys work at once after a
+    dialog is closed (the focus stayed in it).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 02:00:00 +0000
+
 chordsplay (2.0.3-1) unstable; urgency=medium
 
   * Practice: with nothing marked, play or loop the whole song with a count-in
