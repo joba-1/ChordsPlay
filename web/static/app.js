@@ -1080,10 +1080,14 @@ async function countInAt(t) {
   toast(`Count-in: ${n} beats`, Math.min(4000, startIn * 1000));
 }
 
-function startRun(a, b, loop) {
+// the whole song as a section: ends just before the song does, so the loop (and its
+// count-in) comes before the song's own repeat at its end
+function wholeSong() { return [0, Math.max(0.1, (player.duration || 0) - 0.05)]; }
+
+function startRun(a, b, loop, mark = true) {
   if (!song || !(b > a)) return;
   run = { a, b, loop };
-  ab = { a, b };
+  if (mark) ab = { a, b };
   showAb();
   countInAt(a);
   clearInterval(runWatch);
@@ -1124,7 +1128,12 @@ function markB() {
 
 function toggleLoop() {
   if (run) { endRun(); toast('Loop off'); return; }
-  if (ab.a === null || ab.b === null) { toast('Mark a section first: b at its beginning, e at its end'); return; }
+  if (ab.a === null || ab.b === null) {           // nothing marked: the whole song
+    if (!isFinite(player.duration)) return;
+    startRun(...wholeSong(), true, false);
+    toast('Looping the whole song: b and e mark a part');
+    return;
+  }
   startRun(ab.a, ab.b, true);
 }
 
@@ -1188,7 +1197,12 @@ function renderSections() {
   const abSet = ab.a !== null && ab.b !== null;
   $('#pr-ab').innerHTML = abSet
     ? sectionRow('<i>Marked</i>', ab.a, ab.b, '<button type="button" id="pr-save" title="Keep it for this song">Save as…</button>')
-    : `<span class="hint" style="grid-column: 1 / -1">${ab.a !== null ? `From ${fmtPrecise(ab.a)}: press e at the end.` : 'Nothing marked: b at the beginning, e at the end, while the song plays.'}</span>`;
+    : ab.a !== null
+      ? `<span class="hint" style="grid-column: 1 / -1">From ${fmtPrecise(ab.a)}: press e at the end.</span>`
+      : isFinite(player.duration)
+        ? sectionRow('<i>Whole song</i> <span class="hint">(nothing marked: b and e, or drag in Waves)</span>', ...wholeSong(),
+                     '<span></span>').replaceAll('data-run=', 'data-whole="1" data-run=')
+        : '';
   $('#pr-sections').innerHTML = sections.map((x) =>
     sectionRow(esc(x.name), x.start, x.end, `<button type="button" data-del="${x.id}" title="Delete it">✕</button>`)).join('');
   $('#pr-count').value = String(count.beats);
@@ -1198,7 +1212,7 @@ function renderSections() {
 
 $('#d-practice').addEventListener('click', async (e) => {
   const t = e.target;
-  if (t.dataset.run) { startRun(Number(t.dataset.a), Number(t.dataset.b), t.dataset.run === 'loop'); return; }
+  if (t.dataset.run) { startRun(Number(t.dataset.a), Number(t.dataset.b), t.dataset.run === 'loop', !t.dataset.whole); return; }
   if (t.dataset.tempo) {
     count.factor = Math.min(4, Math.max(0.25, count.factor * Number(t.dataset.tempo)));
     saveCount();

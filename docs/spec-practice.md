@@ -184,6 +184,9 @@ Splits from before 1.9.0 have none: *Split it again*.
   their own while the original played: a new output stream, which starts on the system's
   default output, and the amp bridge moves new browser streams to the Mustang only every
   2 s, after the count-in (found at the Mustang, 2026-11-20).
+* Nothing marked: the dialog offers the whole song as a section (▶, ⟳), and `o` loops it;
+  its end is 50 ms before the song's, so the loop and its count-in come before the
+  song's own repeat at the end.
 * Loop: at the section's end the song jumps back to its start, with a count-in each time
   or straight on (a setting). The end is checked every 20 ms, not by `timeupdate` (only
   ~4 times a second).

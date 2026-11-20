@@ -164,6 +164,8 @@ guess from the recording: on a mono or live recording it shows nothing useful.
 
 * `b` marks the beginning and `e` the end at the playing position (onto the nearest beat
   when the song is split); the seek bar shows it framed. `o` loops it, `o` again stops.
+  With nothing marked, `o` loops the whole song, and the dialog offers ▶ and ⟳ for the
+  whole song, each with the count-in.
 * Every start of a section comes after a **count-in** (2, 4 or 8 beats, or off) in the
   song's tempo, so you have time to get the hands on the guitar: `o`, and Space while a
   section plays, pause and count in again from its beginning. Optionally before each
