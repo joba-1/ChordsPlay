@@ -630,6 +630,17 @@ class Amp(Api):
         self.assertIn('USB', rec.error)
         self.assertIsNone(rec.state())
 
+    def test_delete_tone_with_its_cues(self):
+        alpha = self.song_ids()[0]
+        tone_id = self.client.post('/api/tones', json={'name': 'Solo', 'slot': 19, 'level': 3}).get_json()['id']
+        self.client.put('/api/song/{}/cues/5000'.format(alpha), json={'tone_id': tone_id})
+        self.assertEqual(self.client.get('/api/amp').get_json()['tone_usage'], {str(tone_id): 1})
+        r = self.client.delete('/api/tones/{}'.format(tone_id))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.get_json()['tones'], r.get_json()['tone_usage']), ([], {}))
+        self.assertEqual(self.client.get('/api/song/{}/cues'.format(alpha)).get_json()['cues'], [])
+        self.assertEqual(self.client.delete('/api/tones/{}'.format(tone_id)).status_code, 404)
+
     def test_save_tone_and_write_slot(self):
         from mmp import bridge as bridgemod
         self.app.get_db('jo').importPresetLevels({'method': 'played', 'presets': [{'slot': 19, 'correction_db': -1.4}]})

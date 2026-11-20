@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.6.7'
+__version__ = '1.6.8'
 
 log = logging.getLogger(__name__)
 
@@ -807,7 +807,7 @@ def song_cues(db, song_id):
 def amp():
     '''The amp's state (from the bridge) and the saved tones.'''
     db = get_db()
-    return jsonify(amp=amp_state(db.user), tones=db.getTones(), live_slot=LIVE_SLOT,
+    return jsonify(amp=amp_state(db.user), tones=db.getTones(), tone_usage=db.toneUsage(), live_slot=LIVE_SLOT,
                    sounds=suggestmod.sound_presets(db.conn), suggest_auto=bool(get_state(db, 'suggest_auto')),
                    audio_auto=bool(get_state(db, 'audio_auto')))
 
@@ -988,6 +988,17 @@ def save_tone():
     tone_id = db.saveTone(name, data['slot'], tone['base_name'], tone['level_db'], params or {})
     plan_changed(db.user)
     return jsonify(id=tone_id, tones=db.getTones())
+
+
+@app.route('/api/tones/<int:tone_id>', methods=['DELETE'])
+def delete_tone(tone_id):
+    '''Delete a tone; the cues that play it go too.'''
+    db = get_db()
+    if db.getTone(tone_id) is None:
+        abort(404)
+    db.delTone(tone_id)
+    plan_changed(db.user)
+    return jsonify(tones=db.getTones(), tone_usage=db.toneUsage())
 
 
 @app.route('/api/amp/write', methods=['POST'])

@@ -1,3 +1,11 @@
+chordsplay (1.6.8-1) unstable; urgency=medium
+
+  * The tone dialog is split into three independent parts: the song's cues
+    (each a preset or a saved tone), tones (a preset with level and knobs,
+    saved by name, deletable; works without a song) and the amp's setup.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 20 Nov 2026 12:00:00 +0000
+
 chordsplay (1.6.7-1) unstable; urgency=medium
 
   * Displays and the TV show the amp's current effect (preset or tone) and

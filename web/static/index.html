@@ -151,11 +151,16 @@
 <dialog id="d-amp">
   <form method="dialog">
     <h2 id="amp-title">Guitar tone</h2>
-    <p id="amp-status" class="hint"></p>
-    <p id="amp-audio" class="hint amp-audio" hidden><span id="amp-audio-text"></span>
-      <button type="button" id="amp-audio-go" title="On the computer the Mustang is paired with: connect its Bluetooth audio and move the browser's sound there (all its tabs)">Play through the Mustang</button>
-      <label title="Whenever a song plays and the browser on the amp computer doesn't play to the Mustang"><input type="checkbox" id="amp-audio-auto"> always</label></p>
-    <table id="amp-cues" class="cues"></table>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="cues" title="Which sound plays when in this song">Cues of this song</button>
+      <button type="button" role="tab" data-tab="tones" title="Make a sound from a preset: level and knobs, kept as a named tone">Tones</button>
+      <button type="button" role="tab" data-tab="setup" title="The Mustang's connection, the song's audio, sounds for suggestions">Amp</button>
+      <span class="grow"></span>
+      <span id="amp-status-line" class="hint"></span>
+    </div>
+
+    <section class="tab-page" data-page="cues">
+      <table id="amp-cues" class="cues"></table>
     <div id="amp-pos" class="amp-pos">
       <div class="amp-pos-row">
         <span id="amp-pos-what">New cue at</span>
@@ -178,55 +183,80 @@
       </div>
       <p id="amp-wave-hint" class="hint"></p>
     </div>
-    <p id="amp-artist" class="hint"></p>
-    <p id="amp-suggest" class="hint"></p>
-    <details id="amp-sounds-box">
-      <summary>Preset per sound (for suggestions)</summary>
+      <div class="amp-pick">
+        <label>Sound for the cue: a preset or a saved tone<select id="cue-sound" size="12"></select></label>
+        <label class="level">Level (presets)
+          <select id="cue-level" title="Original: the preset as stored in the amp. Otherwise level-matched by your measurement, plus this much">
+            <option value="">original</option><option value="-6">-6 dB</option><option value="-5">-5 dB</option><option value="-4">-4 dB</option><option value="-3">-3 dB</option><option value="-2">-2 dB</option><option value="-1">-1 dB</option><option value="0">matched (0 dB)</option><option value="1">+1 dB</option><option value="2">+2 dB</option><option value="3">+3 dB</option><option value="4">+4 dB</option><option value="5">+5 dB</option><option value="6">+6 dB</option>
+          </select>
+          <span class="hint" id="cue-level-hint"></span>
+        </label>
+      </div>
+      <p id="cue-tuned" class="hint" hidden></p>
+      <div class="dlg-buttons wrap">
+        <button type="button" id="cue-try" title="Switch the amp now; nothing is stored">Try now</button>
+        <button type="button" id="amp-start">Save from start</button>
+        <button type="button" id="amp-here" title="A new cue at the position above, with the chosen sound">Save as new cue</button>
+        <button type="button" id="amp-update" hidden title="The cue being edited: move it to the position above and give it the chosen sound">Update cue</button>
+        <button type="button" id="amp-artist-save" title="For every song of this artist without its own start preset (presets only)">Save for artist</button>
+        <span class="grow"></span>
+        <button value="close">Close</button>
+      </div>
+      <p id="amp-artist" class="hint"></p>
+      <p id="amp-suggest" class="hint"></p>
+    </section>
+
+    <section class="tab-page" data-page="tones" hidden>
+      <p class="hint">A tone is a preset with its own level and knob settings, under a name. Saved tones can be chosen for
+        any song's cues. Nothing here changes a cue.</p>
+      <div class="amp-pick">
+        <label>Start from a preset<select id="tone-presets" size="10"></select></label>
+        <label>or a saved tone<select id="tone-saved" size="10"></select></label>
+        <label class="level">Level
+          <select id="tone-level" title="Original: the preset as stored in the amp. Otherwise level-matched by your measurement, plus this much">
+            <option value="">original</option><option value="-6">-6 dB</option><option value="-5">-5 dB</option><option value="-4">-4 dB</option><option value="-3">-3 dB</option><option value="-2">-2 dB</option><option value="-1">-1 dB</option><option value="0">matched (0 dB)</option><option value="1">+1 dB</option><option value="2">+2 dB</option><option value="3">+3 dB</option><option value="4">+4 dB</option><option value="5">+5 dB</option><option value="6">+6 dB</option>
+          </select>
+          <span class="hint" id="tone-level-hint"></span>
+        </label>
+      </div>
+      <p class="hint" id="amp-knobs-hint"></p>
+      <div id="amp-knobs" class="knobs"></div>
+      <div class="dlg-buttons wrap">
+        <button type="button" id="tone-try" title="Switch the amp to this sound now; nothing is stored">Try now</button>
+        <label><input type="checkbox" id="amp-live" checked> Play while adjusting</label>
+        <button type="button" id="amp-knobs-reset" title="Back to the preset's own settings">Reset knobs</button>
+        <span class="grow"></span>
+        <button type="button" id="amp-tone-save" title="Keep the preset with its level and knobs as a named tone (a tone of the same name is replaced)">Save as tone…</button>
+        <button type="button" id="tone-del" hidden title="Delete the saved tone; cues that play it are deleted too">Delete tone</button>
+        <button type="button" id="amp-write" title="Write it into a free slot of the amp (72–99), for the amp's own buttons">Write to amp slot…</button>
+        <button value="close">Close</button>
+      </div>
+    </section>
+
+    <section class="tab-page" data-page="setup" hidden>
+      <p id="amp-status" class="hint"></p>
+      <p id="amp-audio" class="hint amp-audio" hidden><span id="amp-audio-text"></span>
+        <button type="button" id="amp-audio-go" title="On the computer the Mustang is paired with: connect its Bluetooth audio and move the browser's sound there (all its tabs)">Play through the Mustang</button>
+        <label title="Whenever a song plays and the browser on the amp computer doesn't play to the Mustang"><input type="checkbox" id="amp-audio-auto"> always</label></p>
+      <h3>Preset per sound (for suggestions)</h3>
       <p class="hint">The suggestion puts each song into one of these sounds; the song then starts with this preset if it has
         no preset of its own and none for its artist. Only songs the model knows are switched; guesses are only shown.</p>
       <label><input type="checkbox" id="amp-suggest-auto"> Play suggestions automatically (when a song has no
         preset of its own or of its artist)</label>
       <table id="amp-sounds" class="cues"></table>
-    </details>
-    <div class="amp-pick">
-      <label>Presets<select id="amp-presets" size="12"></select></label>
-      <label>Tones<select id="amp-tones" size="12"></select></label>
-      <label class="level">Level
-        <select id="amp-level" title="Original: the preset as stored in the amp. Otherwise level-matched by your measurement, plus this much">
-          <option value="">original</option><option value="-6">-6 dB</option><option value="-5">-5 dB</option><option value="-4">-4 dB</option><option value="-3">-3 dB</option><option value="-2">-2 dB</option><option value="-1">-1 dB</option><option value="0">matched (0 dB)</option><option value="1">+1 dB</option><option value="2">+2 dB</option><option value="3">+3 dB</option><option value="4">+4 dB</option><option value="5">+5 dB</option><option value="6">+6 dB</option>
-        </select>
-        <span class="hint" id="amp-level-hint"></span>
-      </label>
-    </div>
-    <details id="amp-knobs-box">
-      <summary>Knobs of the chosen preset: adjust while the song plays</summary>
-      <p class="hint" id="amp-knobs-hint"></p>
-      <div id="amp-knobs" class="knobs"></div>
       <div class="dlg-buttons">
-        <label><input type="checkbox" id="amp-live" checked> Play while adjusting</label>
+        <button type="button" id="amp-bridge" title="Once, for the computer the Mustang is connected to: it then switches the Mustang for you">Set up amp control…</button>
         <span class="grow"></span>
-        <button type="button" id="amp-knobs-reset" title="Back to the preset's own settings">Reset knobs</button>
+        <button value="close">Close</button>
       </div>
-    </details>
-    <div class="dlg-buttons wrap">
-      <button type="button" id="amp-try" title="Switch the amp now; nothing is stored">Try now</button>
-      <button type="button" id="amp-start">Save from start</button>
-      <button type="button" id="amp-here" title="A new cue at the position above, with the chosen sound">Save as new cue</button>
-      <button type="button" id="amp-update" hidden title="The cue being edited: move it to the position above and give it the chosen sound">Update cue</button>
-      <button type="button" id="amp-tone-save" title="Keep the chosen preset with its level and knobs as a named tone">Save as tone…</button>
-      <button type="button" id="amp-write" title="Write it into a free slot of the amp (72–99), for the amp's own buttons">Write to amp slot…</button>
-      <button type="button" id="amp-artist-save" title="For every song of this artist without its own start preset">Save for artist</button>
-      <span class="grow"></span>
-      <button type="button" id="amp-bridge" title="Once, for the computer the Mustang is connected to: it then switches the Mustang for you">Set up amp control…</button>
-      <button value="close">Close</button>
-    </div>
-    <div id="amp-bridge-box" hidden>
-      <p class="hint">Amp control runs on the computer the Mustang is connected to and switches it for you. To set it up,
-        that computer needs this line in <code>~/.config/chordsplay/bridge.env</code>, then
-        <code>systemctl --user enable --now chordsplay-amp-bridge</code> (package <code>chordsplay-mmp</code>). A new line replaces the previous one: amp control with the old line stops
-        until it gets the new one.</p>
-      <p><code id="amp-bridge-line" class="copy"></code></p>
-    </div>
+      <div id="amp-bridge-box" hidden>
+        <p class="hint">Amp control runs on the computer the Mustang is connected to and switches it for you. To set it up,
+          that computer needs this line in <code>~/.config/chordsplay/bridge.env</code>, then
+          <code>systemctl --user enable --now chordsplay-amp-bridge</code> (package <code>chordsplay-mmp</code>). A new line replaces the previous one: amp control with the old line stops
+          until it gets the new one.</p>
+        <p><code id="amp-bridge-line" class="copy"></code></p>
+      </div>
+    </section>
   </form>
 </dialog>
 
@@ -279,14 +309,21 @@
 
     <details class="help">
       <summary>Guitar tone (Mustang Micro Plus)</summary>
-      <p>Press <b>g</b> (or <i>Tone</i>) to choose the Mustang's sound for this song: from the start, from a point in the
-        song, or for all songs of the artist. <i>Level</i> makes all sounds equally loud (<i>matched</i>), or louder or
-        quieter, e.g. +3 for a solo. <i>Knobs</i> adjust effects while the song plays; <i>Save</i> keeps them with the
-        song. <b>G</b> keeps the sound the Mustang has right now (chosen with its own buttons) for this song.</p>
+      <p>Press <b>g</b> (or <i>Tone</i>). It has three parts, each on its own:</p>
+      <ul>
+        <li><i>Cues of this song</i>: which sound plays from the start, from a point in the song, or for all songs of the
+          artist. A sound is a preset of the amp or a saved tone. <i>Level</i> makes all sounds equally loud
+          (<i>matched</i>), or louder or quieter, e.g. +3 for a solo.</li>
+        <li><i>Tones</i>: make a sound from a preset (level and knobs, adjusted while the song plays) and save it under a
+          name; it then appears in every song's list of sounds. Also writes a sound into a free slot of the amp.</li>
+        <li><i>Amp</i>: the Mustang's connection, the song's audio through the Mustang, presets for suggestions, and
+          setting up amp control.</li>
+      </ul>
+      <p><b>G</b> keeps the sound the Mustang has right now (chosen with its own buttons) for this song.</p>
       <p><b>Amp control, set up once:</b> the Mustang is switched by the computer it is connected to by Bluetooth (and
         USB for takes). On that computer:</p>
       <ol>
-        <li>Open this page there, press <b>g</b>, then <i>Set up amp control…</i>. Copy the line it shows.</li>
+        <li>Open this page there, press <b>g</b>, then <i>Amp</i>, <i>Set up amp control…</i>. Copy the line it shows.</li>
         <li>Ask the person who looks after your computers to put that line into the amp control's settings and start it
           (instructions: <code>docs/web.md</code>, "Amp bridge"). It then starts by itself with the computer.</li>
       </ol>

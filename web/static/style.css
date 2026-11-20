@@ -132,8 +132,18 @@ dialog::backdrop { background: rgb(0 0 0 / 0.35); }
             background: var(--fg); color: var(--bg); font-size: 12px; font-variant-numeric: tabular-nums;
             pointer-events: none; white-space: nowrap; display: none; z-index: 5; }
 .seek:hover #seek-tip, .seek.drag #seek-tip { display: block; }
-/* the tone dialog holds the cue editor, two lists and a row of buttons: as wide as the screen allows */
-#d-amp { max-width: min(1180px, calc(100vw - 32px)); }
+/* the tone dialog: three independent parts (cues, tones, amp) as tabs, as wide as the screen allows,
+   the same width for each so switching doesn't jump */
+#d-amp { width: min(1180px, calc(100vw - 32px)); max-width: none; margin-top: 4vh; }   /* top fixed: the tabs stay put */
+#d-amp .tabs { display: flex; gap: 4px; align-items: flex-end; border-bottom: 1px solid var(--line); margin: 0 0 8px; flex-wrap: wrap; }
+#d-amp .tabs [role=tab] { border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; padding: 4px 12px;
+                         margin-bottom: -1px; background: var(--panel); color: var(--muted); }
+#d-amp .tabs [role=tab][aria-selected=true] { background: var(--bg); color: var(--fg); font-weight: 600; }
+#d-amp .tabs [role=tab]:disabled { opacity: 0.5; }
+#d-amp .tabs .grow { flex: 1; }
+#amp-status-line { margin: 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%; }
+#d-amp .tab-page[hidden] { display: none; }
+#d-amp h3 { font-size: 14px; margin: 12px 0 4px; }
 dialog h2 { margin: 0 0 8px; font-size: 17px; }
 .hint { color: var(--muted); margin: 6px 0; font-size: 13px; }
 .fields { display: grid; grid-template-columns: max-content 1fr; gap: 6px 10px; align-items: center; }
@@ -199,6 +209,7 @@ body.display.idle #remote.show, body.display.idle #remote.show * { cursor: point
 .cues tr.sel td { background: var(--current); }
 .amp-audio { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .amp-audio button { padding: 1px 8px; }
+.amp-audio[hidden] { display: none; }
 .amp-pos { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0 8px; }
 .amp-pos-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
 .amp-pos-row button { padding: 1px 7px; }
