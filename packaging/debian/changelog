@@ -1,3 +1,10 @@
+chordsplay (2.1.12-1) unstable; urgency=medium
+
+  * Waveforms: Follow keeps the playing position in the centre; scrolling by
+    hand switches it off and the view no longer jumps back.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 06:30:00 +0000
+
 chordsplay (2.1.11-1) unstable; urgency=medium
 
   * Waveforms: the wheel zooms by its movement (a mouse notch 6 %), not by a

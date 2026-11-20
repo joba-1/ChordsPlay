@@ -188,7 +188,8 @@ guess from the recording: on a mono or live recording it shows nothing useful.
 * **Waves** (the dialog's second tab): the song and the instruments you tick as
   waveforms, with the beats, the lead marks and the marked section. Click to go there,
   drag to mark a section (on the beat), wheel to zoom, Shift+wheel to scroll, *Fit* for
-  the whole song. Songs split before 1.9.0 have no waveforms: *Split it again*. When
+  the whole song. *Follow* keeps the playing position in the centre; scrolling by hand
+  switches it off, and the view stays where you put it. Songs split before 1.9.0 have no waveforms: *Split it again*. When
   there are none the tab says why (not split yet, loading, an error).
 * In the practice dialog Space plays and pauses (also its ▶/⏸ button), and `b`, `e`, `o`
   mark and loop as in the main window. Space never presses a button or switches a

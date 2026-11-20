@@ -157,8 +157,11 @@ instruments you choose as waveforms over one time axis, one lane each (34 px: th
 shape matters, not the amplitude), with the beats on the ruler, the lead marks on the
 guitar's lane, the marked section and the playing position. Click: go there; drag: mark
 a section (on the beat); wheel: zoom around the pointer; Shift+wheel: scroll; *−*, *+*,
-*Fit*. While the song plays the view pages along, except for a few seconds after you
-scrolled or zoomed.
+*Fit*. *Follow* (2.1.12; on by default, kept in the browser) keeps the playing position in
+the centre while the waveform moves under it; scrolling by hand switches it off and the
+view stays where it was put (before, it paged after the song a few seconds after a
+scroll: "do not jump if scrolled out"); zooming while following keeps the playing
+position in the centre; while a section is dragged the view holds still.
 
 2.1.5, after "no waveforms any more" at the Mustang (not reproduced with the same data):
 Shift+wheel arrives as `deltaX` in Chromium, which the scrolling ignored; an impossible

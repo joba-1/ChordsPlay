@@ -839,7 +839,15 @@ let peaksState = '';        // what the Waves tab says when there are none: load
 let lanes = ['song', 'guitar', 'drums'];
 try { lanes = JSON.parse(localStorage.getItem('practiceLanes') || 'null') || lanes; } catch (e) { /* defaults */ }
 let prView = { start: 0, span: 0 };   // seconds shown
-let prViewHeld = 0;                   // the user scrolled or zoomed: don't follow the playhead until then
+// follow: the playing position stays in the centre; scrolling by hand switches it off
+let prFollow = true;
+try { prFollow = localStorage.getItem('practiceFollow') !== '0'; } catch (e) { /* on */ }
+function setFollow(on) {
+  prFollow = on;
+  $('#pr-follow').setAttribute('aria-pressed', on);
+  try { localStorage.setItem('practiceFollow', on ? '1' : '0'); } catch (e) { /* not kept */ }
+}
+$('#pr-follow').addEventListener('click', (e) => { e.currentTarget.blur(); setFollow(!prFollow); });
 let prDrag = null;
 let waveFrame = null;
 
@@ -926,10 +934,8 @@ function clampView() {
 
 function waveLoop() {
   if (!$('#d-practice').open || prTab() !== 'waves' || !peaks) return;
-  const t = player.currentTime;
-  if (!player.paused && Date.now() > prViewHeld && prView.span && (t < prView.start || t > prView.start + prView.span)) {
-    prView.start = t - prView.span * 0.1;   // page along with the song
-  }
+  $('#pr-follow').setAttribute('aria-pressed', prFollow);
+  if (prFollow && prView.span && !prDrag?.moved) prView.start = player.currentTime - prView.span / 2;
   try {
     drawWaves();
   } catch (e) {
@@ -1040,7 +1046,6 @@ $('#pr-wave').addEventListener('pointermove', (e) => {
   if (!prDrag.moved) return;
   const t = waveTime(e);
   ab = { a: snap(Math.min(t, prDrag.t)), b: snap(Math.max(t, prDrag.t)) };
-  prViewHeld = Date.now() + 4000;
 });
 $('#pr-wave').addEventListener('pointerup', (e) => {
   if (!prDrag) return;
@@ -1051,14 +1056,16 @@ $('#pr-wave').addEventListener('pointerup', (e) => {
 });
 $('#pr-wave').addEventListener('wheel', (e) => {
   e.preventDefault();
-  prViewHeld = Date.now() + 4000;
   clampView();
   if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
     // Shift+wheel arrives as deltaX in Chromium (deltaY 0), in others as deltaY
     const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * wheelPx(e);
     prView.start += WHEEL_PAN * d / $('#pr-wave').clientWidth * prView.span;
+    if (prFollow) setFollow(false);                   // scrolled by hand: the view stays put
   } else {
-    const t = waveTime(e), f = WHEEL_ZOOM ** (Math.max(-300, Math.min(300, e.deltaY * wheelPx(e))) / 100);
+    // zoom around the pointer; while following, around the playing position (the centre)
+    const t = prFollow ? player.currentTime : waveTime(e);
+    const f = WHEEL_ZOOM ** (Math.max(-300, Math.min(300, e.deltaY * wheelPx(e))) / 100);
     const span = prView.span * f;
     prView.start = t - (t - prView.start) * f;
     prView.span = span;
@@ -1070,15 +1077,13 @@ $('#pr-tab-waves').addEventListener('click', (e) => {
   const z = e.target.dataset.zoom;
   if (!z) return;
   clampView();
-  const mid = !player.paused || (player.currentTime >= prView.start && player.currentTime <= prView.start + prView.span)
-    ? player.currentTime : prView.start + prView.span / 2;
+  const mid = prFollow ? player.currentTime : prView.start + prView.span / 2;
   if (z === 'fit') prView = { start: 0, span: songLength() };
   else {
     const f = z === 'in' ? 0.5 : 2;
     prView.span *= f;
     prView.start = mid - prView.span / 2;
   }
-  prViewHeld = Date.now() + 2000;
   clampView();
 });
 
