@@ -139,6 +139,7 @@ class Db(object):
                 base_slot     int not null check(base_slot between 1 and 100),
                 base_name     text,
                 level_db      real not null default 0,
+                level         real default null,
                 params        text not null default '{}',
                 created       text default (datetime('now'))
             );
@@ -156,6 +157,7 @@ class Db(object):
                 primary key   (user_id, name)
             );
         """)
+        self._upgrade_tones()
         try:
             self.conn.execute("insert into users (name) values (?)", (user,))
             log.info("created user {}".format(user))
@@ -583,12 +585,26 @@ WHERE s.lyrics_chords IS NOT NULL
     # --- tones: a base preset plus a level offset and knob settings, played by
     # audition on the amp's live slot; nothing is written to the amp
 
+    def _upgrade_tones(self):
+        '''Tones of 1.6.8 and before have no level column: the level as chosen (None: the
+        preset's own volume, "original"), which level_db alone can't tell from "matched".
+        It is derived once: "original" was stored as minus the slot's measured correction.'''
+        if 'level' in [c[1] for c in self.conn.execute("PRAGMA table_info(tones)")]:
+            return
+        self.conn.execute("ALTER TABLE tones ADD COLUMN level real default null")
+        for tone_id, slot, level_db in self.conn.execute("SELECT id, base_slot, level_db FROM tones").fetchall():
+            measured = self.getPresetLevel(slot)
+            original = measured is not None and measured[0] and abs(level_db + measured[0]) < 0.001
+            self.conn.execute("UPDATE tones SET level = ? WHERE id = ?", (None if original else level_db, tone_id))
+        self.conn.commit()
+        log.info("tones: level column added")
+
     def getTones(self):
         return [self._tone(row) for row in self.conn.execute(
-            "SELECT id, name, base_slot, base_name, level_db, params FROM tones ORDER BY name")]
+            "SELECT id, name, base_slot, base_name, level_db, params, level FROM tones ORDER BY name")]
 
     def getTone(self, tone_id):
-        row = self.conn.execute("SELECT id, name, base_slot, base_name, level_db, params FROM tones "
+        row = self.conn.execute("SELECT id, name, base_slot, base_name, level_db, params, level FROM tones "
                                 "WHERE id = ?", (tone_id,)).fetchone()
         return self._tone(row) if row else None
 
@@ -596,10 +612,12 @@ WHERE s.lyrics_chords IS NOT NULL
     def _tone(row):
 
         return {'id': row[0], 'name': row[1], 'base_slot': row[2], 'base_name': row[3],
-                'level_db': row[4], 'params': json.loads(row[5] or '{}')}
+                'level_db': row[4], 'params': json.loads(row[5] or '{}'), 'level': row[6]}
 
-    def saveTone(self, name, base_slot, base_name, level_db, params):
-        '''Insert or update the tone called name; returns its id.'''
+    def saveTone(self, name, base_slot, base_name, level_db, params, level=None):
+        '''Insert or update the tone called name; returns its id. level_db is what the amp
+        plays (before the slot's measured correction); level is the level as chosen
+        (None: "original", the preset's own volume).'''
 
         name = name.strip()
         if not name:
@@ -607,13 +625,13 @@ WHERE s.lyrics_chords IS NOT NULL
         params_json = json.dumps(params, sort_keys=True)
         row = self.conn.execute("SELECT id FROM tones WHERE name = ?", (name,)).fetchone()
         if row:
-            self.conn.execute("UPDATE tones SET base_slot = ?, base_name = ?, level_db = ?, params = ? "
-                              "WHERE id = ?", (base_slot, base_name, float(level_db), params_json, row[0]))
+            self.conn.execute("UPDATE tones SET base_slot = ?, base_name = ?, level_db = ?, params = ?, level = ? "
+                              "WHERE id = ?", (base_slot, base_name, float(level_db), params_json, level, row[0]))
             tone_id = row[0]
         else:
             tone_id = self.conn.execute(
-                "INSERT INTO tones (name, base_slot, base_name, level_db, params) VALUES (?, ?, ?, ?, ?)",
-                (name, base_slot, base_name, float(level_db), params_json)).lastrowid
+                "INSERT INTO tones (name, base_slot, base_name, level_db, params, level) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, base_slot, base_name, float(level_db), params_json, level)).lastrowid
         self.conn.execute("UPDATE song_presets SET slot_name = ? WHERE tone_id = ?", (name, tone_id))
         self.conn.commit()
         return tone_id

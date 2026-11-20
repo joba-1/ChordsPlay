@@ -726,7 +726,8 @@ function presetOptions(names, st, prefix = '') {
 }
 
 function toneLabel(t) {
-  return `${esc(t.name)} (${t.base_slot} ${esc(t.base_name || '')}, ${t.level_db >= 0 ? '+' : ''}${t.level_db} dB)`;
+  const lv = t.level === null || t.level === undefined ? 'original' : t.level === 0 ? 'matched' : `${t.level > 0 ? '+' : ''}${t.level} dB`;
+  return `${esc(t.name)} (${t.base_slot} ${esc(t.base_name || '')}, ${lv})`;
 }
 
 function renderAmp() {
@@ -1252,8 +1253,7 @@ $('#tone-saved').addEventListener('change', () => {
   toneFrom = t;
   $('#tone-presets').value = String(t.base_slot);
   $('#tone-presets').selectedOptions[0]?.scrollIntoView({ block: 'nearest' });
-  // a tone keeps its level in dB; "original" was stored as minus the measured correction
-  $('#tone-level').value = Number.isInteger(t.level_db) && Math.abs(t.level_db) <= 6 ? String(t.level_db) : '';
+  $('#tone-level').value = t.level === null || t.level === undefined ? '' : String(t.level);
   knobSlot = t.base_slot;
   knobParams = { ...(t.params || {}) };
   renderAmp();

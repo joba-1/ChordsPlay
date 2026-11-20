@@ -226,8 +226,7 @@ every device plays them.
   BACKUP_DIR`) and asks the bridge to read a slot again when the amp's name for it changed.
 * *Save as tone…* names it; the same name replaces that tone (a loaded tone suggests its
   own name), so cues playing it get the new sound. *Delete tone* deletes it and the cues
-  that play it (it asks first and says how many). Note: a tone keeps its level in dB, so a
-  tone saved with *original* from a preset that wasn't measured loads back as *matched*.
+  that play it (it asks first and says how many).
 * *Write to amp slot…* writes the sound into a free slot of the
   amp (72–99), so the amp's own buttons call it up too: built exactly as it is heard by
   audition, read back after writing. The factory presets (1–71) and slot 100 (used for

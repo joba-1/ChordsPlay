@@ -92,6 +92,25 @@ class ToneDb(TempDb):
         with self.assertRaises(ValueError):
             db.saveTone('  ', 1, None, 0, {})
 
+    def test_tone_level_as_chosen(self):
+        db = self.db
+        self.assertIsNone(db.getTone(db.saveTone('Plain', 19, 'x', 1.4, {}))['level'])        # original
+        self.assertEqual(db.getTone(db.saveTone('Solo', 19, 'x', 3.0, {}, 3.0))['level'], 3.0)
+        self.assertEqual(db.getTone(db.saveTone('Solo', 19, 'x', 0.0, {}, 0.0))['level'], 0.0)  # matched
+
+    def test_old_tones_get_their_level(self):
+        db = self.db
+        db.importPresetLevels({'method': 'signal', 'presets': [{'slot': 19, 'correction_db': -1.4}]})
+        db.conn.execute("ALTER TABLE tones DROP COLUMN level")          # a database of 1.6.8
+        for name, slot, level_db in (('Plain', 19, 1.4), ('Solo', 19, 3.0), ('Unmeasured', 7, 0.0)):
+            db.conn.execute("INSERT INTO tones (name, base_slot, level_db) VALUES (?, ?, ?)", (name, slot, level_db))
+        db.commit()
+        path = db.conn.execute("PRAGMA database_list").fetchone()[2]
+        db.conn.close()
+        self.db = ChordsPlay.db.Db(path, 'tester')
+        self.assertEqual({t['name']: t['level'] for t in self.db.getTones()},
+                         {'Plain': None, 'Solo': 3.0, 'Unmeasured': 0.0})
+
     def test_preset_levels_only_signal_counts(self):
         db = self.db
         db.importPresetLevels({'method': 'noise', 'presets': [{'slot': 4, 'name': 'Metal 2000', 'correction_db': -31.6}]})

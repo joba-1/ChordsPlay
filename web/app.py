@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.6.8'
+__version__ = '1.6.9'
 
 log = logging.getLogger(__name__)
 
@@ -782,7 +782,7 @@ def sound_tone(db, tone_id, slot, slot_name, level, params):
     if params and level is not None:
         name += ' tuned'
     return {'id': tone_id, 'name': name, 'base_slot': slot, 'base_name': slot_name,
-            'level_db': level_db, 'params': params or {}}
+            'level_db': level_db, 'params': params or {}, 'level': level}
 
 
 def song_cues(db, song_id):
@@ -975,7 +975,8 @@ AMP_NAME_MAX = 16               # a longer preset name the amp ignores without a
 
 @app.route('/api/tones', methods=['POST'])
 def save_tone():
-    '''A tuned sound as a named tone: {name, slot, level, params}; a tone of that name is replaced.'''
+    '''A tuned sound as a named tone: {name, slot, level, params}; a tone of that name is replaced.
+    The level is kept as chosen too, so the tone editor loads it back exactly.'''
     db = get_db()
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
@@ -985,7 +986,7 @@ def save_tone():
     names = amp_names(db.user)
     tone = sound_tone(db, 0, data['slot'], names[data['slot'] - 1] if len(names) >= data['slot'] else None,
                       level, params)
-    tone_id = db.saveTone(name, data['slot'], tone['base_name'], tone['level_db'], params or {})
+    tone_id = db.saveTone(name, data['slot'], tone['base_name'], tone['level_db'], params or {}, level)
     plan_changed(db.user)
     return jsonify(id=tone_id, tones=db.getTones())
 

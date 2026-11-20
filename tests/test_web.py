@@ -650,6 +650,7 @@ class Amp(Api):
         self.assertEqual((tone['base_slot'], tone['level_db'], tone['params']), (19, 3.0, {'reverb.wetlvl': 0.6}))
         r = self.client.post('/api/tones', json={'name': 'Plain', 'slot': 19}).get_json()      # original
         self.assertEqual([t['level_db'] for t in r['tones'] if t['name'] == 'Plain'], [1.4])     # cancels -1.4
+        self.assertEqual([(t['name'], t['level']) for t in r['tones']], [('Carnies verse', 3.0), ('Plain', None)])
         # writing: free slots only, and only with a bridge
         body = {'target': 99, 'name': 'Carnies verse', 'slot': 19, 'level': 3, 'params': {'reverb.wetlvl': 0.6}}   # 13
         self.assertEqual(self.client.post('/api/amp/write', json=body).status_code, 409)

@@ -1,3 +1,10 @@
+chordsplay (1.6.9-1) unstable; urgency=medium
+
+  * A tone keeps its level as chosen (original, matched or +-N dB), so the
+    tone editor loads it back exactly; older tones get it on the first start.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 20 Nov 2026 12:00:00 +0000
+
 chordsplay (1.6.8-1) unstable; urgency=medium
 
   * The tone dialog is split into three independent parts: the song's cues
