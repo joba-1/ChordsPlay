@@ -1036,22 +1036,60 @@ function waveTime(e) {
   return Math.min(songLength(), Math.max(0, prView.start + (e.clientX - r.left) / r.width * prView.span));
 }
 
+// The selection in the waveform: drag on empty ground marks a new one, at an edge resizes it,
+// inside it moves it (its length kept); all on the beat, Shift held: free. A click without
+// dragging goes there.
+const EDGE_PX = 6;
+
+function wavePx(t) { return (t - prView.start) / prView.span * $('#pr-wave').clientWidth; }
+
+// what a press at this point would grab: 'a' or 'b' (an edge), 'move' (inside), 'new'
+function waveGrab(e) {
+  if (ab.a === null || ab.b === null) return 'new';
+  const x = e.clientX - $('#pr-wave').getBoundingClientRect().left;
+  const xa = wavePx(ab.a), xb = wavePx(ab.b);
+  if (Math.abs(x - xa) <= EDGE_PX) return 'a';
+  if (Math.abs(x - xb) <= EDGE_PX) return 'b';
+  return x > xa && x < xb ? 'move' : 'new';
+}
+
+function snapIf(e, t) { return e.shiftKey ? t : snap(t); }
+
+// a loop of the marked section follows the section when it changes
+function setAb(a, b) {
+  const loops = run && ab.a !== null && Math.abs(run.a - ab.a) < 1e-6 && Math.abs(run.b - ab.b) < 1e-6;
+  ab = { a, b };
+  if (loops && b > a) { run.a = a; run.b = b; }
+}
+
 $('#pr-wave').addEventListener('pointerdown', (e) => {
-  prDrag = { x: e.clientX, t: waveTime(e), moved: false };
+  prDrag = { x: e.clientX, t: waveTime(e), moved: false, grab: waveGrab(e), a: ab.a, b: ab.b };
   $('#pr-wave').setPointerCapture(e.pointerId);
+  if (prDrag.grab === 'move') $('#pr-wave').style.cursor = 'grabbing';
 });
 $('#pr-wave').addEventListener('pointermove', (e) => {
-  if (!prDrag) return;
+  if (!prDrag) {                                         // the pointer shows what a press would do
+    const g = waveGrab(e);
+    $('#pr-wave').style.cursor = g === 'a' || g === 'b' ? 'ew-resize' : g === 'move' ? 'grab' : 'crosshair';
+    return;
+  }
   if (Math.abs(e.clientX - prDrag.x) > 4) prDrag.moved = true;
   if (!prDrag.moved) return;
-  const t = waveTime(e);
-  ab = { a: snap(Math.min(t, prDrag.t)), b: snap(Math.max(t, prDrag.t)) };
+  const t = waveTime(e), d = prDrag;
+  if (d.grab === 'a') setAb(Math.min(snapIf(e, t), d.b - 0.05), d.b);
+  else if (d.grab === 'b') setAb(d.a, Math.max(snapIf(e, t), d.a + 0.05));
+  else if (d.grab === 'move') {
+    const len = d.b - d.a;
+    const a = Math.min(Math.max(0, snapIf(e, d.a + t - d.t)), songLength() - len);
+    setAb(a, a + len);
+  } else setAb(snapIf(e, Math.min(t, d.t)), snapIf(e, Math.max(t, d.t)));
 });
 $('#pr-wave').addEventListener('pointerup', (e) => {
   if (!prDrag) return;
   if (!prDrag.moved) player.currentTime = prDrag.t;
   else if (!(ab.b > ab.a)) ab = { a: null, b: null };
   prDrag = null;
+  $('#pr-wave').style.cursor = '';
   showAb();
 });
 $('#pr-wave').addEventListener('wheel', (e) => {

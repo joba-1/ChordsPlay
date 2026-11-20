@@ -157,7 +157,9 @@ instruments you choose as waveforms over one time axis, one lane each (34 px: th
 shape matters, not the amplitude), with the beats on the ruler, the lead marks on the
 guitar's lane, the marked section and the playing position. Click: go there; drag: mark
 a section (on the beat); wheel: zoom around the pointer; Shift+wheel: scroll; *−*, *+*,
-*Fit*. *Follow* (2.1.12; on by default, kept in the browser) keeps the playing position in
+*Fit*. The marked section can be resized (drag within 6 px of its start or end; the pointer
+shows ↔) and moved (drag inside it; its length kept), on the beat, with Shift held freely
+(2.1.13); a loop of it follows at once. *Follow* (2.1.12; on by default, kept in the browser) keeps the playing position in
 the centre while the waveform moves under it; scrolling by hand switches it off and the
 view stays where it was put (before, it paged after the song a few seconds after a
 scroll: "do not jump if scrolled out"); zooming while following keeps the playing

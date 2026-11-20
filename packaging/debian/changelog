@@ -1,3 +1,10 @@
+chordsplay (2.1.13-1) unstable; urgency=medium
+
+  * Waveforms: the marked section can be resized at its edges and moved by
+    dragging inside it, on the beat or with Shift freely; a loop follows.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sat, 21 Nov 2026 07:00:00 +0000
+
 chordsplay (2.1.12-1) unstable; urgency=medium
 
   * Waveforms: Follow keeps the playing position in the centre; scrolling by
