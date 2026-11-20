@@ -49,7 +49,7 @@ On the amp computer, amp on and connected by Bluetooth audio (and USB for takes)
 |---|---|
 | Bridge and agent | `systemctl --user status chordsplay-amp-bridge`: the bridge follows the server and starts the agent when the amp appears; the page shows `Mustang <slot> <name>` |
 | Switching | a song with a cue at 0, one with an artist preset, one with a cue in the middle: the amp switches at the start and at the cue, while the song plays |
-| Tone dialog | *Try now*, level −6 … +6, knobs with *Play while adjusting*, *Save as tone…* |
+| Tone dialog | *Try now*, level −12 … +12 dB in steps of 0.5, knobs with *Play while adjusting*, *Save as tone…* |
 | Takes | `r`, play a few seconds, `r`; `R` plays it back with song and guitar |
 | Levels | `chordsplay-match-levels` (signal cable, or `PLAYED=1`): the corrections arrive on the server |
 | Amp check | `mmp-backup`, then `mmp-check <backup dir> --all`: all checks pass |

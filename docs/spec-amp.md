@@ -189,7 +189,7 @@ the first tone after start-up comes a moment later.
 * Selecting a real slot ends the audition.
 
 **In the page's tone dialog:** the level next to the presets (*original*, or matched plus
-−6 … +6 dB), the knobs with *Play while adjusting*, and *Save as tone…* (see web.md).
+−12 … +12 dB in steps of 0.5 dB), the knobs with *Play while adjusting*, and *Save as tone…* (see web.md).
 
 **Level matching across presets** (`preset_levels`, imported from maneline's
 `mmp_level.py survey`):

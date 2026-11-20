@@ -356,6 +356,17 @@ class Amp(Api):
         self.assertEqual(self.client.put(cue(alpha, 11005), json={'to': 1.5}).status_code, 400)
         self.assertEqual(self.client.put(cue(alpha, 11005), json={}).status_code, 400)
 
+    def test_levels_in_half_db(self):
+        alpha = self.song_ids()[0]
+        r = self.client.put('/api/song/{}/cues/0'.format(alpha), json={'slot': 7, 'level': -1.5}).get_json()
+        self.assertEqual(r['cues'][0]['level'], -1.5)
+        r = self.client.post('/api/tones', json={'name': 'Half', 'slot': 7, 'level': 2.5}).get_json()
+        self.assertEqual([(t['level'], t['level_db']) for t in r['tones']], [(2.5, 2.5)])
+        self.assertEqual(self.client.put('/api/amp/sounds/clean', json={'slot': 48, 'level': 11.5}).status_code, 200)
+        for bad in (12.5, -13, '3'):
+            self.assertEqual(self.client.put('/api/song/{}/cues/0'.format(alpha),
+                                             json={'slot': 7, 'level': bad}).status_code, 400)
+
     def test_learn_needs_a_bridge_and_a_connected_amp(self):
         alpha = self.song_ids()[0]
         r = self.client.post('/api/amp/learn', json={'id': alpha, 't': 65.7})

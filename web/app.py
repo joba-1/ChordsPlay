@@ -53,7 +53,7 @@ from web import pdfs as pdfmod
 from web import presets as presetmod
 from web import suggest as suggestmod
 
-__version__ = '1.6.9'
+__version__ = '1.6.10'
 
 log = logging.getLogger(__name__)
 
@@ -753,7 +753,7 @@ def plan_changed(user, song_id=None):
     hub.publish(user, {'song': song_id, 'at': time.time()}, 'plan')
 
 
-LEVEL_RANGE_DB = 12     # a cue's level offset; the page offers -6..+6
+LEVEL_RANGE_DB = 12     # a level offset; the page offers -12..+12 in steps of 0.5 dB
 
 
 def sound_from(data):

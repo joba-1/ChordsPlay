@@ -655,10 +655,31 @@ function followAmp() {
 
 function presetNames() { return (amp?.state?.presets || []).map((p) => p.name || ''); }
 
-// a cue's level: null plays the preset as stored, a number level-matched plus that many dB
+// A level: null plays the preset as stored ("original"), a number level-matched plus that
+// many dB. Offered in steps of LEVEL_STEP up to ±LEVEL_MAX (the server takes up to ±12).
+const LEVEL_STEP = 0.5, LEVEL_MAX = 12;
+const LEVELS = Array.from({ length: 2 * LEVEL_MAX / LEVEL_STEP + 1 }, (_, i) => -LEVEL_MAX + i * LEVEL_STEP);
+
+function dbText(level) { return level === 0 ? 'matched' : `${level > 0 ? '+' : '−'}${Math.abs(level)} dB`; }
+
 function levelText(level) {
-  return level === null || level === undefined ? '' : level === 0 ? ' · matched' : ` · ${level > 0 ? '+' : ''}${level} dB`;
+  return level === null || level === undefined ? '' : ' · ' + dbText(level);
 }
+
+// the options of a level list; a stored level between the steps is kept as an option of its own
+function levelOptions(selected) {
+  const values = selected === null || selected === undefined || LEVELS.includes(selected)
+    ? LEVELS : [...LEVELS, selected].sort((a, b) => a - b);
+  return '<option value="">original</option>' + values.map((v) =>
+    `<option value="${v}"${v === selected ? ' selected' : ''}>${v === 0 ? 'matched (0 dB)' : dbText(v)}</option>`).join('');
+}
+
+// a level list's value; a level between the steps gets its own option first
+function setLevel(sel, level) {
+  if (level !== null && level !== undefined && !LEVELS.includes(level)) $(sel).innerHTML = levelOptions(level);
+  $(sel).value = level === null || level === undefined ? '' : String(level);
+}
+for (const sel of ['#cue-level', '#tone-level']) $(sel).innerHTML = levelOptions(null);
 
 function levelOf(sel) { return $(sel).value === '' ? null : Number($(sel).value); }
 
@@ -726,7 +747,7 @@ function presetOptions(names, st, prefix = '') {
 }
 
 function toneLabel(t) {
-  const lv = t.level === null || t.level === undefined ? 'original' : t.level === 0 ? 'matched' : `${t.level > 0 ? '+' : ''}${t.level} dB`;
+  const lv = t.level === null || t.level === undefined ? 'original' : dbText(t.level);
   return `${esc(t.name)} (${t.base_slot} ${esc(t.base_name || '')}, ${lv})`;
 }
 
@@ -758,9 +779,7 @@ function renderSetup(st) {
     `<select data-sound="${s.category}"><option value="">no preset</option>` +
     Array.from({ length: 100 }, (_, i) => `<option value="${i + 1}" ${s.slot === i + 1 ? 'selected' : ''}>${i + 1} ${esc(names[i] || '')}</option>`).join('') +
     '</select></td><td>' +
-    `<select data-sound-level="${s.category}"><option value="">original</option>` +
-    Array.from({ length: 13 }, (_, i) => i - 6).map((v) => `<option value="${v}" ${s.level === v ? 'selected' : ''}>` +
-      `${v === 0 ? 'matched' : (v > 0 ? '+' : '') + v + ' dB'}</option>`).join('') + '</select></td></tr>').join('');
+    `<select data-sound-level="${s.category}">${levelOptions(s.level)}</select></td></tr>`).join('');
 }
 
 function renderTones(names, st) {
@@ -1134,7 +1153,7 @@ $('#d-amp').addEventListener('click', async (e) => {
         cueKeep = null;
       } else {
         $('#cue-sound').value = 'p' + c.slot;
-        $('#cue-level').value = c.level === null ? '' : String(c.level);
+        setLevel('#cue-level', c.level);
         cueKeep = c.params ? { slot: c.slot, params: { ...c.params } } : null;
       }
       renderAmp();
@@ -1253,7 +1272,7 @@ $('#tone-saved').addEventListener('change', () => {
   toneFrom = t;
   $('#tone-presets').value = String(t.base_slot);
   $('#tone-presets').selectedOptions[0]?.scrollIntoView({ block: 'nearest' });
-  $('#tone-level').value = t.level === null || t.level === undefined ? '' : String(t.level);
+  setLevel('#tone-level', t.level);
   knobSlot = t.base_slot;
   knobParams = { ...(t.params || {}) };
   renderAmp();
@@ -1289,7 +1308,7 @@ $('#amp-knobs-reset').addEventListener('click', () => {
 function soundName(what) {
   const names = presetNames();
   const base = names[what.slot - 1] || 'Slot ' + what.slot;
-  return `${base}${what.level === null ? '' : what.level === 0 ? ' matched' : ` ${what.level > 0 ? '+' : ''}${what.level}`}` +
+  return `${base}${what.level === null ? '' : what.level === 0 ? ' matched' : ` ${what.level > 0 ? '+' : '-'}${Math.abs(what.level)}`}` +
     (what.params ? ' tuned' : '');
 }
 

@@ -204,7 +204,7 @@ every device plays them.
 * **Level** (for presets): *original* plays the preset as stored in the amp. A
   number plays it **level-matched**: with the correction from your level measurement
   (`chordsplay-match-levels`, see below), so every preset at *matched* (0 dB) is equally
-  loud, plus −6 … +6 dB (e.g. +3 for a solo). It is stored with the cue, the artist
+  loud, plus −12 … +12 dB in steps of 0.5 dB (e.g. +3 for a solo, +1.5 for a part that should only stand out a little). It is stored with the cue, the artist
   preset and the preset per sound, and used by *Try now*. Level-matched presets play
   by audition on slot 100 (nothing is written to the amp); a preset that wasn't
   measured plays at its own volume plus the offset. A tone brings its own level.
