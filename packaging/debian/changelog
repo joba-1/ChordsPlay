@@ -1,3 +1,16 @@
+chordsplay (1.8.0-1) unstable; urgency=medium
+
+  * Practice mix: the guitar as one clean track again (the parts by stereo
+    position were distorted); the seek bar marks where the guitar is loud and
+    in the centre, often the solo.
+  * Sections: mark a part (b, e) and play it once or loop it (o) after a
+    count-in in the song's tempo; named sections per song on the server.
+  * Splitting: chordsplay stems queue/wait/list for many songs (e.g. a tag at
+    night); the splitter can unload an Ollama server's models when the GPU is
+    busy; "Prepare the playlist".
+
+ -- joba1 <joba-1@users.noreply.github.com>  Fri, 20 Nov 2026 20:00:00 +0000
+
 chordsplay (1.7.0-1) unstable; urgency=medium
 
   * Practice mix: a song split once into vocals, drums, bass, guitar (also by

@@ -137,9 +137,13 @@ async function loadSong(i) {
   pos = i;
   markCurrent();
   const source = await songSource(row.id);
+  endRun();
+  ab = { a: null, b: null };
   player.src = source.url;
   routeAudio(source.manifest);
   song = await api('song/' + row.id);
+  loadSections();
+  drawSeekMarks();
   pdfPage = 1;
   showTitle();
   render();
@@ -166,6 +170,7 @@ function prev() { playAt(pos < 0 ? 0 : pos - 1); }
 
 function togglePause() {
   if (pos < 0) { next(); return; }
+  if (sectionPause()) return;
   if (player.paused) player.play().catch((e) => toast('Cannot play: ' + e.message));
   else player.pause();
 }
@@ -532,13 +537,12 @@ function saveMix() {
 }
 
 // where the song's sound comes from: the split file if the mix is on and the song is split
+// (the split's manifest also serves without the mix: the lead timeline and the beats)
 async function songSource(id) {
   practiceStatus = null;
-  if (practiceOffered && mix.on) {
-    try {
-      practiceStatus = await api(`song/${id}/stems`);
-      if (practiceStatus.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
-    } catch (e) { /* the original then */ }
+  if (practiceOffered) {
+    try { practiceStatus = await api(`song/${id}/stems`); } catch (e) { /* the original then */ }
+    if (mix.on && practiceStatus?.state === 'ready') return { url: `api/stems/${id}.webm`, manifest: practiceStatus.manifest };
   }
   return { url: 'api/audio/' + id, manifest: null };
 }
@@ -604,8 +608,7 @@ async function reloadSource() {
 // the mixer's rows: an instrument, or a part of one (stems with a group)
 function mixRows() {
   const stems = practiceStatus?.manifest?.stems ||
-    ['vocals', 'drums', 'bass', 'piano', 'other', 'guitar-left', 'guitar-center', 'guitar-right']
-      .map((name) => ({ name, group: name.startsWith('guitar-') ? 'guitar' : undefined }));
+    ['vocals', 'drums', 'bass', 'piano', 'other', 'guitar'].map((name) => ({ name }));
   const rows = [];
   for (const s of stems) {
     if (s.group && !rows.some((r) => r.name === s.group)) rows.push({ name: s.group });
@@ -653,6 +656,8 @@ async function refreshPractice() {
   if (song?.id !== id) return;
   showPractice();
   renderMix();
+  renderSections();
+  if (practiceStatus?.state === 'ready') drawSeekMarks();
   if (['queued', 'running'].includes(practiceStatus?.state) && $('#d-practice').open) {
     practicePoll = setTimeout(async () => {
       await refreshPractice();
@@ -676,6 +681,18 @@ $('#pr-on').addEventListener('change', async (e) => {
   saveMix();
   await reloadSource();
   showPractice();
+});
+
+$('#pr-prepare-all').addEventListener('click', async () => {
+  let n = 0;
+  for (const row of playlist) {
+    try {
+      const st = await api(`song/${row.id}/stems`);
+      if (['none', 'failed'].includes(st.state)) { await api(`song/${row.id}/stems`, { method: 'POST' }); n++; }
+    } catch (e) { toast('Cannot split: ' + e.message); return; }
+  }
+  toast(n ? `${n} songs queued: about a minute each` : 'Every song of the playlist is split or queued');
+  refreshPractice();
 });
 
 $('#pr-prepare').addEventListener('click', async () => {
@@ -716,6 +733,235 @@ $('#pr-quick').addEventListener('click', (e) => {
   renderMix();
   applyMix();
 });
+
+// --- sections: a part of the song once or looped, after a count-in (docs/spec-practice.md) ---
+
+const COUNT_DEFAULT_BPM = 100;          // without beats from the split
+const SNAP_S = 0.25;                    // a mark this close to a beat goes onto it
+let sections = [];                      // the song's named sections: {id, name, start, end}
+let ab = { a: null, b: null };          // the unnamed section (keys b, e)
+let run = null;                         // the playing section: {a, b, loop}; null: plain playing
+let counting = null;                    // the count-in under way: {timer}
+let runWatch = null;
+let clickCtx = null;
+let count = { beats: 4, each: false, factor: 1 };
+try { Object.assign(count, JSON.parse(localStorage.getItem('practiceCount') || '{}')); } catch (e) { /* defaults */ }
+
+function saveCount() {
+  try { localStorage.setItem('practiceCount', JSON.stringify(count)); } catch (e) { /* not kept */ }
+}
+
+function manifest() { return practiceStatus?.state === 'ready' ? practiceStatus.manifest : null; }
+
+function fmtPrecise(t) { return fmt(t) + '.' + Math.floor((t % 1) * 10); }
+
+function snap(t) {
+  const beats = manifest()?.beats;
+  if (!beats?.length) return t;
+  let best = beats[0];
+  for (const b of beats) if (Math.abs(b - t) < Math.abs(best - t)) best = b;
+  return Math.abs(best - t) <= SNAP_S ? best : t;
+}
+
+// seconds per count-in beat around t: from the song's beats, else its tempo, else a default
+function beatAt(t) {
+  const m = manifest();
+  let iv = 60 / (m?.tempo || COUNT_DEFAULT_BPM);
+  const beats = m?.beats || [];
+  const k = beats.findIndex((b) => b >= t);
+  if (k > 0) {
+    const near = beats.slice(Math.max(0, k - 3), k + 3);
+    const gaps = near.slice(1).map((b, i) => b - near[i]).sort((x, y) => x - y);
+    if (gaps.length) iv = gaps[Math.floor(gaps.length / 2)];
+  }
+  return iv / count.factor;
+}
+
+function tempoText() {
+  const m = manifest();
+  const bpm = (m?.tempo || COUNT_DEFAULT_BPM) * count.factor;
+  return `Tempo ${Math.round(bpm)} bpm` + (m?.tempo ? '' : ' (not known: split the song)');
+}
+
+function clicks() {
+  if (graph) return graph.ctx;
+  if (!clickCtx) {
+    clickCtx = new AudioContext();
+    if (clickCtx.setSinkId && player.sinkId) clickCtx.setSinkId(player.sinkId === 'default' ? '' : player.sinkId).catch(() => {});
+  }
+  return clickCtx;
+}
+
+function click(ctx, when, first) {
+  const osc = ctx.createOscillator(), env = ctx.createGain();
+  osc.frequency.value = first ? 1760 : 1320;
+  env.gain.setValueAtTime(0.0001, when);
+  env.gain.exponentialRampToValueAtTime(0.5, when + 0.002);
+  env.gain.exponentialRampToValueAtTime(0.0001, when + 0.06);
+  osc.connect(env).connect(ctx.destination);
+  osc.start(when);
+  osc.stop(when + 0.08);
+}
+
+function stopCount() {
+  if (counting) { clearTimeout(counting.timer); counting = null; }
+}
+
+// pause at t, count in, then play
+async function countInAt(t) {
+  stopCount();
+  player.pause();
+  player.currentTime = t;
+  const n = Number(count.beats) || 0;
+  if (!n) { player.play().catch(() => {}); return; }
+  const ctx = clicks();
+  if (ctx.state === 'suspended') await ctx.resume();
+  const iv = beatAt(t);
+  const t0 = ctx.currentTime + 0.15;
+  for (let i = 0; i < n; i++) click(ctx, t0 + i * iv, i % 4 === 0);
+  const startIn = t0 + n * iv - ctx.currentTime - 0.02;     // play() takes a moment to sound
+  counting = { timer: setTimeout(() => { counting = null; player.play().catch(() => {}); }, startIn * 1000) };
+  toast(`Count-in: ${n} beats`, Math.min(4000, startIn * 1000));
+}
+
+function startRun(a, b, loop) {
+  if (!song || !(b > a)) return;
+  run = { a, b, loop };
+  ab = { a, b };
+  showAb();
+  countInAt(a);
+  clearInterval(runWatch);
+  runWatch = setInterval(() => {
+    if (!run || player.paused || counting) return;
+    if (player.currentTime >= run.b - 0.01 || player.currentTime < run.a - 0.5) {
+      if (!run.loop) { player.pause(); player.currentTime = run.b; endRun(); return; }
+      if (count.each) countInAt(run.a);
+      else player.currentTime = run.a;
+    }
+  }, 20);
+  $('#d-practice').open && $('#d-practice').close();
+}
+
+function endRun() {
+  run = null;
+  stopCount();
+  clearInterval(runWatch);
+  showAb();
+}
+
+function markA() {
+  if (!song) return;
+  ab.a = snap(player.currentTime);
+  if (ab.b !== null && ab.b <= ab.a) ab.b = null;
+  showAb();
+  toast(`Section from ${fmtPrecise(ab.a)}` + (ab.b ? ` to ${fmtPrecise(ab.b)}` : ': e marks the end'));
+}
+
+function markB() {
+  if (!song) return;
+  const t = snap(player.currentTime);
+  if (ab.a === null || t <= ab.a) { toast('Mark the beginning first (b)'); return; }
+  ab.b = t;
+  showAb();
+  toast(`Section ${fmtPrecise(ab.a)} – ${fmtPrecise(ab.b)}: o loops it`);
+}
+
+function toggleLoop() {
+  if (run) { endRun(); toast('Loop off'); return; }
+  if (ab.a === null || ab.b === null) { toast('Mark a section first: b at its beginning, e at its end'); return; }
+  startRun(ab.a, ab.b, true);
+}
+
+// play/pause during a section: a start always comes after a count-in at the section's beginning
+function sectionPause() {
+  if (counting) { stopCount(); toast('Count-in stopped'); return true; }
+  if (!run) return false;
+  if (player.paused) countInAt(run.a);
+  else player.pause();
+  return true;
+}
+
+function showAb() {
+  const box = $('#seek-ab'), d = player.duration;
+  const on = ab.a !== null && ab.b !== null && isFinite(d) && d > 0;
+  box.hidden = !on;
+  if (on) { box.style.left = (100 * ab.a / d) + '%'; box.style.width = (100 * (ab.b - ab.a) / d) + '%'; }
+  if ($('#d-practice').open) renderSections();
+}
+
+// the lead timeline as colour in the seek bar
+function drawSeekMarks() {
+  const tl = manifest()?.timeline, d = player.duration;
+  const lead = $('#seek-lead');
+  seekBar.classList.toggle('rich', !!(tl?.lead || (ab.a !== null && ab.b !== null)));
+  if (!tl?.lead || !isFinite(d) || d <= 0) { lead.style.background = 'none'; showAb(); return; }
+  const stops = [];
+  let i = 0;
+  while (i < tl.lead.length) {
+    if (!tl.lead[i]) { i++; continue; }
+    let j = i;
+    while (j < tl.lead.length && tl.lead[j]) j++;
+    const x0 = (100 * i * tl.step / d).toFixed(2), x1 = (100 * Math.min(d, j * tl.step) / d).toFixed(2);
+    stops.push(`transparent ${x0}%, var(--lead) ${x0}%, var(--lead) ${x1}%, transparent ${x1}%`);
+    i = j;
+  }
+  lead.style.background = stops.length ? `linear-gradient(to right, ${stops.join(', ')})` : 'none';
+  showAb();
+}
+['durationchange', 'loadedmetadata'].forEach((ev) => player.addEventListener(ev, drawSeekMarks));
+
+async function loadSections() {
+  sections = [];
+  if (!song || !practiceOffered) return;
+  const id = song.id;
+  try {
+    const r = await api(`song/${id}/sections`);
+    if (song?.id === id) sections = r.sections;
+  } catch (e) { /* none */ }
+}
+
+function sectionRow(label, a, b, extra) {
+  return `<span>${label}</span><span class="times">${fmtPrecise(a)} – ${fmtPrecise(b)}</span>` +
+    `<button type="button" data-run="once" data-a="${a}" data-b="${b}" title="Play it once, after the count-in">▶</button>` +
+    `<button type="button" data-run="loop" data-a="${a}" data-b="${b}" title="Loop it, after the count-in">⟳</button>` + extra;
+}
+
+function renderSections() {
+  const abSet = ab.a !== null && ab.b !== null;
+  $('#pr-ab').innerHTML = abSet
+    ? sectionRow('<i>Marked</i>', ab.a, ab.b, '<button type="button" id="pr-save" title="Keep it for this song">Save as…</button>')
+    : `<span class="hint" style="grid-column: 1 / -1">${ab.a !== null ? `From ${fmtPrecise(ab.a)}: press e at the end.` : 'Nothing marked: b at the beginning, e at the end, while the song plays.'}</span>`;
+  $('#pr-sections').innerHTML = sections.map((x) =>
+    sectionRow(esc(x.name), x.start, x.end, `<button type="button" data-del="${x.id}" title="Delete it">✕</button>`)).join('');
+  $('#pr-count').value = String(count.beats);
+  $('#pr-count-each').checked = !!count.each;
+  $('#pr-tempo').textContent = tempoText();
+}
+
+$('#d-practice').addEventListener('click', async (e) => {
+  const t = e.target;
+  if (t.dataset.run) { startRun(Number(t.dataset.a), Number(t.dataset.b), t.dataset.run === 'loop'); return; }
+  if (t.dataset.tempo) {
+    count.factor = Math.min(4, Math.max(0.25, count.factor * Number(t.dataset.tempo)));
+    saveCount();
+    renderSections();
+    return;
+  }
+  if (t.id === 'pr-save') {
+    const name = prompt('Name of the section (e.g. Solo, Bridge):');
+    if (!name?.trim()) return;
+    try { sections = (await api(`song/${song.id}/sections`, { method: 'POST', body: { name, start: ab.a, end: ab.b } })).sections; } catch (err) { toast('Saving failed: ' + err.message); }
+    renderSections();
+    return;
+  }
+  if (t.dataset.del) {
+    try { sections = (await api('sections/' + t.dataset.del, { method: 'DELETE' })).sections; } catch (err) { toast('Deleting failed: ' + err.message); }
+    renderSections();
+  }
+});
+
+$('#pr-count').addEventListener('change', (e) => { count.beats = Number(e.target.value); saveCount(); });
+$('#pr-count-each').addEventListener('change', (e) => { count.each = e.target.checked; saveCount(); });
 
 // --- display link (a TV or tablet shows the song, following this page) --------
 
@@ -1802,7 +2048,7 @@ const keys = {
   Enter: next, n: next,
   Backspace: prev, p: prev,
   s: shuffle, f: openFilter, t: openTags, l: toggleList,
-  a: openAudio, A: nextOutput, x: openPractice,
+  a: openAudio, A: nextOutput, x: openPractice, b: markA, e: markB, o: toggleLoop,
   '0': () => { player.currentTime = 0; },
   '+': () => seek(1), '-': () => seek(-1),
   ArrowRight: () => seek(5), ArrowLeft: () => seek(-5),

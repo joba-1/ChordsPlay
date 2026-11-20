@@ -152,11 +152,26 @@ nothing playing, −41 dBFS with a song and the strings quiet). A take nobody st
 `x` (or *Practice*) opens the practice mix for the playing song. *Prepare this song*
 has the server split it once into vocals, drums, bass, guitar, keys and the rest (about a
 minute with a GPU, then kept); the dialog shows the progress and switches to the mix
-when it is done. Each instrument gets a slider (0–150 %) and a mute button; the guitar
-three more for its parts **by stereo position**: on many records the rhythm guitars are
-panned left and right and the solo sits in the centre, so *centre* down often means
-"without the solo". That's a guess from the recording, not a fact: on a mono or live
-recording the parts don't separate.
+when it is done. Each instrument gets a slider (0–150 %) and a mute button.
+*Prepare the playlist* queues every song of the playlist that isn't split.
+
+Once a song is split, the **seek bar** shows in orange where the guitar is loud and in
+the centre of the stereo image: on many records the rhythm guitars are panned left and
+right and the solo sits in the centre, so orange is often the lead or solo. That's a
+guess from the recording: on a mono or live recording it shows nothing useful.
+
+**Sections** for practising a part:
+
+* `b` marks the beginning and `e` the end at the playing position (onto the nearest beat
+  when the song is split); the seek bar shows it framed. `o` loops it, `o` again stops.
+* Every start of a section comes after a **count-in** (2, 4 or 8 beats, or off) in the
+  song's tempo, so you have time to get the hands on the guitar: `o`, and Space while a
+  section plays, pause and count in again from its beginning. Optionally before each
+  repetition too. The tempo is measured when the song is split and may be half or double
+  the felt one: *½×* and *2×* fix that (kept in this browser). Without a split the
+  count-in uses 100 bpm.
+* In the practice dialog the marked section can be saved with a name (*Save as…*): the
+  song's sections are listed there with ▶ (once), ⟳ (loop) and ✕, on every device.
 
 * *Everything*, *Without guitar*, *Guitar only* change only what is muted; the levels
   stay as you set them.
@@ -425,7 +440,7 @@ folders of `CHORDSPLAY_MUSIC_DIRS`, local or a network share.
 | Install, update, remove | [install.md](install.md) |
 | Settings | `/etc/chordsplay/chordsplay.env` (checkout install: `~/.config/chordsplay/web.env`); every setting with its default: `contrib/chordsplay.env.example`. Restart the service after a change |
 | Music | `CHORDSPLAY_MUSIC_DIRS=/path/one:/path/two`: added to the library at start, scanned at start and every 24 hours. The database is created at the first start |
-| Practice mix | `CHORDSPLAY_STEMS_COMMAND` (the splitter, see [install.md](install.md)); the split songs in `/var/lib/chordsplay/stems` (about 3 MB per minute of music; a cache, delete any time) |
+| Practice mix | `CHORDSPLAY_STEMS_COMMAND` (the splitter, see [install.md](install.md)); the split songs in `/var/lib/chordsplay/stems` (about 2.3 MB per minute of music; a cache, delete any time). Splitting many songs: `chordsplay stems queue --user NAME --tag KEY`, `chordsplay stems wait`, `chordsplay stems list` (run as the service's user with its settings), e.g. from a nightly timer ([install.md](install.md)) |
 | Logs | `journalctl -u chordsplay` (checkout install: `journalctl --user -u chordsplay-web`) |
 | Reverse proxy | `contrib/apache-chordsplay-web.conf` is an example for Apache: the proxy with `flushpackets=on` for the event streams, a login for `/chordsplay/` (any module that sets `REMOTE_USER`), the user name passed on as `X-Remote-User`, and `CHORDSPLAY_USER_MAP=loginname=dbuser,...` where names differ |
 | Displays, TVs and amp bridge without login | `<Location "/chordsplay/d/">` with `AuthType None` / `Require all granted` after the `/chordsplay/` block (in the example). Everything below `/d/` needs a display code or a paired TV's cookie (read only), or the bridge token (follow the session, report the amp's state, upload presets, takes and level surveys); the app serves nothing else there |

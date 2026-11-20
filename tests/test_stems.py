@@ -224,5 +224,96 @@ class StemsApi(Api):
         self.assertEqual(self.client.post('/api/song/{}/stems'.format(self.sid)).status_code, 409)
 
 
+class QueueByTag(Base):
+
+    def tag(self, title, key='f', user='jo'):
+        conn = self.conn
+        conn.execute("INSERT OR IGNORE INTO tags (name, key) VALUES ('Fav', ?)", (key,))
+        conn.execute("""INSERT INTO song_tags (user_id, song_id, tag_id)
+                        SELECT u.id, ?, t.id FROM users u, tags t WHERE u.name = ? AND t.key = ?""",
+                     (self.song(title), user, key))
+        conn.commit()
+
+    def test_tagged_songs_only_and_not_twice(self):
+        self.tag('Alpha')
+        self.tag('Gamma')
+        ids = stemsmod.tagged_songs(self.conn, 'jo', 'f')
+        self.assertEqual(sorted(ids), sorted([self.song('Alpha'), self.song('Gamma')]))
+        self.assertEqual(stemsmod.tagged_songs(self.conn, 'someone', 'f'), [])
+        self.assertEqual(stemsmod.queue_many(self.stems, self.conn, ids), 2)
+        self.assertEqual(stemsmod.queue_many(self.stems, self.conn, ids), 0)   # already queued
+        self.assertEqual(stemsmod.pending(self.conn), 2)
+        while self.stems.work_one():
+            pass
+        self.assertEqual(stemsmod.pending(self.conn), 0)
+        self.assertEqual(stemsmod.queue_many(self.stems, self.conn, ids), 0)   # ready
+
+    def test_failed_ones_are_queued_again(self):
+        self.tag('Alpha')
+        os.environ['FAKE_STEMS'] = 'fail'
+        stemsmod.queue_many(self.stems, self.conn, [self.song('Alpha')])
+        self.stems.work_one()
+        self.assertEqual(stemsmod.queue_many(self.stems, self.conn, [self.song('Alpha')]), 1)
+
+    def test_command_line(self):
+        import contextlib
+        import io
+        self.tag('Beta')
+        os.environ['CHORDSPLAY_WEB_DB'] = self.path
+        os.environ['CHORDSPLAY_STEMS_DIR'] = self.stems.folder
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(stemsmod.main(['queue', '--user', 'jo', '--tag', 'f']), 0)
+            self.assertIn('1 queued', out.getvalue())
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(stemsmod.main(['wait', '--timeout', '0.05', '--every', '0.01']), 1)
+            self.stems.work_one()
+            self.assertEqual(stemsmod.main(['wait', '--timeout', '1']), 0)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                stemsmod.main(['list'])
+            self.assertIn('ready', out.getvalue())
+        finally:
+            os.environ.pop('CHORDSPLAY_WEB_DB')
+            os.environ.pop('CHORDSPLAY_STEMS_DIR')
+
+
+@unittest.skipIf(flask is None, 'flask not installed')
+class Sections(Api):
+
+    def setUp(self):
+        super().setUp()
+        self.sid = self.client.get('/api/state').get_json()['playlist'][0]['id']
+        self.url = '/api/song/{}/sections'.format(self.sid)
+
+    def test_add_list_change_delete(self):
+        self.assertEqual(self.client.get(self.url).get_json()['sections'], [])
+        r = self.client.post(self.url, json={'name': ' Solo ', 'start': 84.5, 'end': 111}).get_json()
+        self.client.post(self.url, json={'name': 'Intro', 'start': 0, 'end': 12.25})
+        r = self.client.get(self.url).get_json()['sections']
+        self.assertEqual([(x['name'], x['start'], x['end']) for x in r], [('Intro', 0, 12.25), ('Solo', 84.5, 111)])
+        solo = r[1]['id']
+        r = self.client.put('/api/sections/{}'.format(solo), json={'end': 112.5}).get_json()['sections']
+        self.assertEqual(r[1]['end'], 112.5)
+        self.assertEqual(r[1]['name'], 'Solo')
+        r = self.client.delete('/api/sections/{}'.format(solo)).get_json()['sections']
+        self.assertEqual([x['name'] for x in r], ['Intro'])
+
+    def test_invalid(self):
+        for body in [{'name': '', 'start': 0, 'end': 1}, {'name': 'x', 'start': 5, 'end': 5},
+                     {'name': 'x', 'start': -1, 'end': 5}, {'name': 'x' * 61, 'start': 0, 'end': 1},
+                     {'name': 'x', 'start': '1', 'end': 5}, {'name': 'x', 'start': True, 'end': 5}, {}]:
+            self.assertEqual(self.client.post(self.url, json=body).status_code, 400, body)
+        self.assertEqual(self.client.post('/api/song/9999/sections', json={'name': 'x', 'start': 0, 'end': 1}).status_code, 404)
+
+    def test_only_own_sections(self):
+        r = self.client.post(self.url, json={'name': 'Solo', 'start': 1, 'end': 2}).get_json()['sections']
+        other = {'X-Remote-User': 'flo'}
+        self.assertEqual(self.client.get(self.url, headers=other).get_json()['sections'], [])
+        self.assertEqual(self.client.delete('/api/sections/{}'.format(r[0]['id']), headers=other).status_code, 404)
+        self.assertEqual(len(self.client.get(self.url).get_json()['sections']), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -33,7 +33,8 @@ A template with all settings: contrib/chordsplay.env.example
                          the library's folders are always scanned (tabs next to their songs); see web/pdfs.py
   CHORDSPLAY_STEMS_COMMAND  the program that splits a song for the practice mix (unset: no practice mix);
                          see docs/spec-practice.md and contrib/stems/chordsplay-stems
-  CHORDSPLAY_STEMS_DIR   where the split songs are kept (default ~/.local/share/chordsplay-web/stems)
+  CHORDSPLAY_STEMS_DIR   where the split songs are kept (default ~/.local/share/chordsplay-web/stems);
+                         queueing many: python -m web.stems (chordsplay stems)
   CHORDSPLAY_STEMS_TIMEOUT  seconds one split may take (default 1800)
 '''
 
@@ -55,10 +56,11 @@ import ChordsPlay.scan
 from ChordsPlay.textfit import wrap_comments
 from web import pdfs as pdfmod
 from web import presets as presetmod
+from web import sections as sectionsmod
 from web import stems as stemsmod
 from web import suggest as suggestmod
 
-__version__ = '1.7.0'
+__version__ = '1.8.0'
 
 log = logging.getLogger(__name__)
 
@@ -156,7 +158,7 @@ def get_db(user=None):
             CREATE TABLE IF NOT EXISTS bridge_tokens (
                 hash    text not null primary key,
                 user_id int not null references users(id) on delete cascade,
-                created real not null);""" + pdfmod.SCHEMA + presetmod.SCHEMA + stemsmod.SCHEMA)
+                created real not null);""" + pdfmod.SCHEMA + presetmod.SCHEMA + stemsmod.SCHEMA + sectionsmod.SCHEMA)
         suggestmod.setup(db.conn)
         db.conn.commit()
     return db
@@ -360,6 +362,41 @@ def stems_audio(song_id):
     if STEMS.status(get_db().conn, song_id)['state'] != 'ready':
         abort(404)
     return send_file(STEMS.paths(song_id)[0], mimetype='audio/webm', conditional=True, max_age=3600)
+
+
+@app.route('/api/song/<int:song_id>/sections', methods=['GET', 'POST'])
+def song_sections(song_id):
+    '''The user's practice sections of a song; POST adds one ({name, start, end}).'''
+    db = get_db()
+    if db.getPlayInfo(song_id) is None:
+        abort(404)
+    uid = user_id(db)
+    if request.method == 'POST':
+        try:
+            name, start, end = sectionsmod.check(request.get_json(silent=True) or {})
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        sectionsmod.add(db.conn, uid, song_id, name, start, end)
+    return jsonify(sections=sectionsmod.rows(db.conn, uid, song_id))
+
+
+@app.route('/api/sections/<int:section_id>', methods=['PUT', 'DELETE'])
+def section(section_id):
+    '''Change or delete one of the user's sections; answers the song's sections.'''
+    db = get_db()
+    uid = user_id(db)
+    old = sectionsmod.get(db.conn, uid, section_id)
+    if old is None:
+        abort(404)
+    if request.method == 'DELETE':
+        sectionsmod.delete(db.conn, section_id)
+    else:
+        try:
+            name, start, end = sectionsmod.check(request.get_json(silent=True) or {}, old)
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        sectionsmod.update(db.conn, section_id, name, start, end)
+    return jsonify(sections=sectionsmod.rows(db.conn, uid, old['song_id']))
 
 
 @app.route('/api/played/<int:song_id>', methods=['POST'])

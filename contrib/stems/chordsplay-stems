@@ -4,11 +4,12 @@
 '''
 chordsplay-stems: split a song into its instruments for ChordsPlay's practice mix.
 
-  chordsplay-stems [--device gpu|auto|cpu] [--no-pan] SONG OUT.webm
+  chordsplay-stems [--device gpu|auto|cpu] SONG OUT.webm
 
 Writes OUT.webm, one Opus file with an independent stereo pair per stem (vocals, drums,
-bass, piano, other, and the guitar as three parts by stereo position: left, centre,
-right), and OUT.json, the manifest naming the pairs. See docs/spec-practice.md.
+bass, piano, other, guitar), and OUT.json, the manifest: the pairs, where the guitar sits
+in the centre of the stereo image (often the lead) and the song's tempo and beats. See
+docs/spec-practice.md.
 
 Runs in its own Python environment with python-audio-separator (PyTorch); ChordsPlay
 calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
@@ -16,10 +17,12 @@ calls it through CHORDSPLAY_STEMS_COMMAND. Needs ffmpeg with libopus.
   --device gpu    (default) the GPU; fails with "GPU busy" when less than --gpu-mb is free
   --device auto   the GPU if enough of it is free, else the CPU (several minutes per song)
   --device cpu    always the CPU
-  --no-pan        keep the guitar as one stem
+  --free-ollama URL  when the GPU is busy, ask the Ollama server at URL (e.g.
+                  http://127.0.0.1:11434) to unload its models first; Ollama loads them again
+                  by itself on its next request
   --model NAME    separation model (default BS-Roformer-SW.ckpt; must give a guitar stem)
   --model-dir DIR where the model is kept (default ~/.cache/chordsplay-stems)
-  --kbits N       Opus bit rate per stereo pair (default 96: ~3 MB per minute for 8 pairs)
+  --kbits N       Opus bit rate per stereo pair (default 96: ~2.3 MB per minute for 6 pairs)
 
 Exit codes: 0 done, 2 usage, 3 GPU busy, 1 anything else (message on stderr).
 '''
@@ -33,10 +36,13 @@ import sys
 import tempfile
 
 STEMS = ['vocals', 'drums', 'bass', 'piano', 'other', 'guitar']   # order of the pairs, guitar last
-PAN_PARTS = ['left', 'center', 'right']
 PAN_CENTER = 0.35       # |pan| below this is the centre (pan: -1 hard left .. +1 hard right)
-PAN_EDGE = 0.1          # width of the soft edge between zones
 FFT = 4096
+STEP_S = 0.5            # the timeline's resolution
+LEAD_DB = -15           # lead: the guitar within this of its loudest step ...
+LEAD_SMOOTH = 4         # ... its centre share averaged over this many steps (2 s) ...
+LEAD_PERCENTILE = 75    # ... above this percentile of the song's own centre shares
+OLLAMA_WAIT_S = 30      # how long to wait for the GPU memory after unloading Ollama's models
 EXIT_GPU_BUSY = 3
 
 
@@ -55,11 +61,39 @@ def gpu_free_mb():
         return None
 
 
-def choose_device(device, need_mb):
+def free_ollama(url, need_mb):
+    """Ask Ollama to unload its models (it loads them again on the next request) and wait
+    until need_mb of GPU memory are free. True if they are."""
+    import time
+    import urllib.request
+
+    def call(path, body=None):
+        req = urllib.request.Request(url.rstrip('/') + path, data=json.dumps(body).encode() if body else None,
+                                     headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    try:
+        for model in call('/api/ps').get('models', []):
+            call('/api/generate', {'model': model['name'], 'keep_alive': 0})
+            print('chordsplay-stems: unloaded Ollama model ' + model['name'], file=sys.stderr)
+    except OSError as e:
+        print('chordsplay-stems: Ollama not reachable: {}'.format(e), file=sys.stderr)
+        return False
+    end = time.monotonic() + OLLAMA_WAIT_S
+    while time.monotonic() < end:
+        if (gpu_free_mb() or 0) >= need_mb:
+            return True
+        time.sleep(1)
+    return False
+
+
+def choose_device(device, need_mb, ollama=None):
     '''True: use the GPU. Exits with EXIT_GPU_BUSY for --device gpu without enough memory.'''
     if device == 'cpu':
         return False
     free = gpu_free_mb()
+    if free is not None and free < need_mb and ollama and free_ollama(ollama, need_mb):
+        free = gpu_free_mb()
     if free is not None and free >= need_mb:
         return True
     if device == 'auto':
@@ -96,36 +130,55 @@ def separate(song, work, model, model_dir, gpu):
     return found
 
 
-def pan_split(path, work):
-    '''The stem at path in three parts by stereo position: {part: wav path}.'''
+def guitar_timeline(path):
+    """Per STEP_S: the guitar's level (dB below its loudest step) and the share of its
+    energy in the centre of the stereo image (0..1)."""
     import numpy as np
     import soundfile as sf
-    from scipy.signal import istft, stft
+    from scipy.signal import stft
 
     x, sr = sf.read(path, always_2d=True)
     if x.shape[1] == 1:
         x = np.repeat(x, 2, axis=1)
-    left, right = x[:, 0], x[:, 1]
-    overlap = 3 * FFT // 4
-    _, _, sl = stft(left, sr, nperseg=FFT, noverlap=overlap)
-    _, _, sr_ = stft(right, sr, nperseg=FFT, noverlap=overlap)
+    hop = FFT // 4
+    _, _, sl = stft(x[:, 0], sr, nperseg=FFT, noverlap=FFT - hop)
+    _, _, sr_ = stft(x[:, 1], sr, nperseg=FFT, noverlap=FFT - hop)
     al, ar = np.abs(sl), np.abs(sr_)
+    energy = al ** 2 + ar ** 2
     pan = (ar - al) / (al + ar + 1e-9)
+    center = (np.abs(pan) < PAN_CENTER) * energy
+    per_frame = energy.sum(axis=0), center.sum(axis=0)
+    frames_per_step = max(1, int(round(STEP_S * sr / hop)))
+    n = int(np.ceil(per_frame[0].size / frames_per_step))
+    total = np.array([per_frame[0][i * frames_per_step:(i + 1) * frames_per_step].sum() for i in range(n)])
+    mid = np.array([per_frame[1][i * frames_per_step:(i + 1) * frames_per_step].sum() for i in range(n)])
+    db = 10 * np.log10(total / max(total.max(), 1e-12) + 1e-12)
+    share = np.where(total > 0, mid / np.maximum(total, 1e-12), 0)
+    # lead: loud guitar whose centre share is high for this song (records differ a lot)
+    smooth = np.convolve(share, np.ones(LEAD_SMOOTH) / LEAD_SMOOTH, mode='same')
+    audible = db > LEAD_DB
+    limit = np.percentile(smooth[audible], LEAD_PERCENTILE) if audible.any() else 1
+    lead = audible & (smooth > max(limit, 0.5))
+    return {'step': STEP_S,
+            'guitar_db': [max(-99, int(round(v))) for v in db],
+            'guitar_center': [round(float(v), 2) for v in share],
+            'lead': [int(v) for v in lead]}
 
-    def zone(lo, hi):
-        return np.clip((pan - lo) / PAN_EDGE + 0.5, 0, 1) * np.clip((hi - pan) / PAN_EDGE + 0.5, 0, 1)
 
-    masks = {'left': zone(-2, -PAN_CENTER), 'center': zone(-PAN_CENTER, PAN_CENTER), 'right': zone(PAN_CENTER, 2)}
-    total = masks['left'] + masks['center'] + masks['right']     # 1 except at the edges: keep the sum exact
-    parts = {}
-    for part, mask in masks.items():
-        mask = mask / np.maximum(total, 1e-9)
-        _, l = istft(sl * mask, sr, nperseg=FFT, noverlap=overlap)
-        _, r = istft(sr_ * mask, sr, nperseg=FFT, noverlap=overlap)
-        out = os.path.join(work, f'guitar-{part}.wav')
-        sf.write(out, np.stack([l, r], axis=1)[:len(left)], sr, subtype='FLOAT')
-        parts[part] = out
-    return parts
+def beats_of(song):
+    """Tempo (bpm) and beat times (s) of the whole song (the drums alone miss intros
+    without drums). The tempo may be half or double the felt one: the page lets you halve
+    or double the count-in."""
+    import librosa
+    import numpy as np
+
+    y, sr = librosa.load(song, sr=22050, mono=True)
+    tempo, frames = librosa.beat.beat_track(y=y, sr=sr)
+    times = librosa.frames_to_time(frames, sr=sr)
+    tempo = float(np.atleast_1d(tempo)[0])
+    if tempo <= 0 or len(times) < 4:
+        return None, []
+    return round(tempo, 1), [round(float(t), 3) for t in times]
 
 
 def encode(pairs, out, kbits):
@@ -150,8 +203,9 @@ def main():
     parser.add_argument('out', help='output file, .webm; the manifest goes next to it as .json')
     parser.add_argument('--device', choices=['gpu', 'auto', 'cpu'], default='gpu')
     parser.add_argument('--gpu-mb', type=int, default=4000, help='free GPU memory needed (MB)')
-    parser.add_argument('--no-pan', action='store_true', help='keep the guitar as one stem')
     parser.add_argument('--model', default='BS-Roformer-SW.ckpt')
+    parser.add_argument('--free-ollama', metavar='URL',
+                        help='when the GPU is busy, unload the models of the Ollama server at URL first')
     parser.add_argument('--kbits', type=int, default=96, help='Opus kbit/s per stereo pair')
     parser.add_argument('--model-dir', default=os.path.expanduser('~/.cache/chordsplay-stems'))
     args = parser.parse_args()
@@ -159,22 +213,26 @@ def main():
         fail('no such file: ' + args.song, 2)
     if not args.out.endswith('.webm'):
         fail('the output must end in .webm', 2)
-    gpu = choose_device(args.device, args.gpu_mb)
+    gpu = choose_device(args.device, args.gpu_mb, args.free_ollama)
     os.makedirs(args.model_dir, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='chordsplay-stems-') as work:
         stems = separate(args.song, work, args.model, args.model_dir, gpu)
-        pairs, manifest = [], []
-        for stem in STEMS:
-            if stem == 'guitar' and not args.no_pan:
-                for part, path in pan_split(stems['guitar'], work).items():
-                    manifest.append({'name': f'guitar-{part}', 'pair': len(pairs), 'group': 'guitar'})
-                    pairs.append((f'guitar-{part}', path))
-            else:
-                manifest.append({'name': stem, 'pair': len(pairs)})
-                pairs.append((stem, stems[stem]))
+        pairs = [(stem, stems[stem]) for stem in STEMS]
         encode(pairs, args.out, args.kbits)
-    meta = {'version': 1, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
-            'device': 'gpu' if gpu else 'cpu', 'stems': manifest}
+        meta = {'version': 2, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
+                'device': 'gpu' if gpu else 'cpu',
+                'stems': [{'name': stem, 'pair': i} for i, (stem, _) in enumerate(pairs)]}
+        # analysis only adds to the mix: if it fails, the stems are still usable
+        try:
+            meta['timeline'] = guitar_timeline(stems['guitar'])
+        except Exception as e:      # noqa: BLE001
+            print('chordsplay-stems: no guitar timeline: {}'.format(e), file=sys.stderr)
+        try:
+            tempo, beats = beats_of(args.song)
+            if tempo:
+                meta['tempo'], meta['beats'] = tempo, beats
+        except Exception as e:      # noqa: BLE001
+            print('chordsplay-stems: no beats: {}'.format(e), file=sys.stderr)
     with open(os.path.splitext(args.out)[0] + '.json', 'w') as f:
         json.dump(meta, f, indent=1)
 

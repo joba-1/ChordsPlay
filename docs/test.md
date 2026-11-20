@@ -44,9 +44,14 @@ On a desktop browser and a phone (1600×900, 1920×1080, 390×844):
 * Practice mix (`x`, with a splitter set up): *Prepare this song* shows waiting, splitting,
   then plays the mix at the same position; *Practice mix on/off* switches without a jump;
   *Without guitar*, *Guitar only* and a slider change the sound at once; the next song
-  without a split plays the original; the audio output (`a`) applies to the mix.
+  without a split plays the original; the audio output (`a`) applies to the mix; the seek
+  bar shows the lead parts of a split song.
+* Sections: `b`/`e` land on beats, `o` counts in (clicks on the song's output) and loops
+  at the end; Space during a section pauses and counts in again; a saved section is
+  listed, plays once (stops at its end) and loops; ½×/2× change the count-in.
   Automated in Chromium with Playwright (2026-11-20, not in the repo): the graph's gains
-  follow the sliders and quick mixes, the position survives the switch.
+  follow the sliders and quick mixes, the position survives the switch, marks on beats,
+  count-in 2.74 s for 4 beats at 96 bpm (2.60 s + 0.15 s lead), two clean loops.
 
 ## With the amp (after changing the bridge, the agent or the packages)
 

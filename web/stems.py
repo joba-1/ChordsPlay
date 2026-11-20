@@ -8,13 +8,22 @@ multichannel Opus file per song with a manifest. See docs/spec-practice.md.
 One worker thread runs one split at a time (the GPU is the bottleneck), oldest request
 first. The table `stems` holds the state per song; the files are a cache that can be
 deleted any time.
+
+  python -m web.stems queue --user NAME --tag KEY   queue the user's songs with that tag
+  python -m web.stems wait [--timeout S]            until nothing is queued or running
+  python -m web.stems list                          the state of every split song
+
+The server's worker does the splitting (it looks for new rows every minute); these only
+queue and watch. Settings as for the server: CHORDSPLAY_WEB_DB, CHORDSPLAY_STEMS_DIR.
 '''
 
+import argparse
 import json
 import logging
 import os
 import shlex
 import subprocess
+import sys
 import threading
 import time
 
@@ -198,3 +207,74 @@ class Stems:
             for f in (tmp_webm, tmp_manifest):
                 if os.path.exists(f):
                     os.remove(f)
+
+
+# --- queueing many songs, from the command line ---------------------------------------
+
+def tagged_songs(conn, user, key):
+    """Ids of the songs `user` has tagged with the tag whose key is `key`."""
+    return [r[0] for r in conn.execute("""
+        SELECT DISTINCT st.song_id FROM song_tags st
+        JOIN users u ON u.id = st.user_id JOIN tags t ON t.id = st.tag_id
+        WHERE u.name = ? AND t.key = ? ORDER BY st.song_id""", (user, key))]
+
+
+def queue_many(stems, conn, song_ids):
+    """Queue every song that isn't split, queued or running (failed ones again).
+    Returns the number queued."""
+    queued = 0
+    for song_id in song_ids:
+        before = stems.status(conn, song_id)['state']
+        if before in ('ready', 'queued', 'running'):
+            continue
+        try:
+            stems.request(conn, song_id)
+            queued += 1
+        except KeyError:
+            pass        # no file in the library
+    return queued
+
+
+def pending(conn):
+    return conn.execute("SELECT count(*) FROM stems WHERE state IN ('queued', 'running')").fetchone()[0]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog='chordsplay stems', description='Queue and watch splits for the practice mix.')
+    sub = parser.add_subparsers(dest='cmd', required=True)
+    q = sub.add_parser('queue', help="queue a user's songs with a tag")
+    q.add_argument('--user', required=True)
+    q.add_argument('--tag', required=True, help='the tag\'s key, e.g. f')
+    w = sub.add_parser('wait', help='until nothing is queued or running')
+    w.add_argument('--timeout', type=float, default=0, help='seconds (0: no limit)')
+    w.add_argument('--every', type=float, default=10, help=argparse.SUPPRESS)
+    sub.add_parser('list', help='the state of every split song')
+    args = parser.parse_args(argv)
+    db = os.path.expanduser(os.environ.get('CHORDSPLAY_WEB_DB', '~/.local/share/chordsplay-web/chordsplay.db'))
+    folder = os.environ.get('CHORDSPLAY_STEMS_DIR', '~/.local/share/chordsplay-web/stems')
+    # queueing needs no command: the server's worker runs it
+    stems = Stems(db, 'unused', folder)
+    conn = stems.connect()
+    try:
+        if args.cmd == 'queue':
+            ids = tagged_songs(conn, args.user, args.tag)
+            n = queue_many(stems, conn, ids)
+            print('{} songs tagged {!r} by {}, {} queued'.format(len(ids), args.tag, args.user, n))
+        elif args.cmd == 'wait':
+            end = time.monotonic() + args.timeout if args.timeout else None
+            while pending(conn):
+                if end and time.monotonic() > end:
+                    print('still {} queued or running'.format(pending(conn)), file=sys.stderr)
+                    return 1
+                time.sleep(args.every)
+        else:
+            for song_id, state, error, seconds in conn.execute(
+                    "SELECT song_id, state, error, seconds FROM stems ORDER BY song_id"):
+                print('{}\t{}\t{}\t{}'.format(song_id, state, seconds or '', error or ''))
+    finally:
+        conn.close()
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -112,11 +112,14 @@ about 4 GB free makes it take a minute per song; on the CPU it takes several.
 2. In `/etc/chordsplay/chordsplay.env`:
 
    ```
-   CHORDSPLAY_STEMS_COMMAND=/opt/chordsplay-stems/bin/python /usr/share/chordsplay/stems/chordsplay-stems --device auto --model-dir /var/lib/chordsplay/stems-model
+   CHORDSPLAY_STEMS_COMMAND=/opt/chordsplay-stems/bin/python /usr/share/chordsplay/stems/chordsplay-stems --free-ollama http://127.0.0.1:11434 --model-dir /var/lib/chordsplay/stems-model
    ```
 
    `--device gpu` (the default) refuses to start when the GPU is busy (the page shows
    *GPU busy*); `--device auto` then uses the CPU; `--device cpu` never uses the GPU.
+   `--free-ollama URL`: when the GPU is busy, the splitter first asks that Ollama server
+   to unload its models (it loads them again by itself on its next request). Leave it out
+   if a model must stay loaded.
 3. With a GPU: the service hides devices from itself (`PrivateDevices=yes`), and its user
    may not open the GPU's devices (on openSUSE they belong to the group `video`). Let it:
    `sudo systemctl edit chordsplay` and add
@@ -127,6 +130,35 @@ about 4 GB free makes it take a minute per song; on the CPU it takes several.
    SupplementaryGroups=video
    ```
 4. `sudo systemctl restart chordsplay`: the page shows *Practice*.
+
+**Splitting your favourites at night** (or any tag): a timer that queues the songs a user
+has tagged and waits until they are split, e.g. at 02:30. `/etc/systemd/system/chordsplay-stems.service`:
+
+```
+[Unit]
+Description=ChordsPlay: split the tagged songs for the practice mix
+After=chordsplay.service
+[Service]
+Type=oneshot
+User=chordsplay
+EnvironmentFile=/etc/chordsplay/chordsplay.env
+ExecStart=/usr/bin/chordsplay stems queue --user me --tag f
+ExecStart=/usr/bin/chordsplay stems wait --timeout 14400
+```
+
+and `/etc/systemd/system/chordsplay-stems.timer`:
+
+```
+[Timer]
+OnCalendar=*-*-* 02:30
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+then `sudo systemctl daemon-reload && sudo systemctl enable --now chordsplay-stems.timer`.
+The server's worker does the splitting, one song after the other; the timer only queues
+and waits.
 
 Try the splitter alone first: `sudo -u chordsplay -g video /opt/chordsplay-stems/bin/python
 /usr/share/chordsplay/stems/chordsplay-stems --model-dir /var/lib/chordsplay/stems-model
