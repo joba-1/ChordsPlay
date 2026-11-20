@@ -44,7 +44,7 @@ Most of it is keyboard-driven:
 | d | show the song on a TV or tablet (display link, see below) |
 | v / V | the song's text or one of its PDF tabs (cycles) / all PDFs and their songs |
 | Page Down / Up | turn the PDF's pages |
-| g | guitar tone: the amp's presets for this song (see below) |
+| g | guitar tone: the song's cues, tones, the amp (see below) |
 | G | learn: the amp's current preset from here on (in the first 3 s: from the start) |
 | r / R | record a take through the amp's USB / the song's takes (see below) |
 | F11 | full screen |
@@ -170,10 +170,21 @@ A song can switch the amp's preset at set times (cues): a quiet
 intro, a loud chorus. Cues, artist presets and tones are in the central database, so
 every device plays them.
 
-* `g` (or *Tone*, or the amp status at the top right): the song's cues, the amp's 100
-  presets (◀ = the current one) and the saved tones. *Try now* switches the amp without
-  storing anything; *Save from start*, *Save as new cue at m:ss.cc* and *Save for artist*
-  store it. ▶ plays a cue from a little before it, ✕ deletes it.
+* `g` (or *Tone*, or the amp status at the top right) opens the tone dialog. It has three
+  tabs that don't depend on each other: what you choose in one doesn't change another. It
+  opens on the tab used last; without a song, on *Tones*.
+  * **Cues of this song:** which sound plays when.
+  * **Tones:** making a sound from a preset (level, knobs) and keeping it under a name.
+  * **Amp:** the amp's connection, the song through the Mustang, presets for suggestions,
+    and setting up amp control.
+
+### Cues of this song
+
+* The song's cues, the position editor, and one list of sounds: the amp's 100 presets
+  (◀ = the current one) and below them the saved tones. *Try now* (or a double click)
+  switches the amp without storing anything; *Save from start*, *Save as new cue at
+  m:ss.cc* and *Save for artist* (presets only) store it. ▶ plays a cue from a little
+  before it, ✕ deletes it.
 * **Placing a cue exactly:** the editor under the cues shows the song's waveform around a
   position (window 2 to 30 s; light: peaks, dark: loudness), so the start of a loud part
   or a pause is easy to see. Set the position by clicking into the waveform, dragging it
@@ -185,37 +196,59 @@ every device plays them.
   it: the timing is set for a song played to the amp over Bluetooth, so the new sound
   starts at that moment (measured: within about ±50 ms).
 * **Changing a cue:** ✎ in its row puts its position and sound into the editor (the row is
-  highlighted). Move the position, change preset, level or knobs (or choose a tone), then
-  *Update cue* stores both; ⤓ stores only the sound. *New cue instead* leaves the cue as
-  it is and makes the position one for a new cue.
-* **Level** (next to the presets): *original* plays the preset as stored in the amp. A
+  highlighted). Move the position, choose another preset, level or tone, then
+  *Update cue* stores both; ⤓ stores only the chosen sound in that cue. *New cue instead*
+  leaves the cue as it is and makes the position one for a new cue. A cue with its own
+  knob settings (*tuned*, from before the tabs) keeps them as long as its preset stays
+  chosen; to change them, make a tone of it and choose that tone.
+* **Level** (for presets): *original* plays the preset as stored in the amp. A
   number plays it **level-matched**: with the correction from your level measurement
   (`chordsplay-match-levels`, see below), so every preset at *matched* (0 dB) is equally
   loud, plus −6 … +6 dB (e.g. +3 for a solo). It is stored with the cue, the artist
   preset and the preset per sound, and used by *Try now*. Level-matched presets play
   by audition on slot 100 (nothing is written to the amp); a preset that wasn't
-  measured plays at its own volume plus the offset.
-* **Knobs** (fold out under the presets): the chosen preset's amp gain and EQ, and per
-  effect on/off, mix, depth, decay, feedback. With *Play while adjusting* every change
-  is heard at once (by audition, nothing written to the amp). *Save …* stores the
-  knobs with the cue or the artist, together with the level; ✎ in a cue's row loads
-  it for changing, ⤓ stores the current choice into that cue. With *original* the
-  preset keeps its own volume. The server knows each slot's preset from a backup
-  (`chordsplay presets import BACKUP_DIR`) and asks the bridge to read a slot again
-  when the amp's name for it changed.
-* **Keep a tuned sound:** *Save as tone…* names it (preset, level, knobs); it is then in
-  the *Tones* list for any song. *Write to amp slot…* writes it into a free slot of the
+  measured plays at its own volume plus the offset. A tone brings its own level.
+* The artist's preset (✕ deletes it) and the song's suggestion (see *Suggested presets*
+  below) are shown under the buttons.
+
+### Tones
+
+* A tone is a preset with its own level and knob settings, under a name. Saved tones can
+  be chosen for the cues of any song; nothing in this tab changes a cue.
+* Start from a **preset** (a fresh sound, knobs as stored) or a **saved tone** (its
+  preset, level and knobs are loaded; the list says how many cues play each tone).
+* **Knobs:** the preset's amp gain and EQ, and per effect block (stomp, amp, modulation,
+  delay, reverb) on/off, mix, depth, decay, feedback; a changed knob is bold. With
+  *Play while adjusting* every change of a knob or the level is heard at once (by
+  audition, nothing written to the amp); *Try now* does it by hand, *Reset knobs* goes
+  back to the preset's own settings. With *original* the preset keeps its own volume.
+  The server knows each slot's preset from a backup (`chordsplay presets import
+  BACKUP_DIR`) and asks the bridge to read a slot again when the amp's name for it changed.
+* *Save as tone…* names it; the same name replaces that tone (a loaded tone suggests its
+  own name), so cues playing it get the new sound. *Delete tone* deletes it and the cues
+  that play it (it asks first and says how many). Note: a tone keeps its level in dB, so a
+  tone saved with *original* from a preset that wasn't measured loads back as *matched*.
+* *Write to amp slot…* writes the sound into a free slot of the
   amp (72–99), so the amp's own buttons call it up too: built exactly as it is heard by
   audition, read back after writing. The factory presets (1–71) and slot 100 (used for
   auditions) are never written. `mmp-restore` (maneline) puts slots back from a backup.
+
+### Amp
+
+* The bridge's state in words, *Play through the Mustang* and *always* (below), the
+  *Preset per sound* table with *Play suggestions automatically* (see *Suggested presets*),
+  and *Set up amp control…* (below).
+
+### More
+
 * `G`: stores the preset the amp has now (chosen with its own buttons, say) from here on.
 * The switching itself is done by the **amp bridge** on the computer the amp is paired
   with. It needs no open port: like a display it follows your session from outside.
   Set it up once on that computer as described in [install.md](install.md), "The
   Mustang parts": the package `chordsplay-mmp`, the one-time Bluetooth setup, and the
-  line from `g` → *Set up amp control…* in `~/.config/chordsplay/bridge.env`. The bridge
+  line from `g` → *Amp* → *Set up amp control…* in `~/.config/chordsplay/bridge.env`. The bridge
   starts the amp agent while the amp is connected. Making a new line ends the previous one.
-* **The song through the Mustang:** the tone dialog says where the song goes, as the bridge
+* **The song through the Mustang:** the tone dialog's *Amp* tab says where the song goes, as the bridge
   sees it on the amp computer, and *Play through the Mustang* has the bridge connect the
   amp's Bluetooth audio if needed and move the browser's sound there (PipeWire; all of the
   browser's tabs, since a browser plays through one stream), and makes the amp the system's
@@ -236,12 +269,12 @@ every device plays them.
   a local LLM (Ollama, `CHORDSPLAY_OLLAMA_URL`; without one there are no suggestions)
   puts each song into a sound (clean, crunch, hard rock, …; with
   the artist's genres from MusicBrainz as a hint) and says whether it knows the song.
-  Suggestions are **only shown** until you tick *Play suggestions automatically* (under
-  *Preset per sound*): the model claims to know nearly every song (98 % in a test,
+  Suggestions are **only shown** until you tick *Play suggestions automatically* (tab
+  *Amp*): the model claims to know nearly every song (98 % in a test,
   album tracks of German singers included), so set the presets by ear first. Then songs
-  it "knows" are switched; guesses never are. `g` shows the suggestion,
-  with *Use from start* (store it as the song's own) and *Reject*. Under *Preset per
-  sound* you set which preset each sound plays: the table starts as a draft by preset
+  it "knows" are switched; guesses never are. `g` shows the suggestion (tab *Cues of this song*),
+  with *Use from start* (store it as the song's own) and *Reject*. Under *Amp*, *Preset per
+  sound*, you set which preset each sound plays: the table starts as a draft by preset
   names and is meant to be set by ear. New songs get a suggestion after each library
   scan. Order when a song plays: its own cues,
   the artist's preset, the suggestion, `AMP_DEFAULT_SLOT` of the bridge.

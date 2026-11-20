@@ -134,7 +134,7 @@ Then, once:
    `bluetoothctl devices`). It pairs the amp over Bluetooth LE as well and removes an entry
    from BlueZ's cache that the amp does not answer; Bluetooth restarts once. What it does,
    and the same by hand: `MUSTANG_MICRO_PLUS_LINUX.md` in the docs of `maneline-mmp`.
-3. Open the ChordsPlay page, press `g`, *Set up amp control…*, and put the line it shows
+3. Open the ChordsPlay page, press `g`, tab *Amp*, *Set up amp control…*, and put the line it shows
    into `~/.config/chordsplay/bridge.env` (mode 600: the token in it is the bridge's key).
 4. `systemctl --user enable --now chordsplay-amp-bridge`. It runs as **your** user, the
    one whose session has the amp's Bluetooth audio, and starts the amp agent
