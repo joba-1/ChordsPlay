@@ -566,6 +566,13 @@ function routeAudio(manifest, force) {
     // master: the song's way out, for short fades (no crack at a stop, a loop's seam)
     const master = ctx.createGain();
     master.connect(ctx.destination);
+    // keep-alive: a constant 0.001 (−60 dBFS DC, inaudible). Chromium pauses ("corks") an
+    // output that has been silent for a moment; during a count-in the song is paused, and
+    // each click then had to wake the stream and the Bluetooth link: swallowed, cut or full.
+    const keep = ctx.createConstantSource();
+    keep.offset.value = 0.001;
+    keep.connect(ctx.destination);
+    keep.start();
     graph = { ctx, src: ctx.createMediaElementSource(player), master, nodes: [], gains: {} };
     if (ctx.setSinkId && player.sinkId) ctx.setSinkId(player.sinkId === 'default' ? '' : player.sinkId).catch(() => {});
   }
@@ -1120,7 +1127,7 @@ async function countInAt(t) {
   const ctx = clicks();
   if (ctx.state === 'suspended') await ctx.resume();
   const iv = beatAt(t);
-  const t0 = ctx.currentTime + 0.15;
+  const t0 = ctx.currentTime + 0.3;
   for (let i = 0; i < n; i++) click(ctx, t0 + i * iv, i === 0);   // no bar stress: the "1" isn't known
   const startIn = t0 + n * iv - ctx.currentTime - 0.02;     // play() takes a moment to sound
   counting = { timer: setTimeout(() => { counting = null; player.play().catch(() => {}); }, startIn * 1000) };

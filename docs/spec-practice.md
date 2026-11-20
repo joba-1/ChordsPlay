@@ -217,6 +217,12 @@ Why, from listening to click tracks (2026-11-20; a click on every beat mixed int
   too short for the ear (it sums loudness over ~200 ms). The loud "first click" was the
   crack of the song stopped mid-wave; now the song fades out over 25 ms before it pauses,
   and in again when it plays.
+  Then, at the Mustang with 2.1.1: the first click or two sometimes swallowed, sometimes
+  loud, the rest silent; "clearly clicks, not cracks". Chromium pauses ("corks") an output
+  stream that stays silent for a moment (seen in PipeWire: `corked=True`), and during a
+  count-in the song is paused: each click had to wake the stream and the Bluetooth link.
+  2.1.3 keeps the stream busy with a constant 0.001 (−60 dBFS DC, inaudible) while the
+  page plays through Web Audio, and starts the clicks 0.3 s after the pause.
 * **The loop's seam** (2.1.2): 25 ms before the section's end the song fades out, jumps to
   the start and fades in (a gain on the song's way out, the *master*), instead of a hard
   cut. Starting from the dialog leaves it open (2.1.1), so the level
