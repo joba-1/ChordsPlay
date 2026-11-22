@@ -1428,11 +1428,11 @@ function sectionRow(label, a, b, extra) {
 function renderSections() {
   const abSet = ab.a !== null && ab.b !== null;
   $('#pr-ab').innerHTML = abSet
-    ? sectionRow('<i>Marked</i>', ab.a, ab.b, '<button type="button" id="pr-save" title="Keep it for this song">Save as…</button>')
+    ? sectionRow('<i>Marked</i> <span class="hint">(b begin, e end at the playing position, o loop on/off)</span>', ab.a, ab.b, '<button type="button" id="pr-save" title="Keep it for this song">Save as…</button>')
     : ab.a !== null
       ? `<span class="hint" style="grid-column: 1 / -1">From ${fmtPrecise(ab.a)}: press e at the end.</span>`
       : isFinite(player.duration)
-        ? sectionRow('<i>Whole song</i> <span class="hint">(nothing marked: b and e, or drag in Waves)</span>', ...wholeSong(),
+        ? sectionRow('<i>Whole song</i> <span class="hint">(mark a section: b begin, e end at the playing position, or drag in Waves; o loop on/off)</span>', ...wholeSong(),
                      '<span></span>').replaceAll('data-run=', 'data-whole="1" data-run=')
         : '';
   $('#pr-sections').innerHTML = sections.map((x) =>

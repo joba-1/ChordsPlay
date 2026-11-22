@@ -1,3 +1,10 @@
+chordsplay (2.1.18-1) unstable; urgency=medium
+
+  * Practice dialog: the keys for sections are explained in the first row
+    (whole song or the marked section), not twice.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sun, 22 Nov 2026 20:00:00 +0000
+
 chordsplay (2.1.17-1) unstable; urgency=medium
 
   * Practice dialog: more room between the mix sliders (rows of 50 px).
