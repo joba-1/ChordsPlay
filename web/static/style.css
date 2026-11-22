@@ -276,7 +276,7 @@ details.help li { margin: 3px 0; }
 .mix button.mute, .mix button.solo { padding: 0 8px; }
 .mix button.mute[aria-pressed=true] { background: #d63a3a; border-color: #d63a3a; color: #fff; }
 .mix button.solo[aria-pressed=true] { background: #f2c230; border-color: #f2c230; color: #1c1c1a; }
-#d-practice { width: min(1180px, calc(100vw - 32px)); max-width: none; }
+#d-practice { width: calc(100vw - 32px); max-width: none; }
 /* as tall as the window: the two tabs share one area (the taller one's content sets its least
    height, so switching moves nothing), and the waveforms fill what is left of it */
 #d-practice[open] { display: flex; flex-direction: column; height: calc(100dvh - 32px); max-height: none; overflow-y: auto; }
@@ -284,6 +284,10 @@ details.help li { margin: 3px 0; }
 .pr-pages { flex: 1 1 auto; display: grid; }
 .pr-pages > div { grid-area: 1 / 1; }
 .pr-pages > div[hidden] { display: block; visibility: hidden; }
+/* the sliders: as wide as the dialog, their rows spread over the tab's height */
+#pr-tab-mix:not([hidden]) { display: flex; flex-direction: column; }
+#pr-tab-mix .mix { flex: 1 1 auto; grid-auto-rows: minmax(28px, 1fr); }
+#pr-tab-mix .mix input[type=range] { max-width: none; height: 100%; min-height: 28px; }
 #pr-tab-waves:not([hidden]) { display: flex; flex-direction: column; }
 #pr-tab-waves .wave-box { flex: 1 1 auto; position: relative; min-height: 120px; }
 #pr-tab-waves .wave-box canvas.waves { position: absolute; inset: 0; height: 100%; }

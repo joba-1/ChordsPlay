@@ -1,3 +1,10 @@
+chordsplay (2.1.15-1) unstable; urgency=medium
+
+  * Practice dialog as wide as the window; the mix sliders use its full width
+    and their rows spread over the height of the tab.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sun, 22 Nov 2026 18:30:00 +0000
+
 chordsplay (2.1.14-1) unstable; urgency=medium
 
   * Practice dialog: Mix and Waves share one area, so switching tabs moves
