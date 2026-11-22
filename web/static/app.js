@@ -694,7 +694,6 @@ function renderMix() {
 
 function showPractice() {
   const st = practiceStatus;
-  const playing = $('#b-practice').classList.contains('on');
   let text;
   if (!song) text = 'Choose a song first.';
   else if (!st) text = 'Checking…';
@@ -702,11 +701,11 @@ function showPractice() {
   else if (st.state === 'queued') text = 'Waiting for the splitter (it does one song at a time)…';
   else if (st.state === 'running') text = 'Splitting the song, about a minute…';
   else if (st.state === 'failed') text = 'Splitting failed: ' + (st.error || 'unknown error');
-  else if (playing) text = 'Split: playing the instruments, at the levels below.';
-  else text = 'Split: playing the original file. Switch the instruments on (or move a slider) to mix.';
+  else text = '';                                       // split: the switch below says what plays
   $('#pr-on').checked = mix.on;
   $('#pr-title').textContent = song ? `Practice mix: ${song.title}` : 'Practice mix';
   $('#pr-status').textContent = text;
+  $('#pr-status').hidden = !text;
   $('#pr-prepare').hidden = !song || !st || !['none', 'failed'].includes(st.state);
   $('#pr-prepare').textContent = st?.state === 'failed' ? 'Try again' : 'Prepare this song';
 }

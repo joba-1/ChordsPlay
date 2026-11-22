@@ -60,7 +60,7 @@ from web import sections as sectionsmod
 from web import stems as stemsmod
 from web import suggest as suggestmod
 
-__version__ = '2.1.18'
+__version__ = '2.1.19'
 
 log = logging.getLogger(__name__)
 
