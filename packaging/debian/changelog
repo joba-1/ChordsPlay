@@ -1,3 +1,10 @@
+chordsplay (2.1.20-1) unstable; urgency=medium
+
+  * Splitter: the song is decoded to WAV by ffmpeg first; the separator and
+    the waveforms could not open .m4a files.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sun, 22 Nov 2026 20:30:00 +0000
+
 chordsplay (2.1.19-1) unstable; urgency=medium
 
   * Practice dialog: no status line once the song is split; the switch

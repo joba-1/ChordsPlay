@@ -116,9 +116,13 @@ def separate(song, work, model, model_dir, gpu):
     if not gpu:
         env['CUDA_VISIBLE_DEVICES'] = ''
     tool = shutil.which('audio-separator') or os.path.join(os.path.dirname(sys.executable), 'audio-separator')
-    # the separator names its files after the input: give it a plain name
-    plain = os.path.join(work, 'song' + os.path.splitext(song)[1].lower())
-    shutil.copyfile(song, plain)
+    # the separator names its files after the input: give it a plain name; and decoded to WAV
+    # by ffmpeg, which reads any format (the separator's reader can't open .m4a, for one)
+    plain = os.path.join(work, 'song.wav')
+    dec = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', song, '-vn', '-c:a', 'pcm_f32le', plain],
+                         capture_output=True, text=True)
+    if dec.returncode != 0:
+        fail('could not decode the song: ' + (dec.stderr.strip().splitlines() or ['?'])[-1][-300:])
     run = subprocess.run([tool, '--model_filename', model, '--model_file_dir', model_dir,
                           '--output_dir', work, '--output_format', 'WAV', plain],
                          capture_output=True, text=True, env=env)
@@ -299,6 +303,7 @@ def main():
     os.makedirs(args.model_dir, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='chordsplay-stems-') as work:
         stems = separate(args.song, work, args.model, args.model_dir, gpu)
+        decoded = os.path.join(work, 'song.wav')     # the song as WAV: every reader opens that
         pairs = [(stem, stems[stem]) for stem in STEMS]
         encode(pairs, args.out, args.kbits)
         meta = {'version': 5, 'model': os.path.splitext(args.model)[0], 'channels': 2 * len(pairs),
@@ -310,14 +315,14 @@ def main():
         except Exception as e:      # noqa: BLE001
             print('chordsplay-stems: no guitar timeline: {}'.format(e), file=sys.stderr)
         try:
-            tempo, beats, tracker = beats_of(stems, args.song, args.rest_db, gpu, args.model_dir)
+            tempo, beats, tracker = beats_of(stems, decoded, args.rest_db, gpu, args.model_dir)
             if tempo:
                 meta['tempo'], meta['beats'], meta['beat_tracker'] = tempo, beats, tracker
         except Exception as e:      # noqa: BLE001
             print('chordsplay-stems: no beats: {}'.format(e), file=sys.stderr)
         try:
             import base64
-            tracks = {'song': args.song, **{stem: stems[stem] for stem in STEMS}}
+            tracks = {'song': decoded, **{stem: stems[stem] for stem in STEMS}}
             data = {'rate': PEAKS_PER_S,
                     'tracks': {name: base64.b64encode(peaks(path)).decode() for name, path in tracks.items()}}
             with open(os.path.splitext(args.out)[0] + '.peaks.json', 'w') as f:
