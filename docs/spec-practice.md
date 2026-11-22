@@ -153,8 +153,10 @@ the timeline shows nothing useful.
 ### Waveforms
 
 The practice dialog has two tabs: *Mix* (the sliders) and *Waves*: the song and the
-instruments you choose as waveforms over one time axis, one lane each (34 px: the
-shape matters, not the amplitude), with the beats on the ruler, the lead marks on the
+instruments you choose as waveforms over one time axis, one lane each (the shape
+matters, not the amplitude). The dialog is as tall as the window; both tabs share one
+area, as tall as the taller one needs at least, so switching them moves nothing below
+(2.1.14), and the lanes share what the window leaves for it (they were 34 px each), with the beats on the ruler, the lead marks on the
 guitar's lane, the marked section and the playing position. Click: go there; drag: mark
 a section (on the beat); wheel: zoom around the pointer; Shift+wheel: scroll; *−*, *+*,
 *Fit*. The marked section can be resized (drag within 6 px of its start or end; the pointer

@@ -828,7 +828,7 @@ $('#pr-reset').addEventListener('click', () => {
 
 // --- waveforms of the song and its instruments, to find and mark a section ---------------
 
-const LANE_H = 34, RULER_H = 18, MIN_SPAN_S = 2;
+const RULER_H = 18, MIN_SPAN_S = 2;
 // the wheel's movement in pixels (a mouse notch is ~100; a touchpad sends many small ones)
 const WHEEL_PAN = 0.5;           // scroll: this share of the movement, across the canvas width
 const WHEEL_ZOOM = 1.06;         // zoom per 100 px of movement (2.1.6 zoomed 12 % per event: too fast)
@@ -955,10 +955,11 @@ function niceStep(span, width) {
 function drawWaves() {
   const c = $('#pr-wave');
   const shown = ['song', ...mixRows().map((r) => r.name)].filter((n) => lanes.includes(n) && peaks.tracks[n]);
-  const w = c.clientWidth, h = RULER_H + Math.max(1, shown.length) * LANE_H;
+  // the lanes share the height the dialog leaves for them
+  const w = c.clientWidth, h = c.clientHeight;
+  const LANE_H = (h - RULER_H) / Math.max(1, shown.length);
   const dpr = window.devicePixelRatio || 1;
   if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
-    c.style.height = h + 'px';
     c.width = Math.round(w * dpr);
     c.height = Math.round(h * dpr);
   }

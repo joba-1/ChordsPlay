@@ -103,6 +103,7 @@
       <button type="button" role="tab" data-prtab="mix" aria-selected="true">Mix</button>
       <button type="button" role="tab" data-prtab="waves" aria-selected="false">Waves</button>
     </div>
+    <div class="pr-pages">
     <div id="pr-tab-mix">
       <div id="pr-mix" class="mix"></div>
       <div class="dlg-buttons"><span class="hint">M mutes an instrument, S plays only the soloed ones. Kept in this
@@ -114,11 +115,12 @@
         <button type="button" data-zoom="in" title="Zoom in (wheel)">+</button>
         <button type="button" data-zoom="fit" title="The whole song">Fit</button>
         <button type="button" id="pr-follow" aria-pressed="true" title="Keep the playing position in the centre (scrolling by hand switches it off)">Follow</button></div>
-      <canvas id="pr-wave" class="waves"></canvas>
+      <div class="wave-box"><canvas id="pr-wave" class="waves"></canvas></div>
       <p id="pr-wave-hint" class="hint">Click: go there · drag: mark a section, at its edge resize it, inside move it (on the beat; Shift: freely) · wheel: zoom · Shift+wheel: scroll</p>
       <p id="pr-wave-state" class="hint" hidden></p>
       <p id="pr-wave-none" class="hint" hidden>No waveforms for this song: it was split before 1.9.0.
         <button type="button" id="pr-again">Split it again</button></p>
+    </div>
     </div>
     <h3>Sections <span class="hint">(b begin, e end at the playing position, o loop on/off)</span></h3>
     <div id="pr-ab" class="sections"></div>

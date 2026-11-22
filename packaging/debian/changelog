@@ -1,3 +1,10 @@
+chordsplay (2.1.14-1) unstable; urgency=medium
+
+  * Practice dialog: Mix and Waves share one area, so switching tabs moves
+    nothing; the waveform lanes fill the height the window leaves.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sun, 22 Nov 2026 18:00:00 +0000
+
 chordsplay (2.1.13-1) unstable; urgency=medium
 
   * Waveforms: the marked section can be resized at its edges and moved by
