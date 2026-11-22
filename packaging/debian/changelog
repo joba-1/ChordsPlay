@@ -1,3 +1,11 @@
+chordsplay (2.1.16-1) unstable; urgency=medium
+
+  * Practice dialog: the compact mix sets the height of the tab area, the
+    waveforms fill exactly that; switching tabs moves nothing, also in a small
+    window.
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sun, 22 Nov 2026 19:00:00 +0000
+
 chordsplay (2.1.15-1) unstable; urgency=medium
 
   * Practice dialog as wide as the window; the mix sliders use its full width

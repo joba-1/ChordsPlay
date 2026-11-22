@@ -277,19 +277,15 @@ details.help li { margin: 3px 0; }
 .mix button.mute[aria-pressed=true] { background: #d63a3a; border-color: #d63a3a; color: #fff; }
 .mix button.solo[aria-pressed=true] { background: #f2c230; border-color: #f2c230; color: #1c1c1a; }
 #d-practice { width: calc(100vw - 32px); max-width: none; }
-/* as tall as the window: the two tabs share one area (the taller one's content sets its least
-   height, so switching moves nothing), and the waveforms fill what is left of it */
-#d-practice[open] { display: flex; flex-direction: column; height: calc(100dvh - 32px); max-height: none; overflow-y: auto; }
-#d-practice > form { flex: 1 0 auto; display: flex; flex-direction: column; }
-.pr-pages { flex: 1 1 auto; display: grid; }
-.pr-pages > div { grid-area: 1 / 1; }
+/* the two tabs share one area: the mix (compact rows) sets its height alone; the waves are laid
+   over it and fill exactly that, so switching tabs moves nothing at any window size */
+.pr-pages { position: relative; min-height: 180px; }
 .pr-pages > div[hidden] { display: block; visibility: hidden; }
-/* the sliders: as wide as the dialog, their rows spread over the tab's height */
-#pr-tab-mix:not([hidden]) { display: flex; flex-direction: column; }
-#pr-tab-mix .mix { flex: 1 1 auto; grid-auto-rows: minmax(28px, 1fr); }
-#pr-tab-mix .mix input[type=range] { max-width: none; height: 100%; min-height: 28px; }
-#pr-tab-waves:not([hidden]) { display: flex; flex-direction: column; }
-#pr-tab-waves .wave-box { flex: 1 1 auto; position: relative; min-height: 120px; }
+#pr-tab-mix .mix { grid-auto-rows: 30px; }
+#pr-tab-mix .mix input[type=range] { max-width: none; }
+#pr-tab-waves { position: absolute; inset: 0; display: flex; flex-direction: column; }
+#pr-tab-waves .dlg-buttons { margin-top: 0; }
+#pr-tab-waves .wave-box { flex: 1 1 auto; position: relative; min-height: 60px; }
 #pr-tab-waves .wave-box canvas.waves { position: absolute; inset: 0; height: 100%; }
 #d-practice:focus, #d-practice:focus-visible { outline: none; }    /* the dialog itself: no frame when it has the focus */
 .lanes { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 13px; }
