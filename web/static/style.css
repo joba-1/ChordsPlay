@@ -281,7 +281,7 @@ details.help li { margin: 3px 0; }
    over it and fill exactly that, so switching tabs moves nothing at any window size */
 .pr-pages { position: relative; min-height: 180px; }
 .pr-pages > div[hidden] { display: block; visibility: hidden; }
-#pr-tab-mix .mix { grid-auto-rows: 30px; }
+#pr-tab-mix .mix { grid-auto-rows: 50px; }
 #pr-tab-mix .mix input[type=range] { max-width: none; }
 #pr-tab-waves { position: absolute; inset: 0; display: flex; flex-direction: column; }
 #pr-tab-waves .dlg-buttons { margin-top: 0; }

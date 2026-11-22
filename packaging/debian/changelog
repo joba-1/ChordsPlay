@@ -1,3 +1,9 @@
+chordsplay (2.1.17-1) unstable; urgency=medium
+
+  * Practice dialog: more room between the mix sliders (rows of 50 px).
+
+ -- joba1 <joba-1@users.noreply.github.com>  Sun, 22 Nov 2026 19:30:00 +0000
+
 chordsplay (2.1.16-1) unstable; urgency=medium
 
   * Practice dialog: the compact mix sets the height of the tab area, the

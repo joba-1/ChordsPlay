@@ -155,7 +155,7 @@ the timeline shows nothing useful.
 The practice dialog has two tabs: *Mix* (the sliders) and *Waves*: the song and the
 instruments you choose as waveforms over one time axis, one lane each (the shape
 matters, not the amplitude). Both tabs share one area whose height
-the mix alone sets (rows of 30 px); the waves are laid over it and fill exactly that,
+the mix alone sets (rows of 50 px, 30 px in 2.1.16); the waves are laid over it and fill exactly that,
 so switching tabs moves nothing at any window size (2.1.16; in 2.1.14 the taller tab set
 it and a small window wrapped the waves' buttons). The lanes share that height (they
 were 34 px each), the dialog and the sliders are as wide as the window (2.1.15), with the beats on the ruler, the lead marks on the
