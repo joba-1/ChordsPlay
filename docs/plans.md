@@ -4,9 +4,10 @@ Not promised; roughly in order of use.
 
 ## Mustang Micro Plus
 
-* **maneline upstream:** offer the Micro Plus changes of the fork to upstream maneline as
-  separate pull requests (Linux without Bleak, idle disconnect, backup/restore/audition/
-  check/level tools, packaging). `maneline-mmp` is withdrawn once upstream ships the same.
+* **maneline upstream:** the fork's Mustang Micro Plus changes went upstream as pull
+  requests #154, #155, #157 and #158 (backup/audition, level survey, save/restore/check,
+  Linux without Bleak), all merged; the packaging (`maneline`) follows as the last one. The fork's
+  own package is `maneline-joba1` (provides `maneline`, replaces the former `maneline-mmp`).
 * **BlueZ older than 5.86** (Debian 13, Raspberry Pi OS 13 without the opt-in BlueZ):
   a fallback in maneline that brings up the control link with `Device1.Connect` while
   Bluetooth audio is connected. Shown to work; the cost: the control link stays up as

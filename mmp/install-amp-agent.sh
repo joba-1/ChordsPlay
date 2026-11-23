@@ -6,14 +6,13 @@
 #
 # Defaults (override via environment):
 #   MANELINE_REPO    git URL       https://github.com/joba-1/maneline.git
-#   MANELINE_BRANCH  branch/commit micro-plus-preset-backup  (Linux LE bearer without bleak, idle
-#                                  disconnect, audition + preset API)
+#   MANELINE_BRANCH  branch/commit main  (the fork: upstream maneline plus what is on its way)
 #   MANELINE_REPO may also be a local checkout, e.g. ~/project/mustang-micro-test/maneline
 #   AMP_PORT         agent port    8081, or what an earlier run stored in $ENV_FILE
 set -euo pipefail
 
 REPO=${MANELINE_REPO:-https://github.com/joba-1/maneline.git}
-BRANCH=${MANELINE_BRANCH:-micro-plus-preset-backup}
+BRANCH=${MANELINE_BRANCH:-main}
 BASE=$HOME/.local/share/chordsplay
 DEST=$BASE/maneline
 VENV=$BASE/maneline-venv

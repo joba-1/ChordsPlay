@@ -4,8 +4,8 @@ Two parts, installed separately:
 
 * **The web server** (package `chordsplay`): everything except amp control. One computer
   that can read the music; any browser then plays.
-* **The Mustang parts** (package `chordsplay-mmp`, which needs `maneline` or `maneline-mmp`, see
-  [below](#maneline-mmp-or-maneline)): only for a
+* **The Mustang parts** (package `chordsplay-mmp`, which needs `maneline` or `maneline-joba1`, see
+  [below](#maneline-or-maneline-joba1)): only for a
   Fender Mustang Micro Plus, on the computer the amp is paired with (the server or
   another one).
 
@@ -213,7 +213,7 @@ Then, once:
 2. With the amp switched on: `sudo mmp-bluez-setup AA:BB:CC:DD:EE:FF` (the amp's address,
    `bluetoothctl devices`). It pairs the amp over Bluetooth LE as well and removes an entry
    from BlueZ's cache that the amp does not answer; Bluetooth restarts once. What it does,
-   and the same by hand: `MUSTANG_MICRO_PLUS_LINUX.md` in the docs of `maneline-mmp`.
+   and the same by hand: `MUSTANG_MICRO_PLUS_LINUX.md` in the docs of `maneline`.
 3. Open the ChordsPlay page, press `g`, tab *Amp*, *Set up amp control…*, and put the line it shows
    into `~/.config/chordsplay/bridge.env` (mode 600: the token in it is the bridge's key).
 4. `systemctl --user enable --now chordsplay-amp-bridge`. It runs as **your** user, the
@@ -229,45 +229,42 @@ Then, once:
   project: `sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo`
   (or `16.1`), then `sudo zypper install opus-tools`.
 
-### maneline-mmp or maneline
+### maneline or maneline-joba1
 
-Two packages carry the amp tools (`mmp-web`, `mmp-ble`, `mmp-bluez-setup`, same paths and
-commands), so only one can be installed at a time:
+Two packages carry maneline's Mustang Micro Plus programs (`mmp-web`, `mmp-ble`,
+`mmp-backup`, `mmp-restore`, `mmp-audition`, `mmp-check`, `mmp-level`, `mmp-bluez-setup`),
+with the same paths and commands, so only one can be installed at a time:
 
-| Package | Built from | Tools |
-|---|---|---|
-| `maneline-mmp` (install it first for all ChordsPlay amp features) | the fork `joba-1/maneline`, branch `micro-plus-preset-backup` | all of them, including `mmp-backup`, `mmp-restore`, `mmp-audition`, `mmp-check`, `mmp-level` |
-| `maneline` | the original `tim-littlefair/maneline`, branch `main` | only what upstream has: `mmp-web`, `mmp-ble`, `mmp-bluez-setup` |
+| Package | Built from |
+|---|---|
+| `maneline` | the original `tim-littlefair/maneline`, branch `main` |
+| `maneline-joba1` | the fork `joba-1/maneline`, branch `main`: the original plus what is on its way there |
 
-Each conflicts with the other. `chordsplay-mmp` depends on `maneline`, which `maneline-mmp`
-also provides, so it works with either and stays installed when you switch. Installing
-`chordsplay-mmp` on its own pulls in the plain `maneline`: to get the fork, install
-`maneline-mmp` first. The fork's extra tools (preset backup, audition, level survey,
-`chordsplay-match-levels`) are being migrated into `maneline` and are missing from it until
-then, so some ChordsPlay functions fail with plain `maneline`; that is expected for now, and
-a way to test what still works. When the migration is done, `maneline-mmp` goes away.
+`maneline-joba1` provides `maneline` and conflicts with it, so `chordsplay-mmp` (which
+depends on `maneline`) works with either and stays installed when you switch. Installing
+`chordsplay-mmp` on its own pulls in `maneline`; for the fork, install `maneline-joba1`
+first. `maneline-joba1` also replaces `maneline-mmp`, the fork's former package.
 
 Stop the amp agent before, and start it again after:
 
 ```bash
 systemctl --user stop chordsplay-amp-bridge
 # to the original:
-sudo zypper install --force-resolution maneline     # Arch: sudo pacman -S maneline   Debian/Ubuntu: sudo apt install maneline
-# and back to the fork:
-sudo zypper install --force-resolution maneline-mmp # Arch: sudo pacman -S maneline-mmp   Debian/Ubuntu: sudo apt install maneline-mmp
+sudo zypper install --force-resolution maneline       # Arch: sudo pacman -S maneline         Debian/Ubuntu: sudo apt install maneline
+# to the fork:
+sudo zypper install --force-resolution maneline-joba1 # Arch: sudo pacman -S maneline-joba1   Debian/Ubuntu: sudo apt install maneline-joba1
 systemctl --user start chordsplay-amp-bridge
 ```
 
 Settings, the amp's pairing and data in `~/.config/chordsplay` and `~/.local/share/chordsplay`
-stay. Backups made by the fork's `mmp-backup` are in `~/.local/share/maneline-mmp` and are
-not touched. Without the fork's tools, `mmp-backup`, `mmp-restore`, `mmp-audition`,
-`mmp-check` and `mmp-level` are missing: no preset backups, no level survey for
-`chordsplay-match-levels`, no firmware check ([web.md](web.md), "Operating it").
+stay, and so do the backups `mmp-backup` makes in `~/.local/share/maneline` (both packages
+use it). Backups of the former `maneline-mmp` are in `~/.local/share/maneline-mmp`; move them
+over with `mkdir -p ~/.local/share/maneline && mv ~/.local/share/maneline-mmp/backups ~/.local/share/maneline/`.
 
 ## Removing
 
 ```bash
-sudo zypper remove chordsplay chordsplay-mmp maneline-mmp maneline     # Arch: sudo pacman -Rns …   Debian: sudo apt purge …
+sudo zypper remove chordsplay chordsplay-mmp maneline-joba1 maneline   # Arch: sudo pacman -Rns …   Debian: sudo apt purge …
 ```
 
 The data stays, so a later install picks it up again. To remove it as well:
@@ -277,7 +274,7 @@ The data stays, so a later install picks it up again. To remove it as well:
 | database, takes, PDF tabs | `/var/lib/chordsplay` |
 | settings | `/etc/chordsplay` (openSUSE keeps a changed file as `.rpmsave`, Arch as `.pacsave`; `apt purge` removes it) |
 | service user | `chordsplay` (`sudo userdel chordsplay`) |
-| amp computer, per user | `~/.config/chordsplay`, `~/.local/share/chordsplay/levels` (level measurements and preset backups), `~/.local/share/maneline-mmp` |
+| amp computer, per user | `~/.config/chordsplay`, `~/.local/share/chordsplay/levels` (level measurements and preset backups), `~/.local/share/maneline` |
 | BlueZ | Leap: `sudo zypper removerepo home_joba1_chordsplay`, then `sudo zypper install --oldpackage "bluez<5.86"`; Debian: remove `/etc/apt/sources.list.d/chordsplay-bluez.list`, `sudo apt update`, then `sudo apt install --allow-downgrades bluez/trixie` |
 
 ## From a git checkout

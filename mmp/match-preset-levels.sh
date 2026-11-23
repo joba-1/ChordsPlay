@@ -32,7 +32,7 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 # maneline's programs: from the checkout mmp/install-amp-agent.sh made, else the
-# commands of the package maneline-mmp
+# commands of the package maneline (or maneline-joba1)
 AGENT=$HOME/.local/share/chordsplay/maneline
 if [ -x "$AGENT-venv/bin/python" ] && [ -f "$AGENT/scripts/mmp_level.py" ]; then
     MMP_BACKUP=("$AGENT-venv/bin/python" "$AGENT/scripts/mmp_backup.py")
@@ -41,7 +41,7 @@ elif command -v mmp-level >/dev/null && command -v mmp-backup >/dev/null; then
     MMP_BACKUP=(mmp-backup)
     MMP_LEVEL=(mmp-level)
 else
-    echo "maneline's Micro Plus programs are not installed (mmp/install-amp-agent.sh or the package maneline-mmp)." >&2
+    echo "maneline's Mustang Micro Plus programs are not installed (mmp/install-amp-agent.sh or the package maneline)." >&2
     exit 1
 fi
 OUT=${1:-$HOME/.local/share/chordsplay/levels}

@@ -39,7 +39,7 @@ the user's session on the server (which song, where in it) and feeds `AmpCues` f
 server's reply for the song (`SongPlan` in `mmp/bridge.py`).
 
 * **ChordsPlay never speaks Bluetooth.** The amp agent is maneline's `mmp-web` (package
-  `maneline-mmp`), running as a systemd user unit. It owns the single LE connection to the amp.
+  `maneline` or `maneline-joba1`), running as a systemd user unit. It owns the single LE connection to the amp.
   * **Why:** the amp needs a heartbeat at least every 0.5 s, and only one program may hold the link
     (with two subscribers BlueZ duplicates notifications and replies get garbled).
   * The connection should also outlive restarts of the bridge, because a reconnect costs about 3 s.
@@ -236,10 +236,10 @@ at +2.9/+5.8/−3.0/−5.8 dB at the amp's USB output (`mmp/manual_tone_level_te
 ## Installation
 
 The packages `chordsplay-mmp` (bridge, user units, `chordsplay-match-levels`) and
-`maneline-mmp` (the agent `mmp-web` and the other `mmp-*` tools); the one-time BlueZ setup
+`maneline` (the agent `mmp-web` and the other `mmp-*` tools); the one-time BlueZ setup
 (`Experimental = true`, pairing over LE as well, `mmp-bluez-setup`) and the bridge's line:
-[install.md](install.md), "The Mustang parts". maneline's Micro Plus programs come from the
-fork `joba-1/maneline` until upstream has them.
+[install.md](install.md), "The Mustang parts". The fork's package `maneline-joba1` can take
+the place of `maneline`.
 
 ## Open question
 

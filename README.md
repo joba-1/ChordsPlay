@@ -50,8 +50,9 @@ settings; other devices reach it through a reverse proxy with a login.
 
 Version 2.1.20. In daily use on one server with one amp computer (CachyOS). Built and
 installed in containers for every listed system; the Mustang parts are tested with the amp
-on Arch/CachyOS, not yet on a Raspberry Pi. maneline's Micro Plus programs
-(`maneline-mmp`) come from a fork until upstream maneline has them.
+on Arch/CachyOS, not yet on a Raspberry Pi. maneline's Mustang Micro Plus programs
+come from upstream maneline (package `maneline`) or from the fork `joba-1/maneline`
+(package `maneline-joba1`), see [docs/install.md](docs/install.md).
 
 ## What is where
 
