@@ -16,9 +16,10 @@ without root, is described [at the end](#from-a-git-checkout) for developers.
 
 The packages are built on the openSUSE Build Service, project
 [home:joba1:chordsplay](https://build.opensuse.org/project/show/home:joba1:chordsplay).
-In the commands, `R=https://download.opensuse.org/repositories/home:/joba1:/chordsplay`.
+The commands below start by setting two variables: `OBS_REPO`, where the project's
+repositories are published, and `DIST`, the repository for your system from this table:
 
-| System | Repository name |
+| System | `DIST` |
 |---|---|
 | openSUSE Tumbleweed | `openSUSE_Tumbleweed` |
 | openSUSE Leap 16.0, 16.1 | `16.0`, `16.1` |
@@ -31,7 +32,9 @@ In the commands, `R=https://download.opensuse.org/repositories/home:/joba1:/chor
 openSUSE:
 
 ```bash
-sudo zypper addrepo -f $R/openSUSE_Tumbleweed/home:joba1:chordsplay.repo
+OBS_REPO=https://download.opensuse.org/repositories/home:/joba1:/chordsplay
+DIST=openSUSE_Tumbleweed     # or 16.0, 16.1
+sudo zypper addrepo -f $OBS_REPO/$DIST/home:joba1:chordsplay.repo
 ```
 
 Arch: add to `/etc/pacman.conf`
@@ -44,15 +47,19 @@ Server = https://download.opensuse.org/repositories/home:/joba1:/chordsplay/Arch
 then trust its key:
 
 ```bash
-curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | sudo pacman-key --add -
-sudo pacman-key --lsign-key "$(curl -fsSL $R/Arch/x86_64/home_joba1_chordsplay_Arch.key | gpg --show-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
+OBS_REPO=https://download.opensuse.org/repositories/home:/joba1:/chordsplay
+KEY_URL=$OBS_REPO/Arch/x86_64/home_joba1_chordsplay_Arch.key
+curl -fsSL $KEY_URL | sudo pacman-key --add -
+sudo pacman-key --lsign-key "$(curl -fsSL $KEY_URL | gpg --show-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')"
 ```
 
-Debian, Ubuntu and Raspberry Pi OS (for Ubuntu use `Ubuntu_26.04` instead of `Debian_13`):
+Debian, Ubuntu and Raspberry Pi OS:
 
 ```bash
-curl -fsSL $R/Debian_13/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay.gpg > /dev/null
-echo "deb [signed-by=/etc/apt/keyrings/chordsplay.gpg] $R/Debian_13/ /" | sudo tee /etc/apt/sources.list.d/chordsplay.list
+OBS_REPO=https://download.opensuse.org/repositories/home:/joba1:/chordsplay
+DIST=Debian_13               # or Raspbian_13, Debian_Testing, Ubuntu_26.04
+curl -fsSL $OBS_REPO/$DIST/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay.gpg > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/chordsplay.gpg] $OBS_REPO/$DIST/ /" | sudo tee /etc/apt/sources.list.d/chordsplay.list
 sudo apt update
 ```
 
@@ -177,46 +184,25 @@ On the computer the amp is paired with, after adding the repository:
 sudo zypper install chordsplay-mmp  # Arch: sudo pacman -Syu chordsplay-mmp   Debian: sudo apt install chordsplay-mmp
 ```
 
-**BlueZ 5.86 or newer** is needed:
+This brings maneline (package `maneline`, see
+[below](#maneline-or-maneline-joba1)), whose Mustang Micro Plus programs talk to the amp.
+They need **BlueZ 5.86 or newer** and a one-time setup; both are described in maneline's
+[package README][maneline-readme], which ChordsPlay follows:
 
-| System | BlueZ |
-|---|---|
-| Tumbleweed, Arch, Debian testing | the system's own is new enough |
-| Leap 16.0, 16.1 | our repository has a current `bluez` (openSUSE's own development package); zypper asks to change the vendor of `bluez`: accept |
-| Debian 13, Raspberry Pi OS 13, Ubuntu 26.04 (BlueZ 5.85) | add the opt-in repository below |
+* **BlueZ:** section "BlueZ" there. Tumbleweed, Arch and Debian testing have a new enough
+  one. On Leap the same repository as ChordsPlay has it (zypper asks to change the vendor of
+  `bluez`: accept). Debian 13, Raspberry Pi OS 13 and Ubuntu 26.04 need the opt-in BlueZ
+  repository described there; add it only on the amp computer, and remove it once the
+  system ships 5.86 or newer.
+* **The one-time setup for the amp:** section "Installing", the paragraph after the
+  install commands (`Experimental = true`, then `mmp-bluez-setup` with the amp's address).
+  Pair the amp for audio as usual first.
 
-Why a separate repository: BlueZ replaces the system's Bluetooth stack, and apt takes any
-package with a higher version from a repository you have added. Had the main repository
-carried it, everyone who added that one for the web server would get the new BlueZ on the next
-`apt upgrade`. So it is **opt-in**: nothing installs it unless you add this second repository,
-which belongs only on the computer the amp is paired with. (On Leap the `bluez` in the main
-repository is safe: zypper asks before changing its vendor.)
+Then, for ChordsPlay:
 
-The opt-in repository for Debian 13, Raspberry Pi OS 13 and Ubuntu 26.04 has Debian testing's BlueZ 5.88
-with Raspberry Pi OS's own audio patch. It replaces the system's Bluetooth stack: add it
-only on the amp computer, and remove it once the system ships 5.86 or newer. It is not
-official and has not yet run on a real Pi. 32-bit Raspberry Pi OS: `Raspbian_13`;
-Ubuntu 26.04: use `Ubuntu_26.04` in place of `Debian_13` in the commands.
-
-```bash
-B=https://download.opensuse.org/repositories/home:/joba1:/chordsplay:/bluez/Debian_13
-curl -fsSL $B/Release.key | gpg --dearmor | sudo tee /etc/apt/keyrings/chordsplay-bluez.gpg > /dev/null
-echo "deb [signed-by=/etc/apt/keyrings/chordsplay-bluez.gpg] $B/ /" | sudo tee /etc/apt/sources.list.d/chordsplay-bluez.list
-sudo apt update && sudo apt upgrade && sudo reboot
-```
-
-Then, once:
-
-1. Put `Experimental = true` into the `[General]` section of `/etc/bluetooth/main.conf`
-   (openSUSE has no such file: create it with these two lines), then
-   `sudo systemctl restart bluetooth`. Pair the amp for audio as usual.
-2. With the amp switched on: `sudo mmp-bluez-setup AA:BB:CC:DD:EE:FF` (the amp's address,
-   `bluetoothctl devices`). It pairs the amp over Bluetooth LE as well and removes an entry
-   from BlueZ's cache that the amp does not answer; Bluetooth restarts once. What it does,
-   and the same by hand: `MUSTANG_MICRO_PLUS_LINUX.md` in the docs of `maneline`.
-3. Open the ChordsPlay page, press `g`, tab *Amp*, *Set up amp control…*, and put the line it shows
+1. Open the ChordsPlay page, press `g`, tab *Amp*, *Set up amp control…*, and put the line it shows
    into `~/.config/chordsplay/bridge.env` (mode 600: the token in it is the bridge's key).
-4. `systemctl --user enable --now chordsplay-amp-bridge`. It runs as **your** user, the
+2. `systemctl --user enable --now chordsplay-amp-bridge`. It runs as **your** user, the
    one whose session has the amp's Bluetooth audio, and starts the amp agent
    (`chordsplay-amp-agent.service`) whenever the amp is connected. The page's top right
    shows the amp's state.
@@ -226,8 +212,13 @@ Then, once:
 * Port 8081 taken on that computer: `AMP_AGENT_PORT=8091` in
   `~/.config/chordsplay/amp-agent.env`.
 * Recording takes needs `opusenc`. openSUSE Leap has it only in the openSUSE multimedia
-  project: `sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/16.0/multimedia:libs.repo`
-  (or `16.1`), then `sudo zypper install opus-tools`.
+  project:
+
+  ```bash
+  DIST=16.0                    # or 16.1
+  sudo zypper addrepo -f https://download.opensuse.org/repositories/multimedia:/libs/$DIST/multimedia:libs.repo
+  sudo zypper install opus-tools
+  ```
 
 ### maneline or maneline-joba1
 
@@ -275,7 +266,7 @@ The data stays, so a later install picks it up again. To remove it as well:
 | settings | `/etc/chordsplay` (openSUSE keeps a changed file as `.rpmsave`, Arch as `.pacsave`; `apt purge` removes it) |
 | service user | `chordsplay` (`sudo userdel chordsplay`) |
 | amp computer, per user | `~/.config/chordsplay`, `~/.local/share/chordsplay/levels` (level measurements and preset backups), `~/.local/share/maneline` |
-| BlueZ | Leap: `sudo zypper removerepo home_joba1_chordsplay`, then `sudo zypper install --oldpackage "bluez<5.86"`; Debian: remove `/etc/apt/sources.list.d/chordsplay-bluez.list`, `sudo apt update`, then `sudo apt install --allow-downgrades bluez/trixie` |
+| BlueZ | Leap: `sudo zypper removerepo home_joba1_chordsplay`, then `sudo zypper install --oldpackage "bluez<5.86"`; Debian: remove the opt-in repository's file in `/etc/apt/sources.list.d/` (`maneline-bluez.list` when set up as in maneline's README), `sudo apt update`, then `sudo apt install --allow-downgrades bluez/trixie` |
 
 ## From a git checkout
 
@@ -299,9 +290,11 @@ contrib/install.sh mmp                                 # the Mustang parts, on t
   late: `CHORDSPLAY_MUSIC_MOUNT` in `web.env`.
 * **mmp** installs maneline's agent from the fork `joba-1/maneline` with a venv in
   `~/.local/share/chordsplay/` (its setup script is `maneline/scripts/bluez_setup.sh`
-  there). With the line from step 3 above in `~/.config/chordsplay/bridge.env`, run it
+  there). With the line from step 1 above in `~/.config/chordsplay/bridge.env`, run it
   again: it installs and starts the bridge. Another agent port: `AMP_PORT=8091` once.
 * **Update:** `git pull`, then the same command again.
 * **Remove:** `contrib/install.sh --uninstall web` (and/or `mmp`); data and settings stay,
   the script says where.
 * `-n` shows what the script would do.
+
+[maneline-readme]: https://github.com/joba-1/maneline/blob/main/deployment/packages/maneline/README.md
