@@ -297,4 +297,4 @@ contrib/install.sh mmp                                 # the Mustang parts, on t
   the script says where.
 * `-n` shows what the script would do.
 
-[maneline-readme]: https://github.com/joba-1/maneline/blob/main/deployment/packages/maneline/README.md
+[maneline-readme]: https://github.com/tim-littlefair/maneline/blob/main/deployment/packages/maneline/README.md
